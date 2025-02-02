@@ -1,0 +1,115 @@
+plugins {
+    id "com.github.johnrengelman.shadow" version "8.1.1"
+}
+
+architectury {
+    platformSetupLoomIde()
+    fabric()
+}
+
+loom {
+    accessWidenerPath = project(":common").loom.accessWidenerPath
+
+    runs {
+        clientLogin {
+            client()
+            ideConfigGenerated true
+            mainClass.set 'net.covers1624.devlogin.DevLogin'
+
+            programArgs '--launch_target', 'net.fabricmc.loader.impl.launch.knot.KnotClient'
+        }
+    }
+}
+
+configurations {
+    common
+    shadowLib
+    shadowCommon // Don't use shadow from the shadow plugin because we don't want IDEA to index this.
+    shadowCommon.extendsFrom shadowLib
+    compileClasspath.extendsFrom common
+    runtimeClasspath.extendsFrom common
+    developmentFabric.extendsFrom common
+    implementation.extendsFrom shadowLib
+}
+
+dependencies {
+    modImplementation "net.fabricmc:fabric-loader:${rootProject.fabric_loader_version}"
+    modApi "net.fabricmc.fabric-api:fabric-api:${rootProject.fabric_api_version}"
+    modApi "dev.architectury:architectury-fabric:${rootProject.architectury_version}"
+    modApi ("net.creeperhost:polylib-fabric:${polylib_version}")
+
+    common(project(path: ":common", configuration: "namedElements")) { transitive false }
+    shadowCommon(project(path: ":common", configuration: "transformProductionFabric")) { transitive false }
+
+    shadowLib "blue.endless:jankson:${jankson_version}"
+    shadowLib("net.creeperhost:MineTogetherLib:${mtlib_version}") {
+        exclude group: "net.creeperhost", module: "MineTogetherSessions"
+    }
+    shadowLib("net.creeperhost:MineTogetherSessions:${mtsession_version}") {
+        transitive false
+    }
+    shadowLib("net.creeperhost:MTConnectProxyCommon:${mtproxy_version}") {
+        exclude group: "net.creeperhost", module: "MineTogetherSessions"
+        exclude group: "net.creeperhost", module: "MineTogetherLib"
+    }
+
+    shadowLib 'org.nanohttpd:nanohttpd:2.3.1'
+    shadowLib 'com.github.scribejava:scribejava-apis:6.9.0'
+    shadowLib 'com.github.scribejava:scribejava-core:6.9.0'
+}
+
+processResources {
+    inputs.property "version", project.version
+
+    filesMatching("fabric.mod.json") {
+        expand "version": project.version
+    }
+}
+
+shadowJar {
+    configurations = [project.configurations.shadowCommon]
+    archiveClassifier = "dev-shadow"
+    mergeServiceFiles()
+
+    relocate 'blue.endless', 'net.creeperhost.minetogether.repack.blue.endless'
+    relocate 'net.covers1624', 'net.creeperhost.minetogether.repack.net.covers1624'
+    relocate 'org.pircbotx', 'net.creeperhost.minetogether.repack.org.pircbotx'
+    relocate 'com.github.scribejava', 'net.creeperhost.minetogether.com.github.scribejava'
+    relocate 'fi.iki.elonen', 'net.creeperhost.minetogether.fi.iki.elonen'
+    // TODO can we switch scribejava to using Gson?
+    relocate 'com.fasterxml.jackson', 'net.creeperhost.minetogether.com.fasterxml.jackson'
+}
+
+remapJar {
+    injectAccessWidener = true
+    input.set shadowJar.archiveFile
+    dependsOn shadowJar
+    archiveBaseName.set "${rootProject.archives_base_name}-${project.name}-${rootProject.minecraft_version}"
+    archiveClassifier = null
+}
+
+jar {
+    archiveClassifier = "dev"
+}
+
+sourcesJar {
+    def commonSources = project(":common").sourcesJar
+    dependsOn commonSources
+    from commonSources.archiveFile.map { zipTree(it) }
+}
+
+components.java {
+    withVariantsFromConfiguration(project.configurations.shadowRuntimeElements) {
+        skip()
+    }
+}
+
+publishing {
+    publications {
+        mavenFabric(MavenPublication) {
+            artifactId = rootProject.archives_base_name + "-" + project.name
+            from components.java
+        }
+    }
+}
+

@@ -1,0 +1,282 @@
+package net.creeperhost.minetogethercommunity.gui;
+
+import net.creeperhost.minetogethercommunity.chat.MineTogetherChat;
+import net.creeperhost.minetogethercommunity.chat.gui.FriendChatGui;
+import net.creeperhost.minetogethercommunity.chat.gui.MTStyle;
+import net.creeperhost.minetogethercommunity.config.Config;
+import net.creeperhost.minetogethercommunity.config.LocalConfig;
+import net.creeperhost.minetogether.lib.chat.profile.Profile;
+import net.creeperhost.minetogethercommunity.oauth.KeycloakOAuth;
+import net.creeperhost.polylib.client.modulargui.ModularGui;
+import net.creeperhost.polylib.client.modulargui.ModularGuiScreen;
+import net.creeperhost.polylib.client.modulargui.elements.*;
+import net.creeperhost.polylib.client.modulargui.lib.*;
+import net.creeperhost.polylib.client.modulargui.lib.geometry.Align;
+import net.creeperhost.polylib.client.modulargui.lib.geometry.Axis;
+import net.creeperhost.polylib.client.modulargui.lib.geometry.GuiParent;
+import net.creeperhost.polylib.helpers.MathUtil;
+import net.minecraft.ChatFormatting;
+import net.minecraft.client.Minecraft;
+import net.minecraft.client.gui.screens.ConfirmScreen;
+import net.minecraft.network.chat.Component;
+import org.apache.commons.lang3.StringUtils;
+import org.jetbrains.annotations.NotNull;
+
+import java.util.function.Supplier;
+
+import static net.creeperhost.polylib.client.modulargui.lib.geometry.Constraint.*;
+import static net.creeperhost.polylib.client.modulargui.lib.geometry.Constraint.literal;
+import static net.creeperhost.polylib.client.modulargui.lib.geometry.GeoParam.*;
+import static net.creeperhost.polylib.client.modulargui.lib.geometry.GeoParam.RIGHT;
+import static net.minecraft.ChatFormatting.*;
+
+/**
+ * Created by brandon3055 on 02/10/2023
+ */
+public class SettingGui implements GuiProvider {
+
+    private boolean showBlocked = false;
+    private double blockedAnim;
+    private GuiList<Profile> blockedList;
+
+    private SettingGui() {}
+
+    @Override
+    public GuiElement<?> createRootElement(ModularGui gui) {
+        return MTStyle.Flat.background(gui);
+    }
+
+    @Override
+    public void buildGui(ModularGui gui) {
+        gui.setPauseScreen(true);
+        gui.renderScreenBackground(false);
+        gui.initFullscreenGui();
+        gui.setGuiTitle(Component.translatable("minetogether:gui.settings.title"));
+
+        GuiElement<?> root = gui.getRoot();
+        int panelWidth = 150;
+        int buttonHeight = 14;
+
+        GuiText title = new GuiText(root, gui.getGuiTitle())
+                .constrain(TOP, relative(root.get(TOP), 10))
+                .constrain(HEIGHT, literal(8))
+                .constrain(LEFT, relative(root.get(LEFT), 10))
+                .constrain(RIGHT, relative(root.get(RIGHT), -10));
+
+        GuiElement<?> settings = new GuiElement<>(root)
+                .constrain(TOP, midPoint(root.get(TOP), root.get(BOTTOM), (8*20) / -2D))
+                .constrain(LEFT, dynamic(() -> buttonPanelPos(root)))
+                .constrain(WIDTH, literal(panelWidth))
+                .constrain(HEIGHT, literal(0));
+
+        GuiButton enabled = MTStyle.Flat.button(settings, Component.empty())
+                .onPress(this::toggleEnabled)
+                .constrain(TOP, match(settings.get(TOP)))
+                .constrain(LEFT, match(settings.get(LEFT)))
+                .constrain(RIGHT, match(settings.get(RIGHT)))
+                .constrain(HEIGHT, literal(buttonHeight));
+        enabled.getLabel().setTextSupplier(() -> Component.translatable("minetogether:gui.settings.button.chat").append(state(LocalConfig.instance().chatEnabled)));
+
+        GuiButton menuButtons = MTStyle.Flat.button(settings, Component.empty())
+                .onPress(() -> setLocalConfig(() -> LocalConfig.instance().mainMenuButtons ^= true))
+                .constrain(TOP, relative(enabled.get(BOTTOM), 4))
+                .constrain(LEFT, match(settings.get(LEFT)))
+                .constrain(RIGHT, match(settings.get(RIGHT)))
+                .constrain(HEIGHT, literal(buttonHeight));
+        menuButtons.getLabel().setTextSupplier(() -> Component.translatable("minetogether:gui.settings.button.menu_buttons").append(state(LocalConfig.instance().mainMenuButtons)));
+
+        GuiButton pauseButtons = MTStyle.Flat.button(settings, Component.empty())
+                .onPress(() -> setLocalConfig(() -> Config.instance().pauseScreenButtons ^= true))
+                .constrain(TOP, relative(menuButtons.get(BOTTOM), 4))
+                .constrain(LEFT, match(settings.get(LEFT)))
+                .constrain(RIGHT, match(settings.get(RIGHT)))
+                .constrain(HEIGHT, literal(buttonHeight));
+        pauseButtons.getLabel().setTextSupplier(() -> Component.translatable("minetogether:gui.settings.button.pause_buttons").append(state(Config.instance().pauseScreenButtons)));
+
+        GuiButton toasts = MTStyle.Flat.button(settings, Component.empty())
+                .onPress(() -> setLocalConfig(() -> LocalConfig.instance().friendNotifications ^= true))
+                .constrain(TOP, relative(pauseButtons.get(BOTTOM), 4))
+                .constrain(LEFT, match(settings.get(LEFT)))
+                .constrain(RIGHT, match(settings.get(RIGHT)))
+                .constrain(HEIGHT, literal(buttonHeight));
+        toasts.getLabel().setTextSupplier(() -> Component.translatable("minetogether:gui.settings.button.friend_toasts").append(state(LocalConfig.instance().friendNotifications)));
+
+        GuiButton chatSliders = MTStyle.Flat.button(settings, Component.empty())
+                .onPress(() -> setLocalConfig(() -> LocalConfig.instance().chatSettingsSliders ^= true))
+                .constrain(TOP, relative(toasts.get(BOTTOM), 4))
+                .constrain(LEFT, match(settings.get(LEFT)))
+                .constrain(RIGHT, match(settings.get(RIGHT)))
+                .constrain(HEIGHT, literal(buttonHeight));
+        chatSliders.getLabel().setTextSupplier(() -> Component.translatable("minetogether:gui.settings.button.chat_sliders").append(state(LocalConfig.instance().chatSettingsSliders)));
+
+        GuiButton shiftClickMention = MTStyle.Flat.button(settings, Component.empty())
+                .onPress(() -> setLocalConfig(() -> LocalConfig.instance().shiftClickMention ^= true))
+                .constrain(TOP, relative(chatSliders.get(BOTTOM), 4))
+                .constrain(LEFT, match(settings.get(LEFT)))
+                .constrain(RIGHT, match(settings.get(RIGHT)))
+                .constrain(HEIGHT, literal(buttonHeight));
+        shiftClickMention.getLabel().setTextSupplier(() -> Component.translatable("minetogether:gui.settings.button.shift_click_mention").append(state(LocalConfig.instance().shiftClickMention)));
+
+        GuiButton blocked = MTStyle.Flat.button(settings, Component.translatable("minetogether:gui.settings.button.blocked"))
+                .onPress(() -> showBlocked ^= true)
+                .constrain(TOP, relative(shiftClickMention.get(BOTTOM), 4))
+                .constrain(LEFT, match(settings.get(LEFT)))
+                .constrain(RIGHT, match(settings.get(RIGHT)))
+                .constrain(HEIGHT, literal(buttonHeight));
+
+        GuiButton link = MTStyle.Flat.button(settings, Component.translatable("minetogether:gui.settings.button.link"))
+                .onPress(() -> {
+                    gui.mc().setScreen(new ConfirmScreen(b -> {
+                        if (b) {
+                            KeycloakOAuth.main(new String[0]);
+                        }
+                        gui.mc().setScreen(gui.getScreen());
+                    }, Component.translatable("minetogether:linkaccount1"), Component.translatable("minetogether:linkaccount2")));
+                })
+                .setDisabled(() -> MineTogetherChat.getOurProfile().hasAccount())
+                .constrain(TOP, relative(blocked.get(BOTTOM), 4))
+                .constrain(LEFT, match(settings.get(LEFT)))
+                .constrain(RIGHT, match(settings.get(RIGHT)))
+                .constrain(HEIGHT, literal(buttonHeight));
+
+        GuiButton profileScreen = MTStyle.Flat.button(settings, () -> Component.translatable("minetogether:gui.settings.button.profile"))
+                .onPress(() -> gui.mc().setScreen(new ProfileGui.Screen(gui.getScreen())))
+                .constrain(TOP, relative(link.get(BOTTOM), 4))
+                .constrain(LEFT, match(settings.get(LEFT)))
+                .constrain(RIGHT, match(settings.get(RIGHT)))
+                .constrain(HEIGHT, literal(buttonHeight));
+
+        GuiButton back = MTStyle.Flat.button(settings, Component.translatable("minetogether:gui.button.back"))
+                .onPress(() -> gui.mc().setScreen(gui.getParentScreen()))
+                .constrain(TOP, relative(profileScreen.get(BOTTOM), 16))
+                .constrain(LEFT, match(settings.get(LEFT)))
+                .constrain(RIGHT, match(settings.get(RIGHT)))
+                .constrain(HEIGHT, literal(buttonHeight));
+
+        //Blocked Users
+        GuiElement<?> blockedBg = MTStyle.Flat.contentArea(root)
+                .setEnabled(() -> blockedAnim == 1)
+                .constrain(LEFT, midPoint(root.get(LEFT), root.get(RIGHT), 5))
+                .constrain(WIDTH, literal(panelWidth))
+                .constrain(TOP, match(enabled.get(TOP)))
+                .constrain(BOTTOM, match(back.get(BOTTOM)));
+
+        GuiText blockedTitle = new GuiText(blockedBg, Component.translatable("minetogether:gui.settings.button.blocked").withStyle(UNDERLINE))
+                .constrain(BOTTOM, relative(blockedBg.get(TOP), -3))
+                .constrain(HEIGHT, literal(8))
+                .constrain(LEFT, match(blockedBg.get(LEFT)))
+                .constrain(RIGHT, match(blockedBg.get(RIGHT)));
+
+        blockedList = new GuiList<Profile>(blockedBg)
+                .setDisplayBuilder(BlockedEntry::new)
+                .setItemSpacing(2);
+        Constraints.bind(blockedList, blockedBg, 5);
+
+        var scrollBar = MTStyle.Flat.scrollBar(blockedBg, Axis.Y);
+        scrollBar.container
+                .setEnabled(() -> blockedList.hiddenSize() > 0)
+                .constrain(TOP, match(blockedList.get(TOP)))
+                .constrain(BOTTOM, match(blockedList.get(BOTTOM)))
+                .constrain(RIGHT, match(blockedBg.get(RIGHT)))
+                .constrain(WIDTH, literal(4));
+        scrollBar.primary
+                .setScrollableElement(blockedList)
+                .setSliderState(blockedList.scrollState());
+
+        updateBlockedList();
+        gui.onTick(this::tick);
+        gui.onResize(this::updateBlockedList);
+    }
+
+    private void updateBlockedList() {
+        blockedList.getList().clear();
+        blockedList.markDirty();
+        String search = "";
+        for (Profile mutedProfile : MineTogetherChat.CHAT_STATE.profileManager.getMutedProfiles()) {
+            if (StringUtils.isEmpty(search) || StringUtils.containsAnyIgnoreCase(mutedProfile.getDisplayName(), search)) {
+                blockedList.add(mutedProfile);
+            }
+        }
+    }
+
+    private void tick() {
+        if (showBlocked && blockedAnim < 1) {
+            blockedAnim = Math.min(1, blockedAnim + 0.2);
+        } else if (!showBlocked && blockedAnim > 0) {
+            blockedAnim = Math.max(0, blockedAnim - 0.2);
+        }
+    }
+
+    private double buttonPanelPos(GuiElement<?> root) {
+        double partial = (showBlocked ? 0.2 : -0.2) * Minecraft.getInstance().getDeltaTracker().getGameTimeDeltaPartialTick(false);
+        double anim = MathUtil.clamp(blockedAnim + partial, 0, 1);
+        return (root.xCenter() - 75D - (80D * anim));
+    }
+
+    private static Component state(boolean state) {
+        if (state) {
+            return Component.translatable("minetogether:gui.settings.button.enabled").withStyle(ChatFormatting.GREEN);
+        }
+        return Component.translatable("minetogether:gui.settings.button.disabled").withStyle(ChatFormatting.RED);
+    }
+
+    private void toggleEnabled() {
+        LocalConfig config = LocalConfig.instance();
+        if (config.chatEnabled) {
+            MineTogetherChat.disableChat();
+            config.chatEnabled = false;
+        } else {
+            MineTogetherChat.enableChat();
+            config.chatEnabled = true;
+        }
+        LocalConfig.save();
+    }
+
+    private void setLocalConfig(Runnable set) {
+        set.run();
+        LocalConfig.save();
+        Config.save();
+    }
+
+    private class BlockedEntry extends GuiElement<BlockedEntry> implements BackgroundRender {
+        public BlockedEntry(@NotNull GuiParent<?> parent, Profile profile) {
+            super(parent);
+            this.constrain(HEIGHT, literal(14));
+
+            GuiText name = new GuiText(this, Component.empty())
+                    .setTextSupplier(() -> Component.literal(FriendChatGui.displayName(profile)))
+                    .setShadow(false)
+                    .setAlignment(Align.LEFT)
+                    .constrain(TOP, relative(get(TOP), 2))
+                    .constrain(LEFT, relative(get(LEFT), 5))
+                    .constrain(RIGHT, relative(get(RIGHT), -14))
+                    .constrain(HEIGHT, literal(9));
+
+            GuiButton unblock = MTStyle.Flat.button(this, (Supplier<Component>) null)
+                    .setTooltip(Component.translatable("minetogether:gui.settings.button.unblock.info"))
+                    .setTooltipDelay(0)
+                    .onPress(() -> {
+                        profile.unmute();
+                        updateBlockedList();
+                    })
+                    .constrain(TOP, match(get(TOP)))
+                    .constrain(BOTTOM, match(get(BOTTOM)))
+                    .constrain(RIGHT, match(get(RIGHT)))
+                    .constrain(WIDTH, literal(14));
+
+            GuiTexture removeTex = new GuiTexture(unblock, MTTextures.get("buttons/delete"));
+            Constraints.bind(removeTex, unblock, 2);
+        }
+
+        @Override
+        public void renderBehind(GuiRender render, double mouseX, double mouseY, float partialTicks) {
+            render.rect(getRectangle(), MTStyle.Flat.listEntryBackground(true));
+        }
+    }
+
+    public static class Screen extends ModularGuiScreen {
+        public Screen(net.minecraft.client.gui.screens.Screen parentScreen) {
+            super(new SettingGui(), parentScreen);
+        }
+    }
+}

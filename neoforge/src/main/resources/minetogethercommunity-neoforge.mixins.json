@@ -1,0 +1,7 @@
+{
+    "required": true,
+    "minVersion": "0.7.11",
+    "package": "net.creeperhost.minetogethercommunity.neoforge.mixin",
+    "client": [
+    ]
+}

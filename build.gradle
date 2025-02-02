@@ -1,0 +1,71 @@
+import org.jetbrains.gradle.ext.ActionDelegationConfig.TestRunner
+
+plugins {
+    id "architectury-plugin" version "3.4-SNAPSHOT"
+    id "dev.architectury.loom" version "1.7-SNAPSHOT" apply false
+    id "org.jetbrains.gradle.plugin.idea-ext" version "1.1.5"
+}
+
+architectury {
+    minecraft = rootProject.minecraft_version
+}
+
+subprojects {
+    apply plugin: "dev.architectury.loom"
+
+    loom {
+        silentMojangMappingsLicense()
+
+        // Enable Java assertions on all run configs
+        runConfigs.each {
+            it.vmArg '-ea'
+        }
+    }
+
+    dependencies {
+        minecraft "com.mojang:minecraft:${rootProject.minecraft_version}"
+
+        mappings loom.officialMojangMappings()
+
+        localRuntime 'net.covers1624:DevLogin:0.1.0.5'
+    }
+}
+
+allprojects {
+    apply plugin: "java"
+    apply plugin: "architectury-plugin"
+    apply plugin: "maven-publish"
+
+    archivesBaseName = rootProject.archives_base_name
+    version = rootProject.mod_version
+    group = rootProject.maven_group
+
+    repositories {
+        mavenLocal()
+        maven {
+            name "CreeperHost"
+            url 'https://maven.creeperhost.net'
+        }
+        maven { url "https://maven.ftb.dev/releases" }
+    }
+
+    tasks.withType(JavaCompile) {
+        options.encoding = "UTF-8"
+        options.release = 21
+    }
+
+    java {
+        withSourcesJar()
+    }
+}
+
+// Why in gods name is Architectry forcing both these to Gradle.
+// That is the most retarded thing I have ever seen, this framework needs to die in a hole.
+afterEvaluate {
+    idea.project.settings {
+        delegateActions {
+            // Give us non retarded unit testing and proper IDE integration.
+            testRunner = TestRunner.PLATFORM
+        }
+    }
+}
