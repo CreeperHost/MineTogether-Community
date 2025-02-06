@@ -5,6 +5,8 @@ import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
 import dev.architectury.platform.Platform;
 import net.covers1624.quack.gson.JsonUtils;
+import net.creeperhost.minetogether.lib.web.requests.GetCurseForgeVersionRequest;
+import net.creeperhost.minetogether.lib.web.requests.GetModpacksCHVersionRequest;
 import net.creeperhost.minetogethercommunity.MineTogether;
 import net.creeperhost.minetogethercommunity.config.Config;
 import org.apache.commons.lang3.StringUtils;

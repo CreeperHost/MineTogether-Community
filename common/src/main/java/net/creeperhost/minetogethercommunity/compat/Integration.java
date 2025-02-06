@@ -9,7 +9,7 @@ import java.util.function.Supplier;
  */
 public class Integration {
 
-    public static void loadOptionalIntegration(String modid, Supplier<Runnable> runnable) {
+    public static void runOptional(String modid, Supplier<Runnable> runnable) {
         if (Platform.isModLoaded(modid)) {
             runnable.get().run();
         }
