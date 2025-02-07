@@ -154,7 +154,7 @@ public class MineTogetherChat {
 
     private static void addToast(Toast toast) {
         if (hasHitLoadingScreen) {
-            Minecraft.getInstance().getToastManager().addToast(toast);
+            Minecraft.getInstance().getToasts().addToast(toast);
         } else {
             // YEET, too bad.
         }

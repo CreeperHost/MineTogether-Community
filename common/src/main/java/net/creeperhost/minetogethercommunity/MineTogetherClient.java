@@ -9,6 +9,8 @@ import net.creeperhost.minetogether.session.MineTogetherSession;
 import net.creeperhost.minetogethercommunity.chat.FriendChatNotifier;
 import net.creeperhost.minetogethercommunity.chat.MineTogetherChat;
 import net.creeperhost.minetogethercommunity.chat.gui.ChatScreenInjection;
+import net.creeperhost.minetogethercommunity.compat.Integration;
+import net.creeperhost.minetogethercommunity.compat.companion.FTBPackCompanionCompat;
 import net.creeperhost.minetogethercommunity.config.Config;
 import net.creeperhost.minetogethercommunity.connect.MineTogetherConnect;
 import net.creeperhost.minetogethercommunity.gui.SettingGui;
@@ -62,7 +64,7 @@ public class MineTogetherClient {
         ClientGuiEvent.INIT_POST.register(MineTogetherClient::onScreenOpen);
         ClientCommandRegistrationEvent.EVENT.register(MineTogetherClient::registerClientCommands);
 
-//        Integration.loadOptionalIntegration("ftbpc", () -> FTBPackCompanionCompat::init);
+        Integration.runOptional("ftbpc", () -> FTBPackCompanionCompat::init);
     }
 
     private static void registerClientCommands(CommandDispatcher<ClientCommandRegistrationEvent.ClientCommandSourceStack> dispatcher, CommandBuildContext context) {

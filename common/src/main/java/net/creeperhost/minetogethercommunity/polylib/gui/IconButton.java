@@ -1,8 +1,8 @@
 package net.creeperhost.minetogethercommunity.polylib.gui;
 
+import com.mojang.blaze3d.systems.RenderSystem;
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.gui.components.Button;
-import net.minecraft.client.renderer.RenderType;
 import net.minecraft.network.chat.Component;
 import net.minecraft.resources.ResourceLocation;
 
@@ -55,12 +55,13 @@ public class IconButton extends Button {
             if (isHovered) {
                 fillColor = 0x64202020;
             }
+            RenderSystem.setShaderColor(1.0F, 1.0F, 1.0F, 1.0F);
             graphics.fill(getX(), getY(), getX() + width, getY() + height, fillColor);
-            graphics.blit(RenderType::guiTextured, sheet, getX(), getY(), 0, 0, width, height, width, height);
+            graphics.blit(sheet, getX(), getY(), 0, 0, width, height, width, height);
         } else {
             int yOffset = !active ? 40 : isHovered ? 20 : 0;
-            //x, y, u, v, width, height, texWidth, texHeight
-            graphics.blit(RenderType::guiTextured, sheet, getX(), getY(), index * 20, yOffset, width, height, 256, 256);
+            RenderSystem.setShaderColor(1.0F, 1.0F, 1.0F, 1.0F);
+            graphics.blit(sheet, getX(), getY(), index * 20, yOffset, width, height);
         }
     }
 }
