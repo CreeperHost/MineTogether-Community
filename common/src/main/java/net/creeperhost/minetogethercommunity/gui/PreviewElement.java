@@ -253,7 +253,7 @@ public class PreviewElement extends GuiElement<PreviewElement> {
             if (glTexture == -1) {
                 glTexture = TextureUtil.generateTextureId();
                 TextureUtil.prepareImage(glTexture, 0, image.getWidth(), image.getHeight());
-                image.upload(0, 0, 0, 0, 0, image.getWidth(), image.getHeight(), true);
+                image.upload(0, 0, 0, 0, 0, image.getWidth(), image.getHeight(), false, true);
             }
 
             double x2 = x + width;

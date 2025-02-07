@@ -12,7 +12,7 @@ import net.neoforged.neoforge.data.event.GatherDataEvent;
 public class DataGenEventHandler {
 
     @SubscribeEvent
-    public static void gatherData(GatherDataEvent.Client event) {
+    public static void gatherData(GatherDataEvent event) {
         DataGenerator gen = event.getGenerator();
 
         gen.addProvider(true, new LangGenerator(gen.getPackOutput()));

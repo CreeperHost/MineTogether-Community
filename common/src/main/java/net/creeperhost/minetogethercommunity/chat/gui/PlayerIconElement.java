@@ -77,13 +77,11 @@ public class PlayerIconElement extends GuiElement<PlayerIconElement> implements 
         }
 
         mc().getSkinManager().getOrLoad(profile).thenAcceptAsync(e -> {
-            e.ifPresent(playerSkin -> {
-                if (!playerSkin.texture().equals(DefaultPlayerSkin.getDefaultTexture())) {
-                    skinType = GuiRender.texType(playerSkin.texture());
-                } else {
-                    textureFail = true;
-                }
-            });
+            if (!e.texture().equals(DefaultPlayerSkin.getDefaultTexture())) {
+                skinType = GuiRender.texType(e.texture());
+            } else {
+                textureFail = true;
+            }
         }, Minecraft.getInstance());
     }
 }
