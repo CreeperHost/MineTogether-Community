@@ -267,12 +267,13 @@ public class PreviewElement extends GuiElement<PreviewElement> {
             RenderSystem.setShader(GameRenderer::getPositionTexShader);
             Matrix4f matrix4f = render.pose().last().pose();
 
-            BufferBuilder bufferBuilder = Tesselator.getInstance().begin(VertexFormat.Mode.QUADS, DefaultVertexFormat.POSITION_TEX);
-            bufferBuilder.addVertex(matrix4f, (float) x, (float) y, (float) 0).setUv(0, 0);
-            bufferBuilder.addVertex(matrix4f, (float) x, (float) y2, (float) 0).setUv(0, 1);
-            bufferBuilder.addVertex(matrix4f, (float) x2, (float) y2, (float) 0).setUv(1, 1);
-            bufferBuilder.addVertex(matrix4f, (float) x2, (float) y, (float) 0).setUv(1, 0);
-            BufferUploader.drawWithShader(bufferBuilder.build());
+            BufferBuilder bufferBuilder = Tesselator.getInstance().getBuilder();
+            bufferBuilder.begin(VertexFormat.Mode.QUADS, DefaultVertexFormat.POSITION_TEX);
+            bufferBuilder.vertex(matrix4f, (float)x, (float)y, (float)0).uv(0, 0).endVertex();
+            bufferBuilder.vertex(matrix4f, (float)x, (float)y2, (float)0).uv(0, 1).endVertex();
+            bufferBuilder.vertex(matrix4f, (float)x2, (float)y2, (float)0).uv(1, 1).endVertex();
+            bufferBuilder.vertex(matrix4f, (float)x2, (float)y, (float)0).uv(1, 0).endVertex();
+            BufferUploader.drawWithShader(bufferBuilder.end());
         }
 
         public void close() {

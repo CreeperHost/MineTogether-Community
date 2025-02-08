@@ -1,12 +1,10 @@
 package net.creeperhost.minetogethercommunity.oauth;
-
 import net.minecraft.ChatFormatting;
 import net.minecraft.network.Connection;
-import net.minecraft.network.DisconnectionDetails;
+import net.minecraft.network.chat.Component;
 import net.minecraft.network.protocol.common.*;
-import net.minecraft.network.protocol.cookie.ClientboundCookieRequestPacket;
 import net.minecraft.network.protocol.game.*;
-import net.minecraft.network.protocol.ping.ClientboundPongResponsePacket;
+import net.minecraft.network.protocol.status.ClientboundPongResponsePacket;
 
 public class ClientPlayNetHandlerOurs implements ClientGamePacketListener {
 
@@ -17,13 +15,13 @@ public class ClientPlayNetHandlerOurs implements ClientGamePacketListener {
     }
 
     @Override
-    public void onDisconnect(DisconnectionDetails details) {
-        ServerAuthTest.disconnected(ChatFormatting.stripFormatting(details.reason().getString()));
+    public void onDisconnect(Component reason) {
+        ServerAuthTest.disconnected(ChatFormatting.stripFormatting(reason.getString()));
     }
 
     @Override
     public void handleDisconnect(ClientboundDisconnectPacket packetIn) {
-        networkManagerIn.disconnect(packetIn.reason());
+        networkManagerIn.disconnect(packetIn.getReason());
     }
 
     @Override
@@ -147,13 +145,5 @@ public class ClientPlayNetHandlerOurs implements ClientGamePacketListener {
     @Override public void handleChunkBatchStart(ClientboundChunkBatchStartPacket clientboundChunkBatchStartPacket) { }
     @Override public void handleChunkBatchFinished(ClientboundChunkBatchFinishedPacket clientboundChunkBatchFinishedPacket) { }
     @Override public void handlePongResponse(ClientboundPongResponsePacket clientboundPongResponsePacket) { }
-
-    @Override public void handleDebugSample(ClientboundDebugSamplePacket clientboundDebugSamplePacket) { }
-    @Override public void handleProjectilePowerPacket(ClientboundProjectilePowerPacket clientboundProjectilePowerPacket) { }
-    @Override public void handleStoreCookie(ClientboundStoreCookiePacket clientboundStoreCookiePacket) { }
-    @Override public void handleTransfer(ClientboundTransferPacket clientboundTransferPacket) { }
-    @Override public void handleCustomReportDetails(ClientboundCustomReportDetailsPacket clientboundCustomReportDetailsPacket) { }
-    @Override public void handleServerLinks(ClientboundServerLinksPacket clientboundServerLinksPacket) { }
-    @Override public void handleRequestCookie(ClientboundCookieRequestPacket clientboundCookieRequestPacket) { }
     //@formatter:on
 }

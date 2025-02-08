@@ -2,24 +2,21 @@ package net.creeperhost.minetogethercommunity.connect.gui;
 
 import com.google.common.collect.Lists;
 import com.mojang.authlib.GameProfile;
+import net.creeperhost.minetogether.lib.chat.profile.Profile;
+import net.creeperhost.minetogether.session.JWebToken;
+import net.creeperhost.minetogether.session.MineTogetherSession;
 import net.creeperhost.minetogethercommunity.connect.ConnectHandler;
 import net.creeperhost.minetogethercommunity.connect.ConnectHost;
 import net.creeperhost.minetogethercommunity.connect.RemoteServer;
 import net.creeperhost.minetogethercommunity.connect.netty.NettyClient;
-import net.creeperhost.minetogether.lib.chat.profile.Profile;
-import net.creeperhost.minetogether.session.JWebToken;
-import net.creeperhost.minetogether.session.MineTogetherSession;
 import net.minecraft.ChatFormatting;
 import net.minecraft.Util;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.screens.multiplayer.JoinMultiplayerScreen;
 import net.minecraft.client.gui.screens.multiplayer.ServerSelectionList;
 import net.minecraft.network.Connection;
-import net.minecraft.network.DisconnectionDetails;
 import net.minecraft.network.chat.CommonComponents;
 import net.minecraft.network.chat.Component;
-import net.minecraft.network.protocol.ping.ClientboundPongResponsePacket;
-import net.minecraft.network.protocol.ping.ServerboundPingRequestPacket;
 import net.minecraft.network.protocol.status.ClientStatusPacketListener;
 import net.minecraft.network.protocol.status.ClientboundStatusResponsePacket;
 import net.minecraft.network.protocol.status.ServerStatus;
@@ -181,13 +178,13 @@ public class ServerListAppender {
                     });
 
                     this.pingStart = Util.getMillis();
-                    connection.send(new ServerboundPingRequestPacket(this.pingStart));
+                    connection.send(new net.minecraft.network.protocol.status.ServerboundPingRequestPacket(this.pingStart));
                     this.success = true;
                 }
             }
 
             @Override
-            public void handlePongResponse(ClientboundPongResponsePacket clientboundPongResponsePacket) {
+            public void handlePongResponse(net.minecraft.network.protocol.status.ClientboundPongResponsePacket clientboundPongResponsePacket) {
                 long l = this.pingStart;
                 long m = Util.getMillis();
                 server.ping = m - l;
@@ -195,9 +192,9 @@ public class ServerListAppender {
             }
 
             @Override
-            public void onDisconnect(DisconnectionDetails details) {
+            public void onDisconnect(Component component) {
                 if (!this.success) {
-                    onPingFailed(details.reason(), server, profile);
+                    onPingFailed(component, server, profile);
 //                    pingLegacyServer(inetSocketAddress, server);
                 }
             }
@@ -211,7 +208,7 @@ public class ServerListAppender {
         try {
             ConnectHost endpoint = ConnectHandler.getEndpoint();
             connection.initiateServerboundStatusConnection(endpoint.address(), endpoint.proxyPort(), listener);
-            connection.send(ServerboundStatusRequestPacket.INSTANCE);
+            connection.send(new ServerboundStatusRequestPacket());
         } catch (Throwable var8) {
             LOGGER.error("Failed to ping friend server {}", server.friend, var8);
         }
@@ -247,29 +244,3 @@ public class ServerListAppender {
         return serverList;
     }
 }
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-

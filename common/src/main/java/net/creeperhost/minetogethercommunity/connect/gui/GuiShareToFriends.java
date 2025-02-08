@@ -55,7 +55,7 @@ public class GuiShareToFriends implements GuiProvider {
     public void buildGui(ModularGui gui) {
         IntegratedServer integratedServer = gui.mc().getSingleplayerServer();
         gameMode = integratedServer.getDefaultGameType();
-        commands = integratedServer.getWorldData().isAllowCommands();
+        commands = integratedServer.getWorldData().getAllowCommands();
 
         gui.initFullscreenGui();
         GuiElement<?> root = gui.getRoot();

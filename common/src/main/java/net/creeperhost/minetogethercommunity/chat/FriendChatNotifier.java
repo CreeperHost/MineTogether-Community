@@ -115,7 +115,7 @@ public class FriendChatNotifier {
             GuiMessage guimessage = listiterator.next();
             if (signature.equals(guimessage.signature())) {
                 listiterator.remove();
-                MineTogetherChat.vanillaChat.refreshTrimmedMessages();
+                MineTogetherChat.vanillaChat.refreshTrimmedMessage();
             }
         }
     }

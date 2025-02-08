@@ -25,7 +25,7 @@ import net.minecraft.network.protocol.PacketFlow;
 import net.minecraft.server.network.LegacyQueryHandler;
 import net.minecraft.server.network.ServerConnectionListener;
 import net.minecraft.server.network.ServerHandshakePacketListenerImpl;
-import net.minecraft.util.debugchart.LocalSampleLogger;
+import net.minecraft.util.SampleLogger;
 import org.apache.commons.lang3.NotImplementedException;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -191,7 +191,7 @@ public class NettyClient {
         }
     }
 
-    public static Connection connect(ConnectHost endpoint, JWebToken session, String serverToken, @Nullable LocalSampleLogger bwLogger, boolean isQuery) {
+    public static Connection connect(ConnectHost endpoint, JWebToken session, String serverToken, @Nullable SampleLogger bwLogger, boolean isQuery) {
         boolean[] isConnecting = { true };
         Throwable[] error = new Throwable[1];
         Connection connection = new Connection(PacketFlow.CLIENTBOUND);
@@ -200,8 +200,9 @@ public class NettyClient {
 
             @Override
             protected void buildPipeline(ChannelPipeline pipeline) {
+                Connection.setInitialProtocolAttributes(pipeline.channel());
                 pipeline.addLast("mt:raw", new RawCodec());
-                Connection.configureSerialization(pipeline, PacketFlow.CLIENTBOUND, false, connection.bandwidthDebugMonitor);
+                Connection.configureSerialization(pipeline, PacketFlow.CLIENTBOUND, connection.bandwidthDebugMonitor);
                 connection.configurePacketHandler(pipeline);
             }
 
@@ -265,16 +266,17 @@ public class NettyClient {
 
             @Override
             protected void buildPipeline(ChannelPipeline pipeline) {
+                Connection.setInitialProtocolAttributes(pipeline.channel());
                 pipeline.addLast("mt:raw", new RawCodec());
                 pipeline.addLast("legacy_query", new LegacyQueryHandler(server));
-                Connection.configureSerialization(pipeline, PacketFlow.SERVERBOUND, false, null);
+                Connection.configureSerialization(pipeline, PacketFlow.SERVERBOUND, null);
                 connection.configurePacketHandler(pipeline);
             }
 
             @Override
             public void channelReady() {
                 super.channelReady();
-                connection.setListenerForServerboundHandshake(new ServerHandshakePacketListenerImpl(server, connection));
+                connection.setListener(new ServerHandshakePacketListenerImpl(server, connection));
                 sendPacket(new SHostConnect(session.toString(), linkToken));
             }
 

@@ -43,6 +43,7 @@ import java.util.List;
 public class MineTogetherClient {
 
     private static final Logger LOGGER = LogManager.getLogger();
+    private static ModularGuiInjector<ChatScreen> chatScreenInjection = new ModularGuiInjector<>(e -> e instanceof ChatScreen, e -> new ChatScreenInjection());
 
     public static void init() {
         LOGGER.info("Initializing MineTogetherCommunityClient!");
@@ -58,8 +59,6 @@ public class MineTogetherClient {
         MineTogetherConnect.init();
         FriendChatNotifier.init();
         Keybindings.init();
-
-        ModularGuiInjector.registerInjection(e -> e instanceof ChatScreen, e -> new ChatScreenInjection());
 
         ClientGuiEvent.INIT_POST.register(MineTogetherClient::onScreenOpen);
         ClientCommandRegistrationEvent.EVENT.register(MineTogetherClient::registerClientCommands);

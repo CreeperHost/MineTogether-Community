@@ -2,13 +2,13 @@ package net.creeperhost.minetogethercommunity.neoforge.datagen;
 
 import net.minecraft.data.DataGenerator;
 import net.neoforged.bus.api.SubscribeEvent;
-import net.neoforged.fml.common.EventBusSubscriber;
+import net.neoforged.fml.common.Mod;
 import net.neoforged.neoforge.data.event.GatherDataEvent;
 
 /**
  * Created by brandon3055 on 02/02/2025
  */
-@EventBusSubscriber (bus = EventBusSubscriber.Bus.MOD)
+@Mod.EventBusSubscriber (bus = Mod.EventBusSubscriber.Bus.MOD)
 public class DataGenEventHandler {
 
     @SubscribeEvent

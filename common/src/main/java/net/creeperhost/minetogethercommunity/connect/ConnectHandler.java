@@ -169,7 +169,7 @@ public class ConnectHandler {
             server.publishedPort = 0; // Doesn't matter, just set to _something_.
         }
         server.publishedGameType = gameType;
-        server.getPlayerList().setAllowCommandsForAllPlayers(cheats);
+        server.getPlayerList().setAllowCheatsForAllPlayers(cheats);
         mc.player.setPermissionLevel(server.getProfilePermissions(mc.player.getGameProfile()));
 
         for (ServerPlayer player : server.getPlayerList().getPlayers()) {

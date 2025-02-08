@@ -67,7 +67,7 @@ public class FriendConnectScreen extends ConnectScreen {
                         connection.initiateServerboundPlayConnection(
                                 endpoint.address(),
                                 endpoint.proxyPort(),                                        //TODO This v may break....
-                                new ClientHandshakePacketListenerImpl(connection, minecraft, new ServerData("", "", ServerData.Type.OTHER), parent, false, (Duration) null, FriendConnectScreen.this::updateStatus, null)
+                                new ClientHandshakePacketListenerImpl(connection, minecraft, new ServerData("", "", ServerData.Type.OTHER), parent, false, (Duration) null, FriendConnectScreen.this::updateStatus)
                         );
                         connection.send(new ServerboundHelloPacket(minecraft.getUser().getName(), minecraft.getUser().getProfileId()));
                     }
