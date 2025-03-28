@@ -2,6 +2,8 @@ package net.creeperhost.minetogethercommunity.neoforge;
 
 import net.creeperhost.minetogethercommunity.MineTogether;
 import net.creeperhost.minetogethercommunity.chat.MineTogetherChat;
+import net.creeperhost.minetogethercommunity.compat.Integration;
+import net.creeperhost.minetogethercommunity.neoforge.compat.pausemenu.PauseMenuIntegration;
 import net.neoforged.bus.api.IEventBus;
 import net.neoforged.fml.common.Mod;
 import net.neoforged.fml.loading.FMLEnvironment;
@@ -20,6 +22,7 @@ public class MineTogetherNeoForge {
         if (FMLEnvironment.dist.isClient()) {
             NeoForge.EVENT_BUS.addListener(this::clientInit);
             NeoForgeClientEvents.init(eventBus);
+            Integration.runOptional("ftbpmapi", () -> PauseMenuIntegration::init);
         }
     }
 
