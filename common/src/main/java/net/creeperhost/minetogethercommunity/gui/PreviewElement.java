@@ -8,6 +8,7 @@ import com.mojang.blaze3d.platform.NativeImage;
 import com.mojang.blaze3d.platform.TextureUtil;
 import com.mojang.blaze3d.systems.RenderSystem;
 import com.mojang.blaze3d.vertex.*;
+import net.creeperhost.minetogethercommunity.MineTogether;
 import net.creeperhost.minetogethercommunity.chat.gui.MessageElement;
 import net.creeperhost.minetogether.lib.chat.message.Message;
 import net.creeperhost.minetogethercommunity.util.MessageFormatter;
@@ -15,10 +16,13 @@ import net.creeperhost.polylib.client.modulargui.elements.GuiElement;
 import net.creeperhost.polylib.client.modulargui.elements.GuiList;
 import net.creeperhost.polylib.client.modulargui.lib.GuiRender;
 import net.creeperhost.polylib.client.modulargui.lib.geometry.GuiParent;
-import net.minecraft.client.renderer.CoreShaders;
+import net.creeperhost.polylib.client.modulargui.sprite.Material;
+import net.minecraft.client.Minecraft;
+import net.minecraft.client.renderer.texture.DynamicTexture;
 import net.minecraft.network.chat.Component;
 import net.minecraft.network.chat.HoverEvent;
 import net.minecraft.network.chat.Style;
+import net.minecraft.resources.ResourceLocation;
 import org.apache.http.HttpEntity;
 import org.apache.http.client.methods.CloseableHttpResponse;
 import org.apache.http.client.methods.HttpGet;
@@ -73,6 +77,7 @@ public class PreviewElement extends GuiElement<PreviewElement> {
             .removalListener(e -> {
                 if (e.wasEvicted()) {
                     try {
+                        assert e.getValue() != null;
                         ((ImageLoader) e.getValue()).close();
                     } catch (Exception ex) {
                         LOGGER.warn("Failed to close Preview: {}", e.getKey(), ex);
@@ -155,10 +160,9 @@ public class PreviewElement extends GuiElement<PreviewElement> {
     public static URL urlFromStyle(@Nullable Style style) {
         if (style == null) return null;
         HoverEvent event = style.getHoverEvent();
-        if (event == null || event.getAction() != MessageFormatter.SHOW_URL_PREVIEW) return null;
-        Component value = event.getValue(MessageFormatter.SHOW_URL_PREVIEW);
+        if (!(event instanceof ShowPreviewHoverEvent showPreview)) return null;
         try {
-            return URI.create(value.getString()).toURL();
+            return URI.create(showPreview.getUrl()).toURL();
         } catch (Throwable ex) {
             return null;
         }
@@ -187,8 +191,9 @@ public class PreviewElement extends GuiElement<PreviewElement> {
     private static class ImageLoader {
         @Nullable
         private NativeImage image = null;
-        private int glTexture = -1;
+        private ResourceLocation textureId = null;
         private volatile boolean loaded = false;
+        private static int textureIndex = 0;
 
         private void load(URL url, boolean ogRedirect) {
             try (CloseableHttpResponse response = HTTP_CLIENT.execute(new HttpGet(url.toURI()))) {
@@ -250,30 +255,18 @@ public class PreviewElement extends GuiElement<PreviewElement> {
         }
 
         public void render(GuiRender render, double x, double y, double width, double height) {
-            if (glTexture == -1) {
-                glTexture = TextureUtil.generateTextureId();
-                TextureUtil.prepareImage(glTexture, 0, image.getWidth(), image.getHeight());
-                image.upload(0, 0, 0, 0, 0, image.getWidth(), image.getHeight(), true);
+            if (textureId == null) {
+                textureId = ResourceLocation.fromNamespaceAndPath(MineTogether.MOD_ID, "img_preview/" + textureIndex++);
+                Minecraft.getInstance().getTextureManager().register(textureId, new DynamicTexture(null, image));
             }
 
-            double x2 = x + width;
-            double y2 = y + height;
-            RenderSystem.setShaderTexture(0, glTexture);
-            RenderSystem.setShader(CoreShaders.POSITION_TEX);
-            Matrix4f matrix4f = render.pose().last().pose();
-
-            BufferBuilder bufferBuilder = Tesselator.getInstance().begin(VertexFormat.Mode.QUADS, DefaultVertexFormat.POSITION_TEX);
-            bufferBuilder.addVertex(matrix4f, (float) x, (float) y, (float) 0).setUv(0, 0);
-            bufferBuilder.addVertex(matrix4f, (float) x, (float) y2, (float) 0).setUv(0, 1);
-            bufferBuilder.addVertex(matrix4f, (float) x2, (float) y2, (float) 0).setUv(1, 1);
-            bufferBuilder.addVertex(matrix4f, (float) x2, (float) y, (float) 0).setUv(1, 0);
-            BufferUploader.drawWithShader(bufferBuilder.build());
+            render.texRect(Material.fromRawTexture(textureId), x, y, width, height);
         }
 
         public void close() {
-            if (glTexture != -1) {
-                TextureUtil.releaseTextureId(glTexture);
-                glTexture = -1;
+            if (textureId != null) {
+                Minecraft.getInstance().getTextureManager().release(textureId);
+                textureId = null;
             }
             if (image != null) image.close();
         }

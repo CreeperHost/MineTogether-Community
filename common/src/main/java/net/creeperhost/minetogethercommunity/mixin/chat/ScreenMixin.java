@@ -24,7 +24,7 @@ public abstract class ScreenMixin {
         if (style != null) {
             ClickEvent event = style.getClickEvent();
             // Don't let CLICK_NAME escape into the wild.
-            if (event != null && event.getValue().equals(MessageFormatter.CLICK_NAME)) {
+            if (event instanceof ClickEvent.SuggestCommand(String command) && command.equals(MessageFormatter.CLICK_NAME)) {
                 cir.setReturnValue(false);
             }
         }

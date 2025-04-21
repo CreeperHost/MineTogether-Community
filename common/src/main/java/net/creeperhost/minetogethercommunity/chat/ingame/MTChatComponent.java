@@ -328,8 +328,8 @@ public class MTChatComponent extends ChatComponent {
         Style style = minecraft.font.getSplitter().componentStyleAtWidth(clickedMessage.getBuiltMessage(), (int) x);
         if (style == null) return false;
         ClickEvent event = style.getClickEvent();
-        if (event == null) return false;
-        if (!event.getValue().equals(MessageFormatter.CLICK_NAME)) return false;
+        if (!(event instanceof ClickEvent.SuggestCommand(String command))) return false;
+        if (!command.equals(MessageFormatter.CLICK_NAME)) return false;
 
         this.clickedMessage = message;
         return true;

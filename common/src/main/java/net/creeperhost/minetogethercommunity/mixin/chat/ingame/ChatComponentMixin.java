@@ -120,7 +120,7 @@ abstract class ChatComponentMixin {
         g.pose().translate(x, y + height - (creeperHeight * createdScale) - creeperOffset, 0);
         g.pose().scale(createdScale, createdScale, createdScale);
 
-        RenderSystem.enableBlend();
+//        RenderSystem.enableBlend();
         g.blit(RenderType::guiTextured, Constants.CREEPERHOST_LOGO_25, createdWidth - creeperWidth, creeperOffset, 0.0F, 0.0F, creeperWidth, creeperHeight, creeperWidth, creeperHeight);
         g.drawString(font, created, 0, 0, 0x40FFFFFF, true);
 
@@ -129,9 +129,9 @@ abstract class ChatComponentMixin {
         int mtHeight = height - creeperSHeight - 4;
         int mtWidth = (int) (mtHeight * (348D / 318D));
 
-        RenderSystem.enableBlend();
+//        RenderSystem.enableBlend();
         g.blit(RenderType::guiTextured, Constants.MINETOGETHER_LOGO_25, x + (int) ((width / 2D) - (mtWidth / 2D)), y, 0.0F, 0.0F, mtWidth, mtHeight, mtWidth, mtHeight);
 
-        RenderSystem.disableBlend();
+//        RenderSystem.disableBlend();
     }
 }

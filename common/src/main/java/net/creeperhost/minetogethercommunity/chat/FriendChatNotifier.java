@@ -75,7 +75,7 @@ public class FriendChatNotifier {
             Component message = Component.translatable("minetogether:chat.friend_message", Component.literal(name).withStyle(ChatFormatting.GOLD))
                     .setStyle(Style.EMPTY
                             .applyFormat(ChatFormatting.GREEN)
-                            .withHoverEvent(new HoverEvent(HoverEvent.Action.SHOW_TEXT, Component.translatable("minetogether:chat.friend_message.info")))
+                            .withHoverEvent(new HoverEvent.ShowText(Component.translatable("minetogether:chat.friend_message.info")))
                             .withClickEvent(new OpenFriendEvent(profile))
                     );
             addNotificationMessage(message, profileToSig(profile));
@@ -131,11 +131,15 @@ public class FriendChatNotifier {
     }
 
     //Just a custom event that can be intercepted by ChatScreenMixin
-    public static class OpenFriendEvent extends ClickEvent {
+    public static class OpenFriendEvent implements ClickEvent {
         public final Profile profile;
         public OpenFriendEvent(Profile profile) {
-            super(Action.RUN_COMMAND, "");
             this.profile = profile;
+        }
+
+        @Override
+        public Action action() {
+            return Action.RUN_COMMAND;
         }
     }
 }

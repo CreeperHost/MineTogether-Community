@@ -1,6 +1,7 @@
 package net.creeperhost.minetogethercommunity.mixin.chat.ingame;
 
 import net.covers1624.quack.util.SneakyUtils;
+import net.creeperhost.minetogethercommunity.MineTogetherClient;
 import net.creeperhost.minetogethercommunity.chat.MineTogetherChat;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.Gui;
@@ -31,6 +32,8 @@ abstract class GuiMixin {
             )
     )
     private void onInit(Minecraft minecraft, CallbackInfo ci) {
+        //Calling this here because this needs to be called before initChat, and this is the earliest place we have easy access to where Minecraft.instance has been initialized.
+        MineTogetherClient.earlyClientInit();
         MineTogetherChat.initChat(SneakyUtils.unsafeCast(this));
     }
 

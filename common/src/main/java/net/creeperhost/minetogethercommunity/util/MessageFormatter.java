@@ -5,6 +5,7 @@ import net.creeperhost.minetogethercommunity.chat.MineTogetherChat;
 import net.creeperhost.minetogether.lib.chat.message.Message;
 import net.creeperhost.minetogether.lib.chat.message.MessageComponent;
 import net.creeperhost.minetogether.lib.chat.message.ProfileMessageComponent;
+import net.creeperhost.minetogethercommunity.gui.ShowPreviewHoverEvent;
 import net.minecraft.ChatFormatting;
 import net.minecraft.network.chat.*;
 import net.minecraft.network.chat.ClickEvent.Action;
@@ -22,7 +23,7 @@ import static net.minecraft.ChatFormatting.RESET;
  */
 public class MessageFormatter {
 
-    public static final HoverEvent.Action<Component> SHOW_URL_PREVIEW = new HoverEvent.Action<>("show_url_preview", true, ComponentSerialization.CODEC, (component, registryOps) -> DataResult.success(component));
+//    public static final HoverEvent.Action SHOW_URL_PREVIEW = new HoverEvent.Action("show_url_preview", true, ComponentSerialization.CODEC, (component, registryOps) -> DataResult.success(component));
     public static final String CLICK_NAME = "CE:CLICK_NAME";
 
     private static final Pattern URL_PATTERN = Pattern.compile(
@@ -38,7 +39,7 @@ public class MessageFormatter {
         // TODO obfuscate banned user messages.
         String sender = ac + "<" + uc + message.senderName + ac + ">" + RESET;
 
-        return Component.literal(sender).withStyle(e -> e.withClickEvent(new ClickEvent(Action.SUGGEST_COMMAND, CLICK_NAME)))
+        return Component.literal(sender).withStyle(e -> e.withClickEvent(new ClickEvent.SuggestCommand(CLICK_NAME)))
                 .append(" ")
                 .append(formatMessage(message.getMessage(), mc));
     }
@@ -146,8 +147,8 @@ public class MessageFormatter {
             }
 
             // Set the click event and append the link.
-            ClickEvent click = new ClickEvent(ClickEvent.Action.OPEN_URL, url);
-            HoverEvent hoverEvent = new HoverEvent(SHOW_URL_PREVIEW, Component.literal(url));
+            ClickEvent click = new ClickEvent.OpenUrl(URI.create(url));
+            HoverEvent hoverEvent = new ShowPreviewHoverEvent(url);
             link.setStyle(link.getStyle().withClickEvent(click).withHoverEvent(hoverEvent).withUnderlined(true).withColor(TextColor.fromLegacyFormat(ChatFormatting.BLUE)));
             if (ichat == null) {
                 ichat = Component.literal("");

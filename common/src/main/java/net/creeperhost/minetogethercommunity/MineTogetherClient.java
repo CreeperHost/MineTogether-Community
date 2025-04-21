@@ -4,6 +4,7 @@ import com.mojang.brigadier.CommandDispatcher;
 import com.mojang.brigadier.builder.LiteralArgumentBuilder;
 import dev.architectury.event.events.client.ClientCommandRegistrationEvent;
 import dev.architectury.event.events.client.ClientGuiEvent;
+import dev.architectury.event.events.client.ClientLifecycleEvent;
 import dev.architectury.hooks.client.screen.ScreenAccess;
 import net.creeperhost.minetogether.session.MineTogetherSession;
 import net.creeperhost.minetogethercommunity.chat.FriendChatNotifier;
@@ -45,6 +46,16 @@ public class MineTogetherClient {
     public static void init() {
         LOGGER.info("Initializing MineTogetherCommunityClient!");
 
+        Keybindings.init();
+
+        ModularGuiInjector.registerInjection(e -> e instanceof ChatScreen, e -> new ChatScreenInjection());
+
+        ClientGuiEvent.INIT_POST.register(MineTogetherClient::onScreenOpen);
+        ClientCommandRegistrationEvent.EVENT.register(MineTogetherClient::registerClientCommands);
+    }
+
+    public static void earlyClientInit() {
+        //Cant do this in init anymore because init now occurs before Minecraft.instance is initialised.
         MineTogetherSession.getDefault().setProvider(new MTSessionProvider());
         MineTogetherSession.getDefault().onTokenRefreshed(token -> {
             MineTogether.AUTH.setHeader("Authorization", "Bearer " + token);
@@ -55,14 +66,6 @@ public class MineTogetherClient {
         MineTogetherChat.init();
         MineTogetherConnect.init();
         FriendChatNotifier.init();
-        Keybindings.init();
-
-        ModularGuiInjector.registerInjection(e -> e instanceof ChatScreen, e -> new ChatScreenInjection());
-
-        ClientGuiEvent.INIT_POST.register(MineTogetherClient::onScreenOpen);
-        ClientCommandRegistrationEvent.EVENT.register(MineTogetherClient::registerClientCommands);
-
-//        Integration.loadOptionalIntegration("ftbpc", () -> FTBPackCompanionCompat::init);
     }
 
     private static void registerClientCommands(CommandDispatcher<ClientCommandRegistrationEvent.ClientCommandSourceStack> dispatcher, CommandBuildContext context) {

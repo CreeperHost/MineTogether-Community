@@ -108,9 +108,9 @@ public class MessageElement extends GuiElement<MessageElement> implements Foregr
         if (style == null) return false;
 
         ClickEvent event = style.getClickEvent();
-        if (event == null) return false;
+        if (!(event instanceof ClickEvent.SuggestCommand(String command))) return false;
 
-        if (!friendUI && MessageFormatter.CLICK_NAME.equals(event.getValue()) && message.sender != null && message.sender != MineTogetherChat.getOurProfile()) {
+        if (!friendUI && MessageFormatter.CLICK_NAME.equals(command) && message.sender != null && message.sender != MineTogetherChat.getOurProfile()) {
             if (LocalConfig.instance().shiftClickMention && button == 0 && Screen.hasShiftDown()) {
                 mention(message);
                 return true;

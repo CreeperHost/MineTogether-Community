@@ -59,10 +59,10 @@ public class PlayerIconElement extends GuiElement<PlayerIconElement> implements 
 
         VertexConsumer buffer = render.buffers().getBuffer(skinType);
         Matrix4f mat = render.pose().last().pose();
-        buffer.addVertex(mat, (float) xMax(), (float) yMax(), 0).setUv(texMax, texMax);//.endVertex();  //R-B
-        buffer.addVertex(mat, (float) xMax(), (float) yMin(), 0).setUv(texMax, texMin);//.endVertex();  //R-T
-        buffer.addVertex(mat, (float) xMin(), (float) yMin(), 0).setUv(texMin, texMin);//.endVertex();  //L-T
-        buffer.addVertex(mat, (float) xMin(), (float) yMax(), 0).setUv(texMin, texMax);//.endVertex();  //L-B
+        buffer.addVertex(mat, (float) xMax(), (float) yMax(), 0).setUv(texMax, texMax).setColor(1F, 1F, 1F, 1F); //R-B
+        buffer.addVertex(mat, (float) xMax(), (float) yMin(), 0).setUv(texMax, texMin).setColor(1F, 1F, 1F, 1F); //R-T
+        buffer.addVertex(mat, (float) xMin(), (float) yMin(), 0).setUv(texMin, texMin).setColor(1F, 1F, 1F, 1F); //L-T
+        buffer.addVertex(mat, (float) xMin(), (float) yMax(), 0).setUv(texMin, texMax).setColor(1F, 1F, 1F, 1F); //L-B
         render.flush();
     }
 
@@ -79,7 +79,7 @@ public class PlayerIconElement extends GuiElement<PlayerIconElement> implements 
         mc().getSkinManager().getOrLoad(profile).thenAcceptAsync(e -> {
             e.ifPresent(playerSkin -> {
                 if (!playerSkin.texture().equals(DefaultPlayerSkin.getDefaultTexture())) {
-                    skinType = GuiRender.texType(playerSkin.texture());
+                    skinType = GuiRender.texColType(playerSkin.texture());
                 } else {
                     textureFail = true;
                 }

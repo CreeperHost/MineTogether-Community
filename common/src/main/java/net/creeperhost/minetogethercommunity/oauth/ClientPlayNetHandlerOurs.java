@@ -39,7 +39,6 @@ public class ClientPlayNetHandlerOurs implements ClientGamePacketListener {
     @Override public void handlePing(ClientboundPingPacket clientboundPingPacket) { }
     @Override public void handleCustomPayload(ClientboundCustomPayloadPacket clientboundCustomPayloadPacket) { }
     @Override public void handleAddEntity(ClientboundAddEntityPacket clientboundAddEntityPacket) { }
-    @Override public void handleAddExperienceOrb(ClientboundAddExperienceOrbPacket clientboundAddExperienceOrbPacket) { }
     @Override public void handleAddObjective(ClientboundSetObjectivePacket clientboundSetObjectivePacket) { }
     @Override public void handleAnimate(ClientboundAnimatePacket clientboundAnimatePacket) { }
     @Override public void handleAwardStats(ClientboundAwardStatsPacket clientboundAwardStatsPacket) { }
@@ -163,5 +162,6 @@ public class ClientPlayNetHandlerOurs implements ClientGamePacketListener {
     @Override public void handleEntityPositionSync(ClientboundEntityPositionSyncPacket clientboundEntityPositionSyncPacket) { }
     @Override public void handleSetCursorItem(ClientboundSetCursorItemPacket clientboundSetCursorItemPacket) { }
     @Override public void handleSetPlayerInventory(ClientboundSetPlayerInventoryPacket clientboundSetPlayerInventoryPacket) { }
+    @Override public void handleTestInstanceBlockStatus(ClientboundTestInstanceBlockStatus clientboundTestInstanceBlockStatus) { }
     //@formatter:on
 }
