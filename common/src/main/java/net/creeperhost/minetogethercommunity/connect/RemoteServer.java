@@ -22,8 +22,8 @@ public final class RemoteServer {
     public long ping;
     public boolean pinged;
     public List<Component> playerList = Collections.emptyList();
-    public int protocol = SharedConstants.getCurrentVersion().getProtocolVersion();
-    public Component version = Component.literal(SharedConstants.getCurrentVersion().getName());
+    public int protocol = SharedConstants.getCurrentVersion().protocolVersion();
+    public Component version = Component.literal(SharedConstants.getCurrentVersion().name());
     @Nullable
     private byte[] iconBytes;
 

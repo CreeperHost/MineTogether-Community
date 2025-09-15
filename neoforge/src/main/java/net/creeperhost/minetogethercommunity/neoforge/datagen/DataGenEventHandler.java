@@ -8,7 +8,7 @@ import net.neoforged.neoforge.data.event.GatherDataEvent;
 /**
  * Created by brandon3055 on 02/02/2025
  */
-@EventBusSubscriber (bus = EventBusSubscriber.Bus.MOD)
+@EventBusSubscriber ()
 public class DataGenEventHandler {
 
     @SubscribeEvent

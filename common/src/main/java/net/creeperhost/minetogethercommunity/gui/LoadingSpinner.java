@@ -8,6 +8,7 @@ import net.creeperhost.polylib.client.modulargui.lib.GuiRender;
 import net.creeperhost.polylib.client.modulargui.lib.geometry.GuiParent;
 import net.creeperhost.polylib.client.modulargui.sprite.Material;
 import org.jetbrains.annotations.NotNull;
+import org.joml.Matrix3x2fStack;
 
 /**
  * Created by brandon3055 on 15/06/2024
@@ -30,17 +31,17 @@ public class LoadingSpinner extends GuiElement<LoadingSpinner> implements Foregr
     public void renderInFront(GuiRender render, double mouseX, double mouseY, float partialTicks) {
         Material tex = MTTextures.get("spinner_dot");
         double size = Math.max(xSize(), ySize()) / 2;
-        PoseStack stack = render.pose();
+        Matrix3x2fStack stack = render.pose();
 
-        stack.pushPose();
-        stack.translate(xCenter(), yCenter(), 0);
+        stack.pushMatrix();
+        stack.translate((float) xCenter(), (float) yCenter());
 
         int segments = 10;
         for (int i = 1; i < segments + 1; i++) {
-            stack.mulPose(Axis.ZP.rotationDegrees(20 + tick + partialTicks));
+            stack.rotate((float) Math.toRadians(20 + tick + partialTicks));
             render.texRect(tex, -4D, -4D - size, 8D, 8D, (((int) ((i / (segments - 1D)) * 0xFF)) << 24) | colour);
         }
 
-        stack.popPose();
+        stack.popMatrix();
     }
 }

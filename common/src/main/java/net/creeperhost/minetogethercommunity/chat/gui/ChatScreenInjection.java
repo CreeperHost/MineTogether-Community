@@ -111,10 +111,5 @@ public class ChatScreenInjection implements GuiProvider {
 
         @Override
         public void renderBehind(GuiRender render, double mouseX, double mouseY, float partialTicks) {}
-
-        @Override
-        public double getBackgroundDepth() {
-            return 105;
-        }
     }
 }

@@ -95,7 +95,7 @@ public class MessageElement extends GuiElement<MessageElement> implements Foregr
         synchronized (wrappedLines) {
             double y = yMin();
             for (FormattedCharSequence line : wrappedLines) {
-                render.drawString(line, xMin() + (y == yMin() ? 0 : inset), y, 0xFFFFFF);
+                render.drawString(line, xMin() + (y == yMin() ? 0 : inset), y, 0xFFFFFFFF);
                 y += font().lineHeight + 1;
             }
         }

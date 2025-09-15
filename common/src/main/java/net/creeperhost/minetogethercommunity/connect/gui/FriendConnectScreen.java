@@ -45,7 +45,7 @@ public class FriendConnectScreen extends ConnectScreen {
 
     public static void startConnecting(Screen screen, Minecraft minecraft, RemoteServer server, LanServer serverData) {
         FriendConnectScreen connectScreen = new FriendConnectScreen(screen);
-        minecraft.disconnect();
+        minecraft.disconnect(screen, false);
         minecraft.prepareForMultiplayer();
         minecraft.updateReportEnvironment(ReportEnvironment.thirdParty(serverData.getAddress()));
         minecraft.quickPlayLog().setWorldData(QuickPlayLog.Type.MULTIPLAYER, serverData.getAddress(), "MT Friend Server"); //< TODO Ideally we want the world or the friend name here
@@ -130,10 +130,10 @@ public class FriendConnectScreen extends ConnectScreen {
         long l = Util.getMillis();
         if (l - lastNarration > 2000L) {
             lastNarration = l;
-            minecraft.getNarrator().sayNow(Component.translatable("narrator.joining"));
+            minecraft.getNarrator().saySystemNow(Component.translatable("narrator.joining"));
         }
 
-        graphics.drawCenteredString(font, status, width / 2, height / 2 - 50, 16777215);
+        graphics.drawCenteredString(font, status, width / 2, height / 2 - 50, 0xFFffffff);
 
         for (Renderable renderable : this.renderables) {
             renderable.render(graphics, i, j, f);

@@ -9,8 +9,10 @@ import net.creeperhost.polylib.client.modulargui.lib.GuiRender;
 import net.creeperhost.polylib.client.modulargui.lib.geometry.GuiParent;
 import net.creeperhost.polylib.client.modulargui.sprite.Material;
 import net.minecraft.client.Minecraft;
+import net.minecraft.client.renderer.RenderPipelines;
 import net.minecraft.client.renderer.RenderType;
 import net.minecraft.client.resources.DefaultPlayerSkin;
+import net.minecraft.resources.ResourceLocation;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 import org.joml.Matrix4f;
@@ -20,7 +22,7 @@ import org.joml.Matrix4f;
  */
 public class PlayerIconElement extends GuiElement<PlayerIconElement> implements BackgroundRender {
     @Nullable
-    private RenderType skinType;
+    private Material skinType;
     public boolean textureFail = false;
     @Nullable
     private GameProfile profile;
@@ -56,14 +58,7 @@ public class PlayerIconElement extends GuiElement<PlayerIconElement> implements 
     public void draw(GuiRender render) {
         float texMin = 8/64F;
         float texMax = 16/64F;
-
-        VertexConsumer buffer = render.buffers().getBuffer(skinType);
-        Matrix4f mat = render.pose().last().pose();
-        buffer.addVertex(mat, (float) xMax(), (float) yMax(), 0).setUv(texMax, texMax).setColor(1F, 1F, 1F, 1F); //R-B
-        buffer.addVertex(mat, (float) xMax(), (float) yMin(), 0).setUv(texMax, texMin).setColor(1F, 1F, 1F, 1F); //R-T
-        buffer.addVertex(mat, (float) xMin(), (float) yMin(), 0).setUv(texMin, texMin).setColor(1F, 1F, 1F, 1F); //L-T
-        buffer.addVertex(mat, (float) xMin(), (float) yMax(), 0).setUv(texMin, texMax).setColor(1F, 1F, 1F, 1F); //L-B
-        render.flush();
+        render.partialSprite(RenderPipelines.GUI_TEXTURED, xMin(), yMin(), xMax(), yMax(), skinType.sprite(), texMin, texMin, texMax, texMax, 0xFFFFFFFF);
     }
 
 
@@ -79,7 +74,7 @@ public class PlayerIconElement extends GuiElement<PlayerIconElement> implements 
         mc().getSkinManager().getOrLoad(profile).thenAcceptAsync(e -> {
             e.ifPresent(playerSkin -> {
                 if (!playerSkin.texture().equals(DefaultPlayerSkin.getDefaultTexture())) {
-                    skinType = GuiRender.texColType(playerSkin.texture());
+                    skinType = Material.fromRawTexture(playerSkin.texture());
                 } else {
                     textureFail = true;
                 }

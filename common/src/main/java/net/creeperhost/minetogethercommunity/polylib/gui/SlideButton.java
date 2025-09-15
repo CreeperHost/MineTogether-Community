@@ -196,7 +196,7 @@ public class SlideButton extends Button {
             sliderColor = 0xFFA0A0A0;
         }
 
-        RenderSystem.setShaderColor(1.0F, 1.0F, 1.0F, 1.0F);
+//        RenderSystem.setShaderColor(1.0F, 1.0F, 1.0F, 1.0F);
         graphics.fill(getX(), getY(), getX() + width, getY() + height, fillColor);
 
         int slideWidth = width / 10;
@@ -207,8 +207,8 @@ public class SlideButton extends Button {
 
         Font font = Minecraft.getInstance().font;
         float scale = textScale;
-        double lHeight = font.lineHeight * scale;
-        double lWidth = font.width(getMessage()) * scale;
+        float lHeight = font.lineHeight * scale;
+        float lWidth = font.width(getMessage()) * scale;
 
         int autoWidth = (verticalText ? height : width) - (autoScaleMargins * 2);
         if (autoScaleMargins > -1 && lWidth > autoWidth) {
@@ -217,19 +217,20 @@ public class SlideButton extends Button {
             lWidth = font.width(getMessage()) * scale;
         }
 
-        graphics.pose().pushPose();
+        graphics.pose().pushMatrix();
         if (verticalText) {
-            graphics.pose().translate(getX() + lHeight + (width / 2D) - (lHeight / 2D), getY() + (height / 2D) - (lWidth / 2D), 0);
-            graphics.pose().mulPose(new Quaternionf().rotationXYZ(0F, 0F, 90F * 0.017453292F));
+            graphics.pose().translate((float) getX() + lHeight + (width / 2F) - (lHeight / 2F), (float) getY() + (height / 2F) - (lWidth / 2F));
+//            graphics.pose().mulPose(new Quaternionf().rotationXYZ(0F, 0F, 90F * 0.017453292F));
+            graphics.pose().rotate(90F * 0.017453292F);
         } else {
-            graphics.pose().translate(getX() + (width / 2D) - (lWidth / 2D), getY() + (height / 2D) - (lHeight / 2D), 0);
+            graphics.pose().translate((float) getX() + (width / 2F) - (lWidth / 2F), (float) getY() + (height / 2F) - (lHeight / 2F));
         }
 
-        graphics.pose().scale(scale, scale, 1);
+        graphics.pose().scale(scale);
 
         graphics.drawString(font, getMessage(), 0, 0, textColor);
-        graphics.flush();
+//        graphics.flush();
 
-        graphics.pose().popPose();
+        graphics.pose().popMatrix();
     }
 }

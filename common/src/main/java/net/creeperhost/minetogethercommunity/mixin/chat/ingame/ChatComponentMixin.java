@@ -9,6 +9,7 @@ import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.Font;
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.gui.components.ChatComponent;
+import net.minecraft.client.renderer.RenderPipelines;
 import net.minecraft.client.renderer.RenderType;
 import net.minecraft.util.ArrayListDeque;
 import net.minecraft.util.Mth;
@@ -106,7 +107,7 @@ abstract class ChatComponentMixin {
      * The entire thing will be scaled appropriately to fit within the specified bounds.
      */
     private static void drawLogo(GuiGraphics g, Font font, int x, int y, int width, int height) {
-        RenderSystem.setShaderColor(1F, 1F, 1F, 1F);
+//        RenderSystem.setShaderColor(1F, 1F, 1F, 1F);
         String created = "Created by";
         int strWidth = font.width(created);
         int creeperHeight = 19; //Value chosen so that Creeper Host logo text is roughly the same size as the "Created By" text
@@ -116,21 +117,21 @@ abstract class ChatComponentMixin {
         int creeperOffset = (int) ((font.lineHeight / 2D) - (creeperHeight / 2D));
         int creeperSHeight = (int) (creeperHeight * createdScale);
 
-        g.pose().pushPose();
-        g.pose().translate(x, y + height - (creeperHeight * createdScale) - creeperOffset, 0);
-        g.pose().scale(createdScale, createdScale, createdScale);
+        g.pose().pushMatrix();
+        g.pose().translate(x, y + height - (creeperHeight * createdScale) - creeperOffset);
+        g.pose().scale(createdScale);
 
 //        RenderSystem.enableBlend();
-        g.blit(RenderType::guiTextured, Constants.CREEPERHOST_LOGO_25, createdWidth - creeperWidth, creeperOffset, 0.0F, 0.0F, creeperWidth, creeperHeight, creeperWidth, creeperHeight);
+        g.blit(RenderPipelines.GUI_TEXTURED, Constants.CREEPERHOST_LOGO_25, createdWidth - creeperWidth, creeperOffset, 0.0F, 0.0F, creeperWidth, creeperHeight, creeperWidth, creeperHeight);
         g.drawString(font, created, 0, 0, 0x40FFFFFF, true);
 
-        g.pose().popPose();
+        g.pose().popMatrix();
 
         int mtHeight = height - creeperSHeight - 4;
         int mtWidth = (int) (mtHeight * (348D / 318D));
 
 //        RenderSystem.enableBlend();
-        g.blit(RenderType::guiTextured, Constants.MINETOGETHER_LOGO_25, x + (int) ((width / 2D) - (mtWidth / 2D)), y, 0.0F, 0.0F, mtWidth, mtHeight, mtWidth, mtHeight);
+        g.blit(RenderPipelines.GUI_TEXTURED, Constants.MINETOGETHER_LOGO_25, x + (int) ((width / 2D) - (mtWidth / 2D)), y, 0.0F, 0.0F, mtWidth, mtHeight, mtWidth, mtHeight);
 
 //        RenderSystem.disableBlend();
     }

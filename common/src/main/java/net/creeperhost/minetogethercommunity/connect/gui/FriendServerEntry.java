@@ -11,6 +11,7 @@ import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.gui.screens.FaviconTexture;
 import net.minecraft.client.gui.screens.multiplayer.JoinMultiplayerScreen;
 import net.minecraft.client.gui.screens.multiplayer.ServerSelectionList;
+import net.minecraft.client.renderer.RenderPipelines;
 import net.minecraft.client.renderer.RenderType;
 import net.minecraft.client.server.LanServer;
 import net.minecraft.network.chat.Component;
@@ -87,15 +88,15 @@ public class FriendServerEntry extends ServerSelectionList.NetworkServerEntry {
             int var10003 = (x + 32 + 3);
             int var10004 = y + 12;
             Objects.requireNonNull(this.minecraft.font);
-            graphics.drawString(var10000, var10002, var10003, (var10004 + 9 * line), 8421504);
+            graphics.drawString(var10000, var10002, var10003, (var10004 + 9 * line), 0xFF808080);
         }
 
-        boolean versionMismatch = this.remoteServer.protocol != SharedConstants.getCurrentVersion().getProtocolVersion();
+        boolean versionMismatch = this.remoteServer.protocol != SharedConstants.getCurrentVersion().protocolVersion();
         //Num Players or Version Mismatch text
         Component statusText = versionMismatch ? this.remoteServer.version.copy().withStyle(ChatFormatting.RED) : this.remoteServer.status;
         //Draw Status
         int statusWidth = this.minecraft.font.width(statusText);
-        graphics.drawString(this.minecraft.font, statusText, (x + entryWidth - statusWidth - 15 - 2), (y + 1), 8421504);
+        graphics.drawString(this.minecraft.font, statusText, (x + entryWidth - statusWidth - 15 - 2), (y + 1), 0xFF808080);
 
         ResourceLocation statusIcon = null;
         List<Component> playersToolTip;
@@ -142,7 +143,7 @@ public class FriendServerEntry extends ServerSelectionList.NetworkServerEntry {
 
         //Draw Signal / Scanning Bars.
         if (statusIcon != null) {
-            graphics.blitSprite(RenderType::guiTextured, statusIcon, x + entryWidth - 15, y, 10, 8);
+            graphics.blitSprite(RenderPipelines.GUI_TEXTURED, statusIcon, x + entryWidth - 15, y, 10, 8);
         }
 
         //Update server icon.
@@ -161,11 +162,12 @@ public class FriendServerEntry extends ServerSelectionList.NetworkServerEntry {
         int u = mouseY - y;
         if (t >= entryWidth - 15 && t <= entryWidth - 5 && u >= 0 && u <= 8) {
             //Draw Status Tool Tip
-            this.screen.setTooltipForNextRenderPass(Collections.singletonList(statusToolTip.getVisualOrderText()));
+
+            graphics.setTooltipForNextFrame(Collections.singletonList(statusToolTip.getVisualOrderText()), x, y);
         } else if (t >= entryWidth - statusWidth - 15 - 2 && t <= entryWidth - 15 - 2 && u >= 0 && u <= 8) {
             //Draw Players Tool Tip
             if (playersToolTip != null) {
-                this.screen.setTooltipForNextRenderPass(playersToolTip.stream().map(Component::getVisualOrderText).toList());
+                graphics.setTooltipForNextFrame(playersToolTip.stream().map(Component::getVisualOrderText).toList(), x, y);
             }
         }
 
@@ -174,9 +176,9 @@ public class FriendServerEntry extends ServerSelectionList.NetworkServerEntry {
             int v = mouseX - x;
             //Draw "Join Arrow"
             if (v < 32 && v > 16) {
-                graphics.blitSprite(RenderType::guiTextured, JOIN_HIGHLIGHTED_SPRITE, x, y, 32, 32);
+                graphics.blitSprite(RenderPipelines.GUI_TEXTURED, JOIN_HIGHLIGHTED_SPRITE, x, y, 32, 32);
             } else {
-                graphics.blitSprite(RenderType::guiTextured, JOIN_SPRITE, x, y, 32, 32);
+                graphics.blitSprite(RenderPipelines.GUI_TEXTURED, JOIN_SPRITE, x, y, 32, 32);
             }
         }
     }
@@ -186,7 +188,7 @@ public class FriendServerEntry extends ServerSelectionList.NetworkServerEntry {
     }
 
     protected void drawIcon(GuiGraphics graphics, int i, int j, ResourceLocation resourceLocation) {
-        graphics.blit(RenderType::guiTextured, resourceLocation, i, j, 0.0F, 0.0F, 32, 32, 32, 32);
+        graphics.blit(RenderPipelines.GUI_TEXTURED, resourceLocation, i, j, 0.0F, 0.0F, 32, 32, 32, 32);
     }
 
     private boolean uploadServerIcon(@Nullable byte[] bs) {

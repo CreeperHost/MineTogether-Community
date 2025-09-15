@@ -2,6 +2,7 @@ package net.creeperhost.minetogethercommunity.polylib.gui;
 
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.gui.components.Button;
+import net.minecraft.client.renderer.RenderPipelines;
 import net.minecraft.client.renderer.RenderType;
 import net.minecraft.network.chat.Component;
 import net.minecraft.resources.ResourceLocation;
@@ -56,11 +57,11 @@ public class IconButton extends Button {
                 fillColor = 0x64202020;
             }
             graphics.fill(getX(), getY(), getX() + width, getY() + height, fillColor);
-            graphics.blit(RenderType::guiTextured, sheet, getX(), getY(), 0, 0, width, height, width, height);
+            graphics.blit(RenderPipelines.GUI_TEXTURED, sheet, getX(), getY(), 0, 0, width, height, width, height);
         } else {
             int yOffset = !active ? 40 : isHovered ? 20 : 0;
             //x, y, u, v, width, height, texWidth, texHeight
-            graphics.blit(RenderType::guiTextured, sheet, getX(), getY(), index * 20, yOffset, width, height, 256, 256);
+            graphics.blit(RenderPipelines.GUI_TEXTURED, sheet, getX(), getY(), index * 20, yOffset, width, height, 256, 256);
         }
     }
 }

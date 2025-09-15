@@ -151,6 +151,8 @@ public class ClientPlayNetHandlerOurs implements ClientGamePacketListener {
     @Override public void handleTransfer(ClientboundTransferPacket clientboundTransferPacket) { }
     @Override public void handleCustomReportDetails(ClientboundCustomReportDetailsPacket clientboundCustomReportDetailsPacket) { }
     @Override public void handleServerLinks(ClientboundServerLinksPacket clientboundServerLinksPacket) { }
+    @Override public void handleClearDialog(ClientboundClearDialogPacket clientboundClearDialogPacket) { }
+    @Override public void handleShowDialog(ClientboundShowDialogPacket clientboundShowDialogPacket) { }
     @Override public void handleRequestCookie(ClientboundCookieRequestPacket clientboundCookieRequestPacket) { }
 
     @Override public void handleRecipeBookAdd(ClientboundRecipeBookAddPacket clientboundRecipeBookAddPacket) { }
@@ -163,5 +165,6 @@ public class ClientPlayNetHandlerOurs implements ClientGamePacketListener {
     @Override public void handleSetCursorItem(ClientboundSetCursorItemPacket clientboundSetCursorItemPacket) { }
     @Override public void handleSetPlayerInventory(ClientboundSetPlayerInventoryPacket clientboundSetPlayerInventoryPacket) { }
     @Override public void handleTestInstanceBlockStatus(ClientboundTestInstanceBlockStatus clientboundTestInstanceBlockStatus) { }
+    @Override public void handleWaypoint(ClientboundTrackedWaypointPacket clientboundTrackedWaypointPacket) { }
     //@formatter:on
 }
