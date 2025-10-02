@@ -118,10 +118,10 @@ public class RadioButton extends Button {
 
     @Override
     public void renderWidget(GuiGraphics graphics, int mouseX, int mouseY, float partialTicks) {
-        int textColor = 0xFFFFFF;
+        int textColor = 0xFFFFFFFF;
         int fillColor = 0x64202020;
         if (isHovered || isPressed()) {
-            textColor = 0xffffa0;
+            textColor = 0xFFffffa0;
             fillColor = 0x80000000;
         }
 //        RenderSystem.setShaderColor(1.0F, 1.0F, 1.0F, 1.0F);
@@ -150,7 +150,7 @@ public class RadioButton extends Button {
 
         graphics.pose().scale(scale);
 
-        graphics.drawString(font, getMessage(), 0, 0, textColor);
+        graphics.drawString(font, getMessage(), 0, 0, textColor, false);
         graphics.pose().popMatrix();
     }
 

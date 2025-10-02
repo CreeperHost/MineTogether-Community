@@ -188,7 +188,7 @@ public class SlideButton extends Button {
     @Override
     public void renderWidget(GuiGraphics graphics, int mouseX, int mouseY, float partialTicks) {
         if (!isEnabled()) return;
-        int textColor = 0xFFFFFF;
+        int textColor = 0xFFFFFFFF;
         int fillColor = 0x80000000;
         int sliderColor = 0x64808080;
 
@@ -228,7 +228,7 @@ public class SlideButton extends Button {
 
         graphics.pose().scale(scale);
 
-        graphics.drawString(font, getMessage(), 0, 0, textColor);
+        graphics.drawString(font, getMessage(), 0, 0, textColor, false);
 //        graphics.flush();
 
         graphics.pose().popMatrix();

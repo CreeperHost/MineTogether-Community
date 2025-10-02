@@ -78,7 +78,7 @@ public class FriendServerEntry extends ServerSelectionList.NetworkServerEntry {
         }
 
         //Draw Server Title
-        graphics.drawString(this.minecraft.font, Component.translatable("minetogether.connect.friend.server.title", getDisplayName()), x + 32 + 3, y + 1, 16777215);
+        graphics.drawString(this.minecraft.font, Component.translatable("minetogether.connect.friend.server.title", getDisplayName()), x + 32 + 3, y + 1, 0xFFffffff);
 
         //Draw MOTD
         List<FormattedCharSequence> list = this.minecraft.font.split(this.remoteServer.motd, entryWidth - 32 - 2);

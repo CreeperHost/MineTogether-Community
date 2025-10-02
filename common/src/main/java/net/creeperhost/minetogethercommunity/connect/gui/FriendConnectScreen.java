@@ -126,7 +126,6 @@ public class FriendConnectScreen extends ConnectScreen {
     }
 
     public void render(GuiGraphics graphics, int i, int j, float f) {
-        renderBackground(graphics, i, j, f);
         long l = Util.getMillis();
         if (l - lastNarration > 2000L) {
             lastNarration = l;
