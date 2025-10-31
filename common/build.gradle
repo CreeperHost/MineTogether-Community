@@ -9,6 +9,12 @@ loom {
     accessWidenerPath = file("src/main/resources/minetogethercommunity.accesswidener")
 }
 
+repositories {
+    flatDir {
+        dirs '../libs'
+    }
+}
+
 dependencies {
     modImplementation "net.fabricmc:fabric-loader:${rootProject.fabric_loader_version}"
     modApi "dev.architectury:architectury:${rootProject.architectury_version}"
@@ -36,6 +42,8 @@ dependencies {
     testRuntimeOnly 'org.junit.jupiter:junit-jupiter-engine:5.8.2'
 
     modApi "dev.ftb.mods:ftb-pack-companion:${ftb_companion_version}"
+    //TODO we should start putting this on maven so we don't need to keep the jar around
+    compileOnly('minetogetherpartners-neoforge:minetogetherpartners-neoforge:1.21-6.3.4')
 }
 
 test {

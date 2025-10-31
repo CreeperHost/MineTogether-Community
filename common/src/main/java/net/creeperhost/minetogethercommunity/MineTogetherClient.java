@@ -5,14 +5,18 @@ import com.mojang.brigadier.builder.LiteralArgumentBuilder;
 import dev.architectury.event.events.client.ClientCommandRegistrationEvent;
 import dev.architectury.event.events.client.ClientGuiEvent;
 import dev.architectury.hooks.client.screen.ScreenAccess;
+import dev.architectury.platform.Platform;
 import net.creeperhost.minetogether.session.MineTogetherSession;
 import net.creeperhost.minetogethercommunity.chat.FriendChatNotifier;
 import net.creeperhost.minetogethercommunity.chat.MineTogetherChat;
 import net.creeperhost.minetogethercommunity.chat.gui.ChatScreenInjection;
+import net.creeperhost.minetogethercommunity.compat.MTPartners;
 import net.creeperhost.minetogethercommunity.config.Config;
 import net.creeperhost.minetogethercommunity.connect.MineTogetherConnect;
 import net.creeperhost.minetogethercommunity.gui.SettingGui;
+import net.creeperhost.minetogethercommunity.orderform.OrderGui;
 import net.creeperhost.minetogethercommunity.util.MTSessionProvider;
+import net.creeperhost.polylib.client.modulargui.ModularGui;
 import net.creeperhost.polylib.client.modulargui.ModularGuiInjector;
 import net.creeperhost.polylib.client.screen.ButtonHelper;
 import net.minecraft.Util;
@@ -70,6 +74,16 @@ public class MineTogetherClient {
                     return 0;
                 })
         );
+    }
+
+    public static void openOrderUI(ModularGui gui) {
+        if (Platform.isModLoaded("minetogetherpartners")) {
+            LOGGER.info("minetogetherpartners loaded, Using minetogetherpartners order form");
+            MTPartners.openOrderUI(gui);
+            return;
+        }
+        LOGGER.info("using minetogethercommunity order form");
+        gui.mc().setScreen(new OrderGui.Screen(gui.getScreen(), true));
     }
 
     private static void onScreenOpen(Screen screen, ScreenAccess screenAccess) {
