@@ -395,7 +395,16 @@
     "minetogether.connect.open.order_info":"Want to level up your Minecraft experience? Upgrade to a dedicated CreeperHost server for uninterrupted gameplay, more control, and superior performance! Click here for the in-game order page.",
 
 
-    "minetogether.connect.friend.server.title":"%s's Shared MineTogether Server"
+    "minetogether.connect.friend.server.title":"%s's Shared MineTogether Server",
+
+    "minetogether:gui.cosmetics.title": "Cosmetics",
+    "minetogether:gui.cosmetics.equipped": "Equipped: %s",
+    "minetogether:gui.cosmetics.none_equipped": "No hat equipped",
+    "minetogether:gui.cosmetics.button.wear": "Wear",
+    "minetogether:gui.cosmetics.button.wearing": "Wearing",
+    "minetogether:gui.cosmetics.button.remove": "Remove Hat",
+    "minetogether:gui.cosmetics.loading": "Loading cosmetics...",
+    "minetogether:gui.settings.button.cosmetics": "Cosmetics"
 
 
 }

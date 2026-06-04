@@ -5,12 +5,18 @@ import net.creeperhost.minetogethercommunity.MineTogether;
 import net.creeperhost.minetogethercommunity.chat.MineTogetherChat;
 import net.creeperhost.minetogethercommunity.gui.MTTextures;
 import net.creeperhost.polylib.fabric.client.ResourceReloadListenerWrapper;
+import net.creeperhost.minetogethercommunity.cosmetic.hat.HatLayer;
 import net.fabricmc.api.EnvType;
 import net.fabricmc.api.ModInitializer;
+import net.fabricmc.fabric.api.client.rendering.v1.LivingEntityFeatureRendererRegistrationCallback;
 import net.fabricmc.fabric.api.client.screen.v1.ScreenEvents;
 import net.fabricmc.fabric.api.resource.ResourceManagerHelper;
+import net.minecraft.client.model.PlayerModel;
+import net.minecraft.client.player.AbstractClientPlayer;
+import net.minecraft.client.renderer.entity.LivingEntityRenderer;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.packs.PackType;
+import net.minecraft.world.entity.EntityType;
 
 /**
  * Created by covers1624 on 20/6/22.
@@ -28,8 +34,12 @@ public class MineTogetherFabric implements ModInitializer {
     }
 
     private void clientInit() {
-        //We need this because INIT_POST from architectury only works in the initial init event.
-        //It does not fire on re-init, e.g. when window is resized. I would consider this a bug in architectury.
         ScreenEvents.AFTER_INIT.register((client, screen, scaledWidth, scaledHeight) -> MineTogetherChat.onScreenPostInit(screen));
+        LivingEntityFeatureRendererRegistrationCallback.EVENT.register((entityType, renderer, registrationHelper, context) -> {
+            if (entityType == EntityType.PLAYER) {
+                //noinspection unchecked
+                registrationHelper.register(new HatLayer<>((LivingEntityRenderer<AbstractClientPlayer, PlayerModel<AbstractClientPlayer>>) renderer));
+            }
+        });
     }
 }

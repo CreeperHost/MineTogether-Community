@@ -101,4 +101,7 @@ public class LocalConfig {
     @Comment ("Stores the currently selected chat TAB. Either VANILLA or PUBLIC.")
     public ChatTarget selectedTab = ChatTarget.PUBLIC;
 
+    @Comment ("The ID of the currently equipped hat cosmetic, or empty for none.")
+    public String selectedHatId = "";
+
 }

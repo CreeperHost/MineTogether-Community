@@ -8,7 +8,9 @@
       "chat.ingame.ChatComponentMixin",
       "chat.ingame.GuiMixin",
       "connect.JoinMultiplayerScreenMixin",
-      "connect.ServerSelectionListMixin"
+      "connect.ServerSelectionListMixin",
+      "cosmetic.LivingEntityRendererAccess",
+      "cosmetic.PlayerRendererMixin"
     ],
     "server": []
 }

@@ -6,6 +6,7 @@ import net.creeperhost.minetogethercommunity.chat.gui.MTStyle;
 import net.creeperhost.minetogethercommunity.config.Config;
 import net.creeperhost.minetogethercommunity.config.LocalConfig;
 import net.creeperhost.minetogether.lib.chat.profile.Profile;
+import net.creeperhost.minetogethercommunity.cosmetic.CosmeticsGui;
 import net.creeperhost.minetogethercommunity.oauth.KeycloakOAuth;
 import net.creeperhost.polylib.client.modulargui.ModularGui;
 import net.creeperhost.polylib.client.modulargui.ModularGuiScreen;
@@ -64,7 +65,7 @@ public class SettingGui implements GuiProvider {
                 .constrain(RIGHT, relative(root.get(RIGHT), -10));
 
         GuiElement<?> settings = new GuiElement<>(root)
-                .constrain(TOP, midPoint(root.get(TOP), root.get(BOTTOM), (8*20) / -2D))
+                .constrain(TOP, midPoint(root.get(TOP), root.get(BOTTOM), (9*20) / -2D))
                 .constrain(LEFT, dynamic(() -> buttonPanelPos(root)))
                 .constrain(WIDTH, literal(panelWidth))
                 .constrain(HEIGHT, literal(0));
@@ -146,9 +147,16 @@ public class SettingGui implements GuiProvider {
                 .constrain(RIGHT, match(settings.get(RIGHT)))
                 .constrain(HEIGHT, literal(buttonHeight));
 
+        GuiButton cosmetics = MTStyle.Flat.button(settings, Component.translatable("minetogether:gui.settings.button.cosmetics"))
+                .onPress(() -> gui.mc().setScreen(new CosmeticsGui.Screen(gui.getScreen())))
+                .constrain(TOP, relative(profileScreen.get(BOTTOM), 4))
+                .constrain(LEFT, match(settings.get(LEFT)))
+                .constrain(RIGHT, match(settings.get(RIGHT)))
+                .constrain(HEIGHT, literal(buttonHeight));
+
         GuiButton back = MTStyle.Flat.button(settings, Component.translatable("minetogether:gui.button.back"))
                 .onPress(() -> gui.mc().setScreen(gui.getParentScreen()))
-                .constrain(TOP, relative(profileScreen.get(BOTTOM), 16))
+                .constrain(TOP, relative(cosmetics.get(BOTTOM), 16))
                 .constrain(LEFT, match(settings.get(LEFT)))
                 .constrain(RIGHT, match(settings.get(RIGHT)))
                 .constrain(HEIGHT, literal(buttonHeight));
