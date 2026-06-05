@@ -150,6 +150,7 @@ public class SettingGui implements GuiProvider {
         GuiButton cosmetics = MTStyle.Flat.button(settings, Component.translatable("minetogether:gui.settings.button.cosmetics"))
                 .onPress(() -> gui.mc().setScreen(new CosmeticsGui.Screen(gui.getScreen())))
                 .constrain(TOP, relative(profileScreen.get(BOTTOM), 4))
+                .setDisabled(Minecraft.getInstance().player == null)
                 .constrain(LEFT, match(settings.get(LEFT)))
                 .constrain(RIGHT, match(settings.get(RIGHT)))
                 .constrain(HEIGHT, literal(buttonHeight));
