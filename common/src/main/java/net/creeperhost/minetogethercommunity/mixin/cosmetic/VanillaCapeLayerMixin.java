@@ -1,0 +1,28 @@
+package net.creeperhost.minetogethercommunity.mixin.cosmetic;
+
+import com.mojang.blaze3d.vertex.PoseStack;
+import net.creeperhost.minetogethercommunity.config.LocalConfig;
+import net.creeperhost.minetogethercommunity.cosmetic.cape.CapeRegistry;
+import net.minecraft.client.Minecraft;
+import net.minecraft.client.player.AbstractClientPlayer;
+import net.minecraft.client.renderer.MultiBufferSource;
+import org.spongepowered.asm.mixin.Mixin;
+import org.spongepowered.asm.mixin.injection.At;
+import org.spongepowered.asm.mixin.injection.Inject;
+import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
+
+@Mixin(targets = "net.minecraft.client.renderer.entity.layers.CapeLayer")
+public abstract class VanillaCapeLayerMixin {
+
+    @Inject(at = @At("HEAD"), method = "render", cancellable = true)
+    private <T extends AbstractClientPlayer> void suppressForCustomCape(
+            PoseStack poseStack, MultiBufferSource bufferSource, int packedLight, T player,
+            float limbSwing, float limbSwingAmount, float partialTicks,
+            float ageInTicks, float netHeadYaw, float headPitch, CallbackInfo ci) {
+        if (player != Minecraft.getInstance().player) return;
+        String capeId = LocalConfig.instance().selectedCapeId;
+        if (capeId != null && !capeId.isEmpty() && CapeRegistry.get(capeId) != null) {
+            ci.cancel();
+        }
+    }
+}

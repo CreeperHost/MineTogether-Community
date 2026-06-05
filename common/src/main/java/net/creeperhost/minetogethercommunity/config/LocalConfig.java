@@ -104,4 +104,7 @@ public class LocalConfig {
     @Comment ("The ID of the currently equipped hat cosmetic, or empty for none.")
     public String selectedHatId = "";
 
+    @Comment ("The ID of the currently equipped cape cosmetic, or empty for none.")
+    public String selectedCapeId = "";
+
 }

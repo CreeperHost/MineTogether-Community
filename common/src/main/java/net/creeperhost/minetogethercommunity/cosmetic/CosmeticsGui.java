@@ -2,6 +2,8 @@ package net.creeperhost.minetogethercommunity.cosmetic;
 
 import net.creeperhost.minetogethercommunity.chat.gui.MTStyle;
 import net.creeperhost.minetogethercommunity.config.LocalConfig;
+import net.creeperhost.minetogethercommunity.cosmetic.cape.Cape;
+import net.creeperhost.minetogethercommunity.cosmetic.cape.CapeRegistry;
 import net.creeperhost.minetogethercommunity.cosmetic.hat.Hat;
 import net.creeperhost.minetogethercommunity.cosmetic.hat.HatRegistry;
 import net.creeperhost.polylib.client.modulargui.ModularGui;
@@ -11,10 +13,13 @@ import net.creeperhost.polylib.client.modulargui.lib.*;
 import net.creeperhost.polylib.client.modulargui.lib.geometry.Align;
 import net.creeperhost.polylib.client.modulargui.lib.geometry.Axis;
 import net.creeperhost.polylib.client.modulargui.lib.geometry.GuiParent;
+import net.creeperhost.polylib.client.modulargui.lib.geometry.Rectangle;
 import net.minecraft.ChatFormatting;
 import net.minecraft.client.Minecraft;
 import net.minecraft.network.chat.Component;
+import net.minecraft.world.entity.LivingEntity;
 import org.jetbrains.annotations.NotNull;
+import org.joml.Quaternionf;
 
 import java.util.List;
 
@@ -25,7 +30,7 @@ public class CosmeticsGui implements GuiProvider {
 
     private static final int CATEGORY_WIDTH = 44;
     private static final int LIST_WIDTH = 190;
-    private static final int PREVIEW_WIDTH = 140;
+    private static final int PREVIEW_WIDTH = 150;
     private static final int GAP = 6;
     private static final int TOTAL_WIDTH = CATEGORY_WIDTH + GAP + LIST_WIDTH + GAP + PREVIEW_WIDTH;
     private static final int BUTTON_HEIGHT = 14;
@@ -92,9 +97,9 @@ public class CosmeticsGui implements GuiProvider {
                 .constrain(WIDTH, literal(LIST_WIDTH))
                 .constrain(BOTTOM, match(container.get(BOTTOM)));
 
-        // Loading indicator (hats only)
+        // Loading indicator
         new GuiText(listPanel, () ->
-                activeTab[0] == CosmeticTab.HATS && CosmeticDownloader.instance().isLoading()
+                CosmeticDownloader.instance().isLoading()
                         ? Component.translatable("minetogether:gui.cosmetics.loading").withStyle(ChatFormatting.YELLOW)
                         : Component.empty())
                 .setShadow(false)
@@ -128,14 +133,23 @@ public class CosmeticsGui implements GuiProvider {
                 .setScrollableElement(hatList)
                 .setSliderState(hatList.scrollState());
 
-        // Capes placeholder
-        new GuiText(listArea, Component.translatable("minetogether:gui.cosmetics.capes_soon").withStyle(ChatFormatting.GRAY))
-                .setShadow(false)
-                .setEnabled(() -> activeTab[0] == CosmeticTab.CAPES)
-                .constrain(TOP, midPoint(listArea.get(TOP), listArea.get(BOTTOM), -4))
-                .constrain(HEIGHT, literal(8))
-                .constrain(LEFT, match(listArea.get(LEFT)))
-                .constrain(RIGHT, match(listArea.get(RIGHT)));
+        // Cape list
+        GuiList<Cape> capeList = new GuiList<Cape>(listArea)
+                .setDisplayBuilder((parent, cape) -> cape == null ? new NoCapeEntry(parent) : new CapeEntry(parent, cape))
+                .setItemSpacing(2)
+                .setEnabled(() -> activeTab[0] == CosmeticTab.CAPES);
+        Constraints.bind(capeList, listArea, 4);
+
+        var capeScrollBar = MTStyle.Flat.scrollBar(listArea, Axis.Y);
+        capeScrollBar.container
+                .setEnabled(() -> activeTab[0] == CosmeticTab.CAPES && capeList.hiddenSize() > 0)
+                .constrain(TOP, match(capeList.get(TOP)))
+                .constrain(BOTTOM, match(capeList.get(BOTTOM)))
+                .constrain(RIGHT, match(listArea.get(RIGHT)))
+                .constrain(WIDTH, literal(4));
+        capeScrollBar.primary
+                .setScrollableElement(capeList)
+                .setSliderState(capeList.scrollState());
 
         // ── Right: player preview panel ───────────────────────────────────────
 
@@ -145,29 +159,52 @@ public class CosmeticsGui implements GuiProvider {
                 .constrain(WIDTH, literal(PREVIEW_WIDTH))
                 .constrain(BOTTOM, match(container.get(BOTTOM)));
 
+        final boolean[] trackingEnabled = {true};
+
         new GuiText(previewPanel, Component.translatable("minetogether:gui.cosmetics.section.preview").withStyle(ChatFormatting.GRAY))
                 .setShadow(false)
                 .constrain(TOP, relative(previewPanel.get(TOP), 4))
                 .constrain(HEIGHT, literal(8))
                 .constrain(LEFT, relative(previewPanel.get(LEFT), 2))
-                .constrain(RIGHT, relative(previewPanel.get(RIGHT), -2));
+                .constrain(RIGHT, relative(previewPanel.get(RIGHT), -18));
 
-        GuiEntityRenderer playerRenderer = new GuiEntityRenderer(previewPanel)
-                .setEntity(Minecraft.getInstance().player)
-                .setTrackMouse(true);
-        playerRenderer
+        MTStyle.Flat.button(previewPanel, () -> Component.literal("T").withStyle(trackingEnabled[0] ? ChatFormatting.GREEN : ChatFormatting.RED))
+                .onPress(() -> trackingEnabled[0] = !trackingEnabled[0])
+                .constrain(TOP, relative(previewPanel.get(TOP), 2))
+                .constrain(RIGHT, relative(previewPanel.get(RIGHT), -2))
+                .constrain(WIDTH, literal(13))
+                .constrain(HEIGHT, literal(11));
+
+        // Mirror view (left) — offset 120° + mirror frame border
+        new OffsetFollowRenderer(previewPanel, Minecraft.getInstance().player, 120.0F, trackingEnabled)
                 .constrain(HEIGHT, literal(70))
                 .constrain(TOP, midPoint(previewPanel.get(TOP), previewPanel.get(BOTTOM), -35))
                 .constrain(LEFT, relative(previewPanel.get(LEFT), 4))
+                .constrain(RIGHT, midPoint(previewPanel.get(LEFT), previewPanel.get(RIGHT), -2));
+
+        // Front view (right) — offset -20° so player faces slightly right
+        new OffsetFollowRenderer(previewPanel, Minecraft.getInstance().player, -20.0F, trackingEnabled)
+                .constrain(HEIGHT, literal(70))
+                .constrain(TOP, midPoint(previewPanel.get(TOP), previewPanel.get(BOTTOM), -35))
+                .constrain(LEFT, midPoint(previewPanel.get(LEFT), previewPanel.get(RIGHT), 2))
                 .constrain(RIGHT, relative(previewPanel.get(RIGHT), -4));
 
         new GuiText(previewPanel, () -> {
-            String id = LocalConfig.instance().selectedHatId;
-            if (id == null || id.isEmpty())
-                return Component.translatable("minetogether:gui.cosmetics.none_equipped").withStyle(ChatFormatting.GRAY);
-            Hat hat = HatRegistry.get(id);
-            String name = hat != null ? hat.displayName() : id;
-            return Component.translatable("minetogether:gui.cosmetics.equipped", Component.literal(name).withStyle(ChatFormatting.GREEN));
+            if (activeTab[0] == CosmeticTab.HATS) {
+                String id = LocalConfig.instance().selectedHatId;
+                if (id == null || id.isEmpty())
+                    return Component.translatable("minetogether:gui.cosmetics.none_equipped").withStyle(ChatFormatting.GRAY);
+                Hat hat = HatRegistry.get(id);
+                String name = hat != null ? hat.displayName() : id;
+                return Component.translatable("minetogether:gui.cosmetics.equipped", Component.literal(name).withStyle(ChatFormatting.GREEN));
+            } else {
+                String id = LocalConfig.instance().selectedCapeId;
+                if (id == null || id.isEmpty())
+                    return Component.translatable("minetogether:gui.cosmetics.cape.none_equipped").withStyle(ChatFormatting.GRAY);
+                Cape cape = CapeRegistry.get(id);
+                String name = cape != null ? cape.displayName() : id;
+                return Component.translatable("minetogether:gui.cosmetics.equipped", Component.literal(name).withStyle(ChatFormatting.GREEN));
+            }
         })
                 .setShadow(false)
                 .constrain(BOTTOM, relative(previewPanel.get(BOTTOM), -4))
@@ -179,13 +216,20 @@ public class CosmeticsGui implements GuiProvider {
 
         MTStyle.Flat.buttonPrimary(root, Component.translatable("minetogether:gui.cosmetics.button.random"))
                 .onPress(() -> {
-                    List<Hat> available = HatRegistry.all();
-                    if (available.isEmpty()) return;
-                    Hat pick = available.get((int) (Math.random() * available.size()));
-                    LocalConfig.instance().selectedHatId = pick.id();
+                    if (activeTab[0] == CosmeticTab.HATS) {
+                        List<Hat> available = HatRegistry.all();
+                        if (available.isEmpty()) return;
+                        Hat pick = available.get((int) (Math.random() * available.size()));
+                        LocalConfig.instance().selectedHatId = pick.id();
+                    } else {
+                        List<Cape> available = CapeRegistry.all();
+                        if (available.isEmpty()) return;
+                        Cape pick = available.get((int) (Math.random() * available.size()));
+                        LocalConfig.instance().selectedCapeId = pick.id();
+                    }
                     LocalConfig.save();
                 })
-                .setDisabled(() -> HatRegistry.all().isEmpty())
+                .setDisabled(() -> activeTab[0] == CosmeticTab.HATS ? HatRegistry.all().isEmpty() : CapeRegistry.all().isEmpty())
                 .constrain(BOTTOM, relative(root.get(BOTTOM), -6))
                 .constrain(LEFT, match(container.get(LEFT)))
                 .constrain(WIDTH, literal((TOTAL_WIDTH / 2) - 2))
@@ -199,15 +243,23 @@ public class CosmeticsGui implements GuiProvider {
                 .constrain(HEIGHT, literal(BUTTON_HEIGHT));
 
         CosmeticDownloader.instance().startDownload();
-        final int[] lastSize = {0};
+        final int[] lastSizes = {0, 0};
         gui.onTick(() -> {
-            List<Hat> available = HatRegistry.all();
-            if (available.size() != lastSize[0]) {
-                lastSize[0] = available.size();
+            List<Hat> availableHats = HatRegistry.all();
+            if (availableHats.size() != lastSizes[0]) {
+                lastSizes[0] = availableHats.size();
                 hatList.getList().clear();
                 hatList.getList().add(null); // None entry
-                hatList.getList().addAll(available);
+                hatList.getList().addAll(availableHats);
                 hatList.markDirty();
+            }
+            List<Cape> availableCapes = CapeRegistry.all();
+            if (availableCapes.size() != lastSizes[1]) {
+                lastSizes[1] = availableCapes.size();
+                capeList.getList().clear();
+                capeList.getList().add(null); // None entry
+                capeList.getList().addAll(availableCapes);
+                capeList.markDirty();
             }
         });
     }
@@ -224,18 +276,16 @@ public class CosmeticsGui implements GuiProvider {
                     .setShadow(false)
                     .constrain(TOP, relative(get(TOP), 6))
                     .constrain(LEFT, relative(get(LEFT), 6))
-                    .constrain(RIGHT, relative(get(RIGHT), -54))
+                    .constrain(RIGHT, relative(get(RIGHT), -6))
                     .constrain(HEIGHT, literal(8));
+        }
 
-            MTStyle.Flat.buttonPrimary(this, () -> isNoneSelected()
-                    ? Component.translatable("minetogether:gui.cosmetics.button.wearing")
-                    : Component.translatable("minetogether:gui.cosmetics.button.wear"))
-                    .onPress(() -> { LocalConfig.instance().selectedHatId = ""; LocalConfig.save(); })
-                    .setDisabled(NoneEntry::isNoneSelected)
-                    .constrain(TOP, relative(get(TOP), 3))
-                    .constrain(BOTTOM, relative(get(BOTTOM), -3))
-                    .constrain(RIGHT, relative(get(RIGHT), -2))
-                    .constrain(WIDTH, literal(50));
+        @Override
+        public boolean mouseClicked(double mouseX, double mouseY, int button) {
+            if (!isMouseOver()) return false;
+            LocalConfig.instance().selectedHatId = "";
+            LocalConfig.save();
+            return true;
         }
 
         private static boolean isNoneSelected() {
@@ -259,7 +309,8 @@ public class CosmeticsGui implements GuiProvider {
         public HatEntry(@NotNull GuiParent<?> parent, Hat hat) {
             super(parent);
             this.hat = hat;
-            this.constrain(HEIGHT, literal(20));
+            boolean hasSubtitle = !hat.author().isEmpty() || !hat.mod().isEmpty();
+            this.constrain(HEIGHT, literal(hasSubtitle ? 28 : 20));
 
             new GuiText(this, () -> {
                 boolean equipped = hat.id().equals(LocalConfig.instance().selectedHatId);
@@ -268,26 +319,29 @@ public class CosmeticsGui implements GuiProvider {
             })
                     .setAlignment(Align.LEFT)
                     .setShadow(false)
-                    .constrain(TOP, relative(get(TOP), 6))
+                    .constrain(TOP, relative(get(TOP), hasSubtitle ? 4 : 6))
                     .constrain(LEFT, relative(get(LEFT), 6))
-                    .constrain(RIGHT, relative(get(RIGHT), -54))
+                    .constrain(RIGHT, relative(get(RIGHT), -6))
                     .constrain(HEIGHT, literal(8));
 
-            MTStyle.Flat.buttonPrimary(this, () -> {
-                boolean equipped = hat.id().equals(LocalConfig.instance().selectedHatId);
-                return equipped
-                        ? Component.translatable("minetogether:gui.cosmetics.button.wearing")
-                        : Component.translatable("minetogether:gui.cosmetics.button.wear");
-            })
-                    .onPress(() -> {
-                        LocalConfig.instance().selectedHatId = hat.id();
-                        LocalConfig.save();
-                    })
-                    .setDisabled(() -> hat.id().equals(LocalConfig.instance().selectedHatId))
-                    .constrain(TOP, relative(get(TOP), 3))
-                    .constrain(BOTTOM, relative(get(BOTTOM), -3))
-                    .constrain(RIGHT, relative(get(RIGHT), -2))
-                    .constrain(WIDTH, literal(50));
+            if (hasSubtitle) {
+                String subtitle = buildSubtitle(hat.author(), hat.mod());
+                new GuiText(this, Component.literal(subtitle).withStyle(ChatFormatting.GRAY))
+                        .setAlignment(Align.LEFT)
+                        .setShadow(false)
+                        .constrain(TOP, relative(get(TOP), 14))
+                        .constrain(LEFT, relative(get(LEFT), 6))
+                        .constrain(RIGHT, relative(get(RIGHT), -6))
+                        .constrain(HEIGHT, literal(7));
+            }
+        }
+
+        @Override
+        public boolean mouseClicked(double mouseX, double mouseY, int button) {
+            if (!isMouseOver()) return false;
+            LocalConfig.instance().selectedHatId = hat.id();
+            LocalConfig.save();
+            return true;
         }
 
         @Override
@@ -296,6 +350,152 @@ public class CosmeticsGui implements GuiProvider {
             if (hat.id().equals(LocalConfig.instance().selectedHatId)) {
                 render.borderRect(getRectangle(), 1, 0x2000CC44, 0xFF00AA33);
             }
+        }
+    }
+
+    private static class NoCapeEntry extends GuiElement<NoCapeEntry> implements BackgroundRender {
+
+        public NoCapeEntry(@NotNull GuiParent<?> parent) {
+            super(parent);
+            this.constrain(HEIGHT, literal(20));
+
+            new GuiText(this, () -> Component.translatable("minetogether:gui.cosmetics.cape.none")
+                    .withStyle(isNoneSelected() ? ChatFormatting.GREEN : ChatFormatting.WHITE))
+                    .setAlignment(Align.LEFT)
+                    .setShadow(false)
+                    .constrain(TOP, relative(get(TOP), 6))
+                    .constrain(LEFT, relative(get(LEFT), 6))
+                    .constrain(RIGHT, relative(get(RIGHT), -6))
+                    .constrain(HEIGHT, literal(8));
+        }
+
+        @Override
+        public boolean mouseClicked(double mouseX, double mouseY, int button) {
+            if (!isMouseOver()) return false;
+            LocalConfig.instance().selectedCapeId = "";
+            LocalConfig.save();
+            return true;
+        }
+
+        private static boolean isNoneSelected() {
+            String id = LocalConfig.instance().selectedCapeId;
+            return id == null || id.isEmpty();
+        }
+
+        @Override
+        public void renderBehind(GuiRender render, double mouseX, double mouseY, float partialTicks) {
+            render.rect(getRectangle(), MTStyle.Flat.listEntryBackground(true));
+            if (isNoneSelected()) {
+                render.borderRect(getRectangle(), 1, 0x2000CC44, 0xFF00AA33);
+            }
+        }
+    }
+
+    private static class CapeEntry extends GuiElement<CapeEntry> implements BackgroundRender {
+
+        private final Cape cape;
+
+        public CapeEntry(@NotNull GuiParent<?> parent, Cape cape) {
+            super(parent);
+            this.cape = cape;
+            boolean hasSubtitle = !cape.author().isEmpty() || !cape.mod().isEmpty();
+            this.constrain(HEIGHT, literal(hasSubtitle ? 28 : 20));
+
+            new GuiText(this, () -> {
+                boolean equipped = cape.id().equals(LocalConfig.instance().selectedCapeId);
+                return Component.literal(cape.displayName())
+                        .withStyle(equipped ? ChatFormatting.GREEN : ChatFormatting.WHITE);
+            })
+                    .setAlignment(Align.LEFT)
+                    .setShadow(false)
+                    .constrain(TOP, relative(get(TOP), hasSubtitle ? 4 : 6))
+                    .constrain(LEFT, relative(get(LEFT), 6))
+                    .constrain(RIGHT, relative(get(RIGHT), -6))
+                    .constrain(HEIGHT, literal(8));
+
+            if (hasSubtitle) {
+                String subtitle = buildSubtitle(cape.author(), cape.mod());
+                new GuiText(this, Component.literal(subtitle).withStyle(ChatFormatting.GRAY))
+                        .setAlignment(Align.LEFT)
+                        .setShadow(false)
+                        .constrain(TOP, relative(get(TOP), 14))
+                        .constrain(LEFT, relative(get(LEFT), 6))
+                        .constrain(RIGHT, relative(get(RIGHT), -6))
+                        .constrain(HEIGHT, literal(7));
+            }
+        }
+
+        @Override
+        public boolean mouseClicked(double mouseX, double mouseY, int button) {
+            if (!isMouseOver()) return false;
+            LocalConfig.instance().selectedCapeId = cape.id();
+            LocalConfig.save();
+            return true;
+        }
+
+        @Override
+        public void renderBehind(GuiRender render, double mouseX, double mouseY, float partialTicks) {
+            render.rect(getRectangle(), MTStyle.Flat.listEntryBackground(true));
+            if (cape.id().equals(LocalConfig.instance().selectedCapeId)) {
+                render.borderRect(getRectangle(), 1, 0x2000CC44, 0xFF00AA33);
+            }
+        }
+    }
+
+    private static String buildSubtitle(String author, String mod) {
+        if (!author.isEmpty() && !mod.isEmpty()) return author + " · " + mod;
+        if (!author.isEmpty()) return author;
+        return mod;
+    }
+
+    private static class OffsetFollowRenderer extends GuiElement<OffsetFollowRenderer> implements BackgroundRender {
+        private final LivingEntity entity;
+        private final float yRotOffset;
+        private final boolean[] trackingEnabled;
+
+        public OffsetFollowRenderer(@NotNull GuiParent<?> parent, LivingEntity entity, float yRotOffset, boolean[] trackingEnabled) {
+            super(parent);
+            this.entity = entity;
+            this.yRotOffset = yRotOffset;
+            this.trackingEnabled = trackingEnabled;
+        }
+
+        @Override
+        public void renderBehind(GuiRender render, double mouseX, double mouseY, float partialTicks) {
+            if (entity == null) return;
+            Rectangle rect = getRectangle();
+            float scale = (float) (rect.height() / entity.getBbHeight());
+            float xPos = (float) (rect.x() + (rect.width() / 2D));
+            float yPos = (float) ((yMin() + (ySize() / 2)) + (rect.height() / 2));
+            int eyeOffset = (int) (entity.getEyeHeight() * scale);
+            double effectiveMouseX = trackingEnabled[0] ? mouseX : xPos;
+            double effectiveMouseY = trackingEnabled[0] ? mouseY : (yPos - eyeOffset);
+            float xAngle = (float) Math.atan((xPos - effectiveMouseX) / 40.0F);
+            float yAngle = (float) Math.atan((yPos - effectiveMouseY - eyeOffset) / 40.0F);
+
+            Quaternionf quaternionf = new Quaternionf().rotateZ((float) Math.PI);
+            Quaternionf quaternionf1 = new Quaternionf().rotateX(yAngle * 20.0F * ((float) Math.PI / 180F));
+            quaternionf.mul(quaternionf1);
+
+            float prevBodyRot = entity.yBodyRot;
+            float prevYRot = entity.getYRot();
+            float prevXRot = entity.getXRot();
+            float prevHeadRotO = entity.yHeadRotO;
+            float prevHeadRot = entity.yHeadRot;
+
+            entity.yBodyRot = 180.0F + yRotOffset + xAngle * 20.0F;
+            entity.setYRot(180.0F + yRotOffset + xAngle * 40.0F);
+            entity.setXRot(-yAngle * 20.0F);
+            entity.yHeadRot = entity.getYRot();
+            entity.yHeadRotO = entity.getYRot();
+
+            GuiEntityRenderer.renderEntityInInventory(render, xPos, yPos, scale, quaternionf, quaternionf1, entity);
+
+            entity.yBodyRot = prevBodyRot;
+            entity.setYRot(prevYRot);
+            entity.setXRot(prevXRot);
+            entity.yHeadRotO = prevHeadRotO;
+            entity.yHeadRot = prevHeadRot;
         }
     }
 

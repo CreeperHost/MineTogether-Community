@@ -4,5 +4,5 @@ import net.minecraft.resources.ResourceLocation;
 
 import java.util.List;
 
-public record Hat(String id, String displayName, ResourceLocation texture, int texWidth, int texHeight, List<HatCuboid> cuboids) {
+public record Hat(String id, String displayName, String author, String mod, ResourceLocation texture, int texWidth, int texHeight, List<HatCuboid> cuboids) {
 }

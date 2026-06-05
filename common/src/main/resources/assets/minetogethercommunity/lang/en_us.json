@@ -410,7 +410,8 @@
     "minetogether:gui.cosmetics.section.preview": "Preview",
     "minetogether:gui.cosmetics.tab.hats": "Hats",
     "minetogether:gui.cosmetics.tab.capes": "Capes",
-    "minetogether:gui.cosmetics.capes_soon": "Coming soon!",
+    "minetogether:gui.cosmetics.cape.none": "None",
+    "minetogether:gui.cosmetics.cape.none_equipped": "No cape equipped",
     "minetogether:gui.settings.button.cosmetics": "Cosmetics"
 
 

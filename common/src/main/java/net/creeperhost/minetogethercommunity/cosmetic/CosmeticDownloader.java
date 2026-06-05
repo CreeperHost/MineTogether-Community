@@ -3,13 +3,17 @@ package net.creeperhost.minetogethercommunity.cosmetic;
 import com.google.gson.JsonArray;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonParser;
+import com.mojang.blaze3d.platform.NativeImage;
 import dev.architectury.platform.Platform;
+import net.creeperhost.minetogethercommunity.cosmetic.cape.Cape;
 import net.creeperhost.minetogethercommunity.cosmetic.hat.Hat;
+import net.minecraft.client.Minecraft;
+import net.minecraft.client.renderer.texture.DynamicTexture;
+import net.minecraft.resources.ResourceLocation;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
 import java.io.IOException;
-import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.net.URI;
 import java.net.http.HttpClient;
@@ -25,12 +29,14 @@ import java.util.concurrent.CopyOnWriteArrayList;
 public class CosmeticDownloader {
 
     private static final Logger LOGGER = LogManager.getLogger();
-    private static final String COSMETICS_RESOURCE = "/assets/minetogethercommunity/cosmetics.json";
+    //TODO Temp link
+    private static final String COSMETICS_URL = "https://vristingtest.playat.ch/cosmetics.json";
 
     private static volatile CosmeticDownloader INSTANCE;
 
     private final Path cacheBase;
     private final List<Hat> hats = new CopyOnWriteArrayList<>();
+    private final List<Cape> capes = new CopyOnWriteArrayList<>();
     private volatile boolean loading = false;
     private volatile boolean loaded = false;
 
@@ -56,6 +62,11 @@ public class CosmeticDownloader {
         return Collections.unmodifiableList(hats);
     }
 
+    public List<Cape> getCapes() {
+        if (!loading && !loaded) startDownload();
+        return Collections.unmodifiableList(capes);
+    }
+
     public boolean isLoading() { return loading; }
     public boolean isLoaded() { return loaded; }
 
@@ -76,30 +87,49 @@ public class CosmeticDownloader {
                     .build();
 
             Path hatsCache = cacheBase.resolve("hats");
+            Path capesCache = cacheBase.resolve("capes");
             Files.createDirectories(hatsCache);
+            Files.createDirectories(capesCache);
 
-            try (InputStream is = CosmeticDownloader.class.getResourceAsStream(COSMETICS_RESOURCE)) {
-                if (is == null) {
-                    LOGGER.error("cosmetics.json not found in resources");
-                    return;
+            LOGGER.info("Fetching cosmetics list from {}", COSMETICS_URL);
+            byte[] indexBytes = fetchBytes(client, COSMETICS_URL);
+            var root = JsonParser.parseReader(new InputStreamReader(
+                    new java.io.ByteArrayInputStream(indexBytes), StandardCharsets.UTF_8)
+            ).getAsJsonObject();
+
+            JsonArray hatsArray = root.getAsJsonArray("hats");
+            LOGGER.info("Found {} hats in cosmetics.json", hatsArray.size());
+            for (JsonElement el : hatsArray) {
+                var obj = el.getAsJsonObject();
+                String name = obj.get("name").getAsString();
+                String url = obj.get("url").getAsString();
+                String author = obj.has("author") ? obj.get("author").getAsString() : "";
+                String mod = obj.has("mod") ? obj.get("mod").getAsString() : "";
+                try {
+                    loadHat(client, hatsCache, name, url, author, mod);
+                } catch (Exception e) {
+                    LOGGER.warn("Skipping hat '{}': {}", name, e.getMessage());
                 }
-                var root = JsonParser.parseReader(new InputStreamReader(is, StandardCharsets.UTF_8)).getAsJsonObject();
-                JsonArray hatsArray = root.getAsJsonArray("hats");
-                LOGGER.info("Found {} hats in cosmetics.json", hatsArray.size());
+            }
 
-                for (JsonElement el : hatsArray) {
+            if (root.has("capes")) {
+                JsonArray capesArray = root.getAsJsonArray("capes");
+                LOGGER.info("Found {} capes in cosmetics.json", capesArray.size());
+                for (JsonElement el : capesArray) {
                     var obj = el.getAsJsonObject();
                     String name = obj.get("name").getAsString();
                     String url = obj.get("url").getAsString();
+                    String author = obj.has("author") ? obj.get("author").getAsString() : "";
+                    String mod = obj.has("mod") ? obj.get("mod").getAsString() : "";
                     try {
-                        loadHat(client, hatsCache, name, url);
+                        loadCape(client, capesCache, name, url, author, mod);
                     } catch (Exception e) {
-                        LOGGER.warn("Skipping hat '{}': {}", name, e.getMessage());
+                        LOGGER.warn("Skipping cape '{}': {}", name, e.getMessage());
                     }
                 }
             }
 
-            LOGGER.info("Loaded {} hats", hats.size());
+            LOGGER.info("Loaded {} hats, {} capes", hats.size(), capes.size());
         } catch (Exception e) {
             LOGGER.error("Failed to load cosmetics", e);
         } finally {
@@ -108,7 +138,7 @@ public class CosmeticDownloader {
         }
     }
 
-    private void loadHat(HttpClient client, Path cacheDir, String name, String url) throws Exception {
+    private void loadHat(HttpClient client, Path cacheDir, String name, String url, String author, String mod) throws Exception {
         String filename = name + ".tc2";
         Path cached = cacheDir.resolve(filename);
         byte[] data;
@@ -120,8 +150,37 @@ public class CosmeticDownloader {
             data = fetchBytes(client, url);
             Files.write(cached, data);
         }
-        Hat hat = TechneLoader.load(name, data);
+        Hat hat = TechneLoader.load(name, author, mod, data);
         hats.add(hat);
+    }
+
+    private void loadCape(HttpClient client, Path cacheDir, String name, String url, String author, String mod) throws Exception {
+        String filename = name + ".png";
+        Path cached = cacheDir.resolve(filename);
+        byte[] data;
+        if (Files.exists(cached)) {
+            LOGGER.info("Loading cape '{}' from cache", name);
+            data = Files.readAllBytes(cached);
+        } else {
+            LOGGER.info("Downloading cape '{}' from {}", name, url);
+            data = fetchBytes(client, url);
+            Files.write(cached, data);
+        }
+
+        ResourceLocation location = ResourceLocation.fromNamespaceAndPath("minetogethercommunity", "cape/" + name.toLowerCase().replace(' ', '_'));
+        byte[] finalData = data;
+        Minecraft.getInstance().execute(() -> {
+            try {
+                NativeImage img =
+                        NativeImage.read(new java.io.ByteArrayInputStream(finalData));
+                DynamicTexture tex = new DynamicTexture(img);
+                Minecraft.getInstance().getTextureManager().register(location, tex);
+                capes.add(new Cape(name, name, author, mod, location, img.getWidth(), img.getHeight()));
+                LOGGER.info("Registered cape texture '{}' ({}x{})", name, img.getWidth(), img.getHeight());
+            } catch (Exception e) {
+                LOGGER.warn("Failed to register cape texture '{}': {}", name, e.getMessage());
+            }
+        });
     }
 
     private byte[] fetchBytes(HttpClient client, String url) throws IOException, InterruptedException {

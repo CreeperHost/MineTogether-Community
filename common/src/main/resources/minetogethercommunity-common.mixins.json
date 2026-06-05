@@ -10,7 +10,9 @@
       "connect.JoinMultiplayerScreenMixin",
       "connect.ServerSelectionListMixin",
       "cosmetic.LivingEntityRendererAccess",
-      "cosmetic.PlayerRendererMixin"
+      "cosmetic.PlayerModelAccess",
+      "cosmetic.PlayerRendererMixin",
+      "cosmetic.VanillaCapeLayerMixin"
     ],
     "server": []
 }

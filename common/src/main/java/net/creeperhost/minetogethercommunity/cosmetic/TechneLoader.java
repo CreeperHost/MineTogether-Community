@@ -27,7 +27,7 @@ public class TechneLoader {
     private static final Logger LOGGER = LogManager.getLogger();
     private static final String CUBE_TYPE = "d9e621f7-957f-4b77-b1ae-20dcd0da7751";
 
-    public static Hat load(String displayName, byte[] tc2Data) throws IOException {
+    public static Hat load(String displayName, String author, String mod, byte[] tc2Data) throws IOException {
         byte[] modelJsonBytes = null;
         byte[] textureBytes = null;
 
@@ -117,7 +117,7 @@ public class TechneLoader {
             }
         });
 
-        return new Hat(id, displayName, texLoc, texW, texH, cuboids);
+        return new Hat(id, displayName, author, mod, texLoc, texW, texH, cuboids);
     }
 
     private static float[] parseVec3(String s) {
