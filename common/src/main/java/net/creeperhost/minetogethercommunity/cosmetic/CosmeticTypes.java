@@ -9,6 +9,5 @@ public enum CosmeticTypes
     GLOVES,
     BOOTS,
     WINGS,
-    //TODO need to think of a better name for this, Its base on the Ephemera's from Warframe
-    OVERLAY
+    AURA
 }

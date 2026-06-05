@@ -33,6 +33,7 @@ public class HatLayer<T extends AbstractClientPlayer> extends RenderLayer<T, Pla
 
         poseStack.pushPose();
         getParentModel().head.translateAndRotate(poseStack);
+        poseStack.scale(1.01f, 1.01f, 1.01f);
         poseStack.translate(0.0D, -1.5D, 0.0D);
         HatModel model = HatRegistry.getModel(hat);
         model.renderToBuffer(poseStack, bufferSource.getBuffer(RenderType.entityCutoutNoCull(hat.texture())), packedLight, OverlayTexture.NO_OVERLAY);

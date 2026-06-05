@@ -22,6 +22,7 @@ import org.jetbrains.annotations.NotNull;
 import org.joml.Quaternionf;
 
 import java.util.List;
+import java.util.Locale;
 
 import static net.creeperhost.polylib.client.modulargui.lib.geometry.Constraint.*;
 import static net.creeperhost.polylib.client.modulargui.lib.geometry.GeoParam.*;
@@ -36,7 +37,9 @@ public class CosmeticsGui implements GuiProvider {
     private static final int BUTTON_HEIGHT = 14;
     private static final int TAB_HEIGHT = 18;
 
-    private enum CosmeticTab { HATS, CAPES }
+    private static boolean isImplemented(CosmeticTypes type) {
+        return type == CosmeticTypes.HAT || type == CosmeticTypes.CAPE;
+    }
 
     @Override
     public GuiElement<?> createRootElement(ModularGui gui) {
@@ -51,7 +54,7 @@ public class CosmeticsGui implements GuiProvider {
         gui.setGuiTitle(Component.translatable("minetogether:gui.cosmetics.title"));
 
         GuiElement<?> root = gui.getRoot();
-        final CosmeticTab[] activeTab = {CosmeticTab.HATS};
+        final CosmeticTypes[] activeTab = {CosmeticTypes.HAT};
 
         GuiElement<?> container = new GuiElement<>(root)
                 .constrain(LEFT, midPoint(root.get(LEFT), root.get(RIGHT), -(TOTAL_WIDTH / 2D)))
@@ -73,21 +76,19 @@ public class CosmeticsGui implements GuiProvider {
                 .constrain(WIDTH, literal(CATEGORY_WIDTH))
                 .constrain(BOTTOM, match(container.get(BOTTOM)));
 
-        MTStyle.Flat.buttonPrimary(categoryPanel, Component.translatable("minetogether:gui.cosmetics.tab.hats"))
-                .setDisabled(() -> activeTab[0] == CosmeticTab.HATS)
-                .onPress(() -> activeTab[0] = CosmeticTab.HATS)
-                .constrain(TOP, relative(categoryPanel.get(TOP), 4))
-                .constrain(LEFT, relative(categoryPanel.get(LEFT), 4))
-                .constrain(RIGHT, relative(categoryPanel.get(RIGHT), -4))
-                .constrain(HEIGHT, literal(TAB_HEIGHT));
-
-        MTStyle.Flat.buttonPrimary(categoryPanel, Component.translatable("minetogether:gui.cosmetics.tab.capes"))
-                .setDisabled(() -> activeTab[0] == CosmeticTab.CAPES)
-                .onPress(() -> activeTab[0] = CosmeticTab.CAPES)
-                .constrain(TOP, relative(categoryPanel.get(TOP), 4 + TAB_HEIGHT + 3))
-                .constrain(LEFT, relative(categoryPanel.get(LEFT), 4))
-                .constrain(RIGHT, relative(categoryPanel.get(RIGHT), -4))
-                .constrain(HEIGHT, literal(TAB_HEIGHT));
+        CosmeticTypes[] allTypes = CosmeticTypes.values();
+        for (int i = 0; i < allTypes.length; i++) {
+            CosmeticTypes type = allTypes[i];
+            boolean implemented = isImplemented(type);
+            int topOffset = 4 + i * (TAB_HEIGHT + 3);
+            MTStyle.Flat.buttonPrimary(categoryPanel, Component.translatable("minetogether:gui.cosmetics.tab." + type.name().toLowerCase()))
+                    .setDisabled(() -> !implemented || activeTab[0] == type)
+                    .onPress(() -> activeTab[0] = type)
+                    .constrain(TOP, relative(categoryPanel.get(TOP), topOffset))
+                    .constrain(LEFT, relative(categoryPanel.get(LEFT), 4))
+                    .constrain(RIGHT, relative(categoryPanel.get(RIGHT), -4))
+                    .constrain(HEIGHT, literal(TAB_HEIGHT));
+        }
 
         // ── Centre: list panel ────────────────────────────────────────────────
 
@@ -109,8 +110,23 @@ public class CosmeticsGui implements GuiProvider {
                 .constrain(LEFT, relative(listPanel.get(LEFT), 6))
                 .constrain(RIGHT, relative(listPanel.get(RIGHT), -6));
 
+        // Search bar
+        final String[] searchQuery = {""};
+
+        GuiRectangle searchBg = new GuiRectangle(listPanel)
+                .fill(0xA0202020)
+                .constrain(TOP, relative(listPanel.get(TOP), 4))
+                .constrain(LEFT, relative(listPanel.get(LEFT), 4))
+                .constrain(RIGHT, relative(listPanel.get(RIGHT), -4))
+                .constrain(HEIGHT, literal(14));
+
+        GuiTextField searchField = new GuiTextField(searchBg)
+                .setTextState(TextState.simpleState("", s -> searchQuery[0] = s))
+                .setSuggestion(Component.translatable("minetogether:gui.cosmetics.search.suggestion"));
+        Constraints.bind(searchField, searchBg, 0, 3, 0, 3);
+
         GuiElement<?> listArea = new GuiElement<>(listPanel)
-                .constrain(TOP, match(listPanel.get(TOP)))
+                .constrain(TOP, relative(searchBg.get(BOTTOM), 4))
                 .constrain(LEFT, match(listPanel.get(LEFT)))
                 .constrain(RIGHT, match(listPanel.get(RIGHT)))
                 .constrain(BOTTOM, relative(listPanel.get(BOTTOM), -14));
@@ -119,12 +135,12 @@ public class CosmeticsGui implements GuiProvider {
         GuiList<Hat> hatList = new GuiList<Hat>(listArea)
                 .setDisplayBuilder((parent, hat) -> hat == null ? new NoneEntry(parent) : new HatEntry(parent, hat))
                 .setItemSpacing(2)
-                .setEnabled(() -> activeTab[0] == CosmeticTab.HATS);
+                .setEnabled(() -> activeTab[0] == CosmeticTypes.HAT);
         Constraints.bind(hatList, listArea, 4);
 
         var hatScrollBar = MTStyle.Flat.scrollBar(listArea, Axis.Y);
         hatScrollBar.container
-                .setEnabled(() -> activeTab[0] == CosmeticTab.HATS && hatList.hiddenSize() > 0)
+                .setEnabled(() -> activeTab[0] == CosmeticTypes.HAT && hatList.hiddenSize() > 0)
                 .constrain(TOP, match(hatList.get(TOP)))
                 .constrain(BOTTOM, match(hatList.get(BOTTOM)))
                 .constrain(RIGHT, match(listArea.get(RIGHT)))
@@ -137,12 +153,12 @@ public class CosmeticsGui implements GuiProvider {
         GuiList<Cape> capeList = new GuiList<Cape>(listArea)
                 .setDisplayBuilder((parent, cape) -> cape == null ? new NoCapeEntry(parent) : new CapeEntry(parent, cape))
                 .setItemSpacing(2)
-                .setEnabled(() -> activeTab[0] == CosmeticTab.CAPES);
+                .setEnabled(() -> activeTab[0] == CosmeticTypes.CAPE);
         Constraints.bind(capeList, listArea, 4);
 
         var capeScrollBar = MTStyle.Flat.scrollBar(listArea, Axis.Y);
         capeScrollBar.container
-                .setEnabled(() -> activeTab[0] == CosmeticTab.CAPES && capeList.hiddenSize() > 0)
+                .setEnabled(() -> activeTab[0] == CosmeticTypes.CAPE && capeList.hiddenSize() > 0)
                 .constrain(TOP, match(capeList.get(TOP)))
                 .constrain(BOTTOM, match(capeList.get(BOTTOM)))
                 .constrain(RIGHT, match(listArea.get(RIGHT)))
@@ -190,20 +206,22 @@ public class CosmeticsGui implements GuiProvider {
                 .constrain(RIGHT, relative(previewPanel.get(RIGHT), -4));
 
         new GuiText(previewPanel, () -> {
-            if (activeTab[0] == CosmeticTab.HATS) {
+            if (activeTab[0] == CosmeticTypes.HAT) {
                 String id = LocalConfig.instance().selectedHatId;
                 if (id == null || id.isEmpty())
                     return Component.translatable("minetogether:gui.cosmetics.none_equipped").withStyle(ChatFormatting.GRAY);
                 Hat hat = HatRegistry.get(id);
                 String name = hat != null ? hat.displayName() : id;
                 return Component.translatable("minetogether:gui.cosmetics.equipped", Component.literal(name).withStyle(ChatFormatting.GREEN));
-            } else {
+            } else if (activeTab[0] == CosmeticTypes.CAPE) {
                 String id = LocalConfig.instance().selectedCapeId;
                 if (id == null || id.isEmpty())
                     return Component.translatable("minetogether:gui.cosmetics.cape.none_equipped").withStyle(ChatFormatting.GRAY);
                 Cape cape = CapeRegistry.get(id);
                 String name = cape != null ? cape.displayName() : id;
                 return Component.translatable("minetogether:gui.cosmetics.equipped", Component.literal(name).withStyle(ChatFormatting.GREEN));
+            } else {
+                return Component.translatable("minetogether:gui.cosmetics.coming_soon").withStyle(ChatFormatting.GRAY);
             }
         })
                 .setShadow(false)
@@ -216,12 +234,12 @@ public class CosmeticsGui implements GuiProvider {
 
         MTStyle.Flat.buttonPrimary(root, Component.translatable("minetogether:gui.cosmetics.button.random"))
                 .onPress(() -> {
-                    if (activeTab[0] == CosmeticTab.HATS) {
+                    if (activeTab[0] == CosmeticTypes.HAT) {
                         List<Hat> available = HatRegistry.all();
                         if (available.isEmpty()) return;
                         Hat pick = available.get((int) (Math.random() * available.size()));
                         LocalConfig.instance().selectedHatId = pick.id();
-                    } else {
+                    } else if (activeTab[0] == CosmeticTypes.CAPE) {
                         List<Cape> available = CapeRegistry.all();
                         if (available.isEmpty()) return;
                         Cape pick = available.get((int) (Math.random() * available.size()));
@@ -229,7 +247,11 @@ public class CosmeticsGui implements GuiProvider {
                     }
                     LocalConfig.save();
                 })
-                .setDisabled(() -> activeTab[0] == CosmeticTab.HATS ? HatRegistry.all().isEmpty() : CapeRegistry.all().isEmpty())
+                .setDisabled(() -> {
+                    if (activeTab[0] == CosmeticTypes.HAT) return HatRegistry.all().isEmpty();
+                    if (activeTab[0] == CosmeticTypes.CAPE) return CapeRegistry.all().isEmpty();
+                    return true;
+                })
                 .constrain(BOTTOM, relative(root.get(BOTTOM), -6))
                 .constrain(LEFT, match(container.get(LEFT)))
                 .constrain(WIDTH, literal((TOTAL_WIDTH / 2) - 2))
@@ -244,21 +266,30 @@ public class CosmeticsGui implements GuiProvider {
 
         CosmeticDownloader.instance().startDownload();
         final int[] lastSizes = {0, 0};
+        final String[] lastQuery = {""};
         gui.onTick(() -> {
+            String q = searchQuery[0].toLowerCase(Locale.ROOT);
+            boolean queryChanged = !q.equals(lastQuery[0]);
+            if (queryChanged) lastQuery[0] = q;
+
             List<Hat> availableHats = HatRegistry.all();
-            if (availableHats.size() != lastSizes[0]) {
+            if (availableHats.size() != lastSizes[0] || queryChanged) {
                 lastSizes[0] = availableHats.size();
                 hatList.getList().clear();
                 hatList.getList().add(null); // None entry
-                hatList.getList().addAll(availableHats);
+                availableHats.stream()
+                        .filter(h -> q.isEmpty() || h.displayName().toLowerCase(Locale.ROOT).contains(q))
+                        .forEach(hatList.getList()::add);
                 hatList.markDirty();
             }
             List<Cape> availableCapes = CapeRegistry.all();
-            if (availableCapes.size() != lastSizes[1]) {
+            if (availableCapes.size() != lastSizes[1] || queryChanged) {
                 lastSizes[1] = availableCapes.size();
                 capeList.getList().clear();
                 capeList.getList().add(null); // None entry
-                capeList.getList().addAll(availableCapes);
+                availableCapes.stream()
+                        .filter(c -> q.isEmpty() || c.displayName().toLowerCase(Locale.ROOT).contains(q))
+                        .forEach(capeList.getList()::add);
                 capeList.markDirty();
             }
         });
