@@ -403,7 +403,14 @@
     "minetogether:gui.cosmetics.button.wear": "Wear",
     "minetogether:gui.cosmetics.button.wearing": "Wearing",
     "minetogether:gui.cosmetics.button.remove": "Remove Hat",
+    "minetogether:gui.cosmetics.button.random": "Random Hat",
+    "minetogether:gui.cosmetics.hat.none": "None",
     "minetogether:gui.cosmetics.loading": "Loading cosmetics...",
+    "minetogether:gui.cosmetics.section.hats": "Hats",
+    "minetogether:gui.cosmetics.section.preview": "Preview",
+    "minetogether:gui.cosmetics.tab.hats": "Hats",
+    "minetogether:gui.cosmetics.tab.capes": "Capes",
+    "minetogether:gui.cosmetics.capes_soon": "Coming soon!",
     "minetogether:gui.settings.button.cosmetics": "Cosmetics"
 
 

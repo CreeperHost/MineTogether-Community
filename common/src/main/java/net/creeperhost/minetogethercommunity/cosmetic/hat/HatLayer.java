@@ -1,6 +1,7 @@
 package net.creeperhost.minetogethercommunity.cosmetic.hat;
 
 import com.mojang.blaze3d.vertex.PoseStack;
+import com.mojang.math.Axis;
 import net.creeperhost.minetogethercommunity.config.LocalConfig;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.model.PlayerModel;
@@ -10,6 +11,7 @@ import net.minecraft.client.renderer.RenderType;
 import net.minecraft.client.renderer.entity.RenderLayerParent;
 import net.minecraft.client.renderer.entity.layers.RenderLayer;
 import net.minecraft.client.renderer.texture.OverlayTexture;
+import org.joml.Vector3f;
 
 public class HatLayer<T extends AbstractClientPlayer> extends RenderLayer<T, PlayerModel<T>> {
 
@@ -31,6 +33,7 @@ public class HatLayer<T extends AbstractClientPlayer> extends RenderLayer<T, Pla
 
         poseStack.pushPose();
         getParentModel().head.translateAndRotate(poseStack);
+        poseStack.translate(0.0D, -1.5D, 0.0D);
         HatModel model = HatRegistry.getModel(hat);
         model.renderToBuffer(poseStack, bufferSource.getBuffer(RenderType.entityCutoutNoCull(hat.texture())), packedLight, OverlayTexture.NO_OVERLAY);
         poseStack.popPose();

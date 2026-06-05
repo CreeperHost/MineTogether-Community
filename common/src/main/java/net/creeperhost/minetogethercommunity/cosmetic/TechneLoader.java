@@ -83,20 +83,23 @@ public class TechneLoader {
                     JsonElement typeEl = shape.get("@Type");
                     if (typeEl == null || !CUBE_TYPE.equals(typeEl.getAsString())) continue;
 
-                    float[] pos = parseVec3(shape.get("Position").getAsString());
-                    float[] off = shape.has("Offset") ? parseVec3(shape.get("Offset").getAsString()) : new float[3];
+                    float[] pos  = parseVec3(shape.get("Position").getAsString());
+                    float[] off  = shape.has("Offset")   ? parseVec3(shape.get("Offset").getAsString())   : new float[3];
+                    float[] rot  = shape.has("Rotation") ? parseVec3(shape.get("Rotation").getAsString()) : new float[3];
                     float[] size = parseVec3(shape.get("Size").getAsString());
                     int[] texOff = parseVec2i(shape.get("TextureOffset").getAsString());
 
-                    // Actual box corner = rotation pivot (Position) + box offset (Offset),
-                    // matching the old iChunUtil ModelRenderer.setRotationPoint + addBox convention.
-                    float px = pos[0] + off[0], py = pos[1] + off[1], pz = pos[2] + off[2];
-                    float sx = size[0], sy = size[1], sz = size[2];
-
-                    // Techne/iChunUtil positions are in old Minecraft model space (Y positive = down
-                    // from neck). Flip to Minecraft's Y-negative-up space by negating and adjusting
-                    // the minimum corner so face winding and UV orientation stay correct.
-                    cuboids.add(new HatCuboid(px, -py - sy, pz, sx, sy, sz, texOff[0], texOff[1]));
+                    // Store raw Techne values unchanged.
+                    // HatLayer applies scale(-1,-1,1) which exactly replicates the iChunUtil
+                    // rendering convention, so no coordinate transformation is needed here.
+                    // Position = the ModelRenderer rotation pivot (setRotationPoint).
+                    // Offset   = the box corner relative to that pivot (addBox x/y/z args).
+                    cuboids.add(new HatCuboid(
+                            pos[0], pos[1], pos[2],          // pivot = Position
+                            rot[0], rot[1], rot[2],          // rotation = Rotation (radians)
+                            off[0], off[1], off[2],          // box origin = Offset
+                            size[0], size[1], size[2],       // box size = Size
+                            texOff[0], texOff[1]));
                 }
             }
         }
