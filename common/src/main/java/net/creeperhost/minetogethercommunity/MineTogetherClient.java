@@ -7,6 +7,7 @@ import dev.architectury.event.events.client.ClientGuiEvent;
 import dev.architectury.hooks.client.screen.ScreenAccess;
 import dev.architectury.platform.Platform;
 import net.creeperhost.minetogether.session.MineTogetherSession;
+import net.creeperhost.minetogethercommunity.activity.ActivityTelemetry;
 import net.creeperhost.minetogethercommunity.chat.FriendChatNotifier;
 import net.creeperhost.minetogethercommunity.chat.MineTogetherChat;
 import net.creeperhost.minetogethercommunity.chat.gui.ChatScreenInjection;
@@ -52,6 +53,7 @@ public class MineTogetherClient {
         MineTogetherSession.getDefault().setProvider(new MTSessionProvider());
         MineTogetherSession.getDefault().onTokenRefreshed(token -> {
             MineTogether.AUTH.setHeader("Authorization", "Bearer " + token);
+            ActivityTelemetry.authChanged(token);
         });
         // Trigger session validation and set auth header.
         MineTogetherSession.getDefault().getTokenAsync();
@@ -59,6 +61,7 @@ public class MineTogetherClient {
         MineTogetherChat.init();
         MineTogetherConnect.init();
         FriendChatNotifier.init();
+        ActivityTelemetry.init();
         Keybindings.init();
 
         ModularGuiInjector.registerInjection(e -> e instanceof ChatScreen, e -> new ChatScreenInjection());
