@@ -8,7 +8,11 @@ import dev.architectury.event.events.client.ClientLifecycleEvent;
 import dev.architectury.event.events.client.ClientTickEvent;
 import dev.architectury.injectables.targets.ArchitecturyTarget;
 import dev.architectury.platform.Platform;
-import net.creeperhost.minetogether.lib.web.ApiClientResponse;
+import net.covers1624.quack.net.httpapi.EngineRequest;
+import net.covers1624.quack.net.httpapi.EngineResponse;
+import net.covers1624.quack.net.httpapi.HeaderList;
+import net.covers1624.quack.net.httpapi.WebBody;
+import net.creeperhost.minetogether.lib.web.WebConstants;
 import net.creeperhost.minetogethercommunity.MineTogether;
 import net.creeperhost.minetogethercommunity.MineTogetherPlatform;
 import net.creeperhost.minetogethercommunity.util.ModPackInfo;
@@ -25,6 +29,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
 import java.io.IOException;
+import java.io.InputStream;
 import java.lang.reflect.Method;
 import java.nio.charset.StandardCharsets;
 import java.util.Base64;
@@ -52,11 +57,20 @@ public class ActivityTelemetry {
     private static final long HEARTBEAT_MS = 60 * 1000L;
     private static final int MAX_PENDING_BATCHES = 128;
 
+    // Retry policy: after a failed flush, wait with exponential backoff before retrying,
+    // and give up entirely after too many consecutive failures (reset on auth change).
+    private static final long RETRY_BASE_MS = 5 * 1000L;
+    private static final long RETRY_MAX_MS = 5 * 60 * 1000L;
+    private static final int MAX_CONSECUTIVE_FAILURES = 10;
+
     private static final Map<String, Object> KNOWN_ADVANCEMENTS = new HashMap<>();
     private static ActivityModels.QueueState state;
     private static volatile boolean enabled = true;
     private static volatile boolean preferenceRequestRunning = false;
     private static volatile boolean flushRunning = false;
+    private static volatile boolean sendingDisabled = false;
+    private static int consecutiveFailures = 0;
+    private static long nextFlushAllowedAt = 0;
     private static volatile String currentAuthKey = "";
     private static long lastPreferenceRequest = 0;
     private static long lastHeartbeat = 0;
@@ -77,6 +91,7 @@ public class ActivityTelemetry {
 
     public static void authChanged(Object token) {
         currentAuthKey = authKey(token);
+        LOGGER.info("[MT-TELEMETRY-DEBUG] authChanged: authKey {} (empty means telemetry stays disabled)", currentAuthKey.isEmpty() ? "EMPTY" : "set (len=" + currentAuthKey.length() + ")");
         if (state == null) return;
         applyAuthKey(currentAuthKey);
         lastPreferenceRequest = 0;
@@ -85,10 +100,12 @@ public class ActivityTelemetry {
     }
 
     public static void handleAdvancementPacket(ClientboundUpdateAdvancementsPacket packet) {
+        int addedCount = 0;
         for (Object holder : asIterable(call(packet, "getAdded", "added"))) {
             Object id = call(holder, "id", "getId");
             if (id != null) {
                 KNOWN_ADVANCEMENTS.put(id.toString(), holder);
+                addedCount++;
             }
         }
         for (Object removed : asIterable(call(packet, "getRemoved", "removed"))) {
@@ -96,13 +113,30 @@ public class ActivityTelemetry {
         }
         Map<?, ?> progress = asMap(call(packet, "getProgress", "progress"));
         boolean reset = Boolean.TRUE.equals(call(packet, "shouldReset", "reset"));
+        int doneCount = 0;
+        int skipped = 0;
         for (Map.Entry<?, ?> entry : progress.entrySet()) {
             if (Boolean.TRUE.equals(call(entry.getValue(), "isDone", "done"))) {
                 String id = entry.getKey().toString();
                 Object holder = KNOWN_ADVANCEMENTS.get(id);
+                // Skip advancements with no DisplayInfo: these are recipe unlocks
+                // (minecraft:recipes/...) and other hidden/functional advancements that never
+                // appear in the GUI and carry no title/description, so they aren't achievements.
+                if (!hasDisplay(holder)) {
+                    skipped++;
+                    continue;
+                }
                 queueAdvancement(id, holder, reset ? "snapshot" : "incremental");
+                doneCount++;
             }
         }
+        LOGGER.info("[MT-TELEMETRY-DEBUG] advancement packet: added={} progress={} queued={} skipped(no display, e.g. recipes)={} reset={}", addedCount, progress.size(), doneCount, skipped, reset);
+    }
+
+    private static boolean hasDisplay(Object holder) {
+        if (holder == null) return false;
+        Object advancement = call(holder, "value", "getValue");
+        return unwrapOptional(call(advancement, "display", "getDisplay")) != null;
     }
 
     private static void tick(Minecraft mc) {
@@ -149,12 +183,14 @@ public class ActivityTelemetry {
             try {
                 GetTelemetryPreferencesRequest.Response response = MineTogether.API.execute(new GetTelemetryPreferencesRequest()).apiResponse();
                 enabled = response.enabled;
+                LOGGER.info("[MT-TELEMETRY-DEBUG] preferences fetched: enabled={} hasAccount={}", response.enabled, response.hasAccount);
                 if (!enabled) {
                     synchronized (ActivityTelemetry.class) {
                         state.pending.clear();
                     }
                 }
-            } catch (Throwable ignored) {
+            } catch (Throwable t) {
+                LOGGER.warn("[MT-TELEMETRY-DEBUG] preferences fetch failed (enabled stays {}): {}", enabled, t.toString());
             } finally {
                 preferenceRequestRunning = false;
             }
@@ -187,12 +223,16 @@ public class ActivityTelemetry {
         ActivityModels.Batch batch = newBaseBatch();
         batch.metadata.add(metadata);
         batch.advancements.add(event);
+        LOGGER.info("[MT-TELEMETRY-DEBUG] queueAdvancement id={} source={} title={}", advancementId, source, metadata.titleEn);
         queue(batch);
         flush();
     }
 
     private static synchronized void queue(ActivityModels.Batch batch) {
-        if (state.authKey == null || state.authKey.isEmpty()) return;
+        if (state.authKey == null || state.authKey.isEmpty()) {
+            LOGGER.warn("[MT-TELEMETRY-DEBUG] queue() dropped batch: authKey is empty (not authenticated / JWT had no sha/sub claim)");
+            return;
+        }
         batch.sequence = state.nextSequence++;
         batch.sentAt = System.currentTimeMillis();
         state.pending.add(batch);
@@ -202,48 +242,131 @@ public class ActivityTelemetry {
     }
 
     private static void flush() {
-        if (!markFlushRunning()) return;
+        if (!markFlushRunning(false)) return;
         EXECUTOR.execute(() -> {
+            boolean success = false;
             try {
-                drainQueue();
-            } catch (Throwable ignored) {
+                success = drainQueue();
+            } catch (Throwable t) {
+                LOGGER.warn("[MT-TELEMETRY-DEBUG] flush drainQueue threw", t);
             } finally {
+                recordFlushResult(success);
                 flushRunning = false;
             }
         });
     }
 
     private static void flushBlocking() {
-        if (!markFlushRunning()) return;
+        // On shutdown, make a final attempt even if we're mid-backoff (but not if we've
+        // already hit the failure cap for this session).
+        if (!markFlushRunning(true)) return;
+        boolean success = false;
         try {
-            drainQueue();
+            success = drainQueue();
         } catch (Throwable ignored) {
         } finally {
+            recordFlushResult(success);
             flushRunning = false;
         }
     }
 
-    private static synchronized boolean markFlushRunning() {
-        if (!enabled || flushRunning || state.authKey == null || state.authKey.isEmpty()) return false;
+    private static synchronized boolean markFlushRunning(boolean ignoreBackoff) {
+        if (!enabled || flushRunning || sendingDisabled) return false;
+        if (state.authKey == null || state.authKey.isEmpty()) return false;
+        if (!ignoreBackoff && System.currentTimeMillis() < nextFlushAllowedAt) return false;
         flushRunning = true;
         return true;
     }
 
-    private static void drainQueue() throws IOException {
+    private static synchronized void recordFlushResult(boolean success) {
+        if (success) {
+            consecutiveFailures = 0;
+            nextFlushAllowedAt = 0;
+            return;
+        }
+        consecutiveFailures++;
+        if (consecutiveFailures >= MAX_CONSECUTIVE_FAILURES) {
+            sendingDisabled = true;
+            nextFlushAllowedAt = 0;
+            LOGGER.warn("MineTogether activity telemetry: giving up after {} consecutive failed batches (will retry next session).", consecutiveFailures);
+            return;
+        }
+        long delay = Math.min(RETRY_BASE_MS << (consecutiveFailures - 1), RETRY_MAX_MS);
+        nextFlushAllowedAt = System.currentTimeMillis() + delay;
+        LOGGER.info("[MT-TELEMETRY-DEBUG] flush failed ({}/{}), backing off {}ms", consecutiveFailures, MAX_CONSECUTIVE_FAILURES, delay);
+    }
+
+    private static synchronized void resetBackoff() {
+        consecutiveFailures = 0;
+        nextFlushAllowedAt = 0;
+        sendingDisabled = false;
+    }
+
+    /**
+     * Drains pending batches to the server. Returns {@code true} if the queue was fully
+     * drained (or already empty), {@code false} if a batch was rejected and the drain
+     * stopped (signalling the caller to back off). Throws on transport failure.
+     */
+    private static boolean drainQueue() throws IOException {
         while (true) {
             ActivityModels.Batch batch;
             synchronized (ActivityTelemetry.class) {
-                if (state.pending.isEmpty()) return;
+                if (state.pending.isEmpty()) return true;
                 batch = state.pending.get(0);
             }
-            ApiClientResponse<PostActivityBatchRequest.Response> response = MineTogether.API.execute(new PostActivityBatchRequest(batch));
-            PostActivityBatchRequest.Response api = response.apiResponse();
-            if (!"success".equals(api.getStatus()) || !api.accepted) {
-                return;
+            String url = WebConstants.CH_API + "minetogether/activity/batch";
+            String json = GSON.toJson(batch);
+            LOGGER.info("[MT-TELEMETRY-DEBUG] POST batch seq={} advancements={} playtime={} bodyBytes={} -> {}",
+                    batch.sequence, batch.advancements.size(), batch.playtime != null, json.getBytes(StandardCharsets.UTF_8).length, url);
+
+            // Raw request so we can log the exact return code + full raw response body, before
+            // any typed parsing (the typed parse throws when the server omits the "status" field,
+            // which hides what actually came back). Also log the auth header lengths since the
+            // server rejects with "Key or secret are too short".
+            EngineRequest request = MineTogether.WEB_ENGINE.newRequest();
+            request.method("POST", WebBody.string(json, WebConstants.JSON));
+            request.url(url);
+            HeaderList authHeaders = MineTogether.AUTH.getAuthHeaders();
+            for (String name : new String[]{"Authorization", "Fingerprint", "Identifier"}) {
+                String value = authHeaders.get(name);
+                request.header(name, value == null ? "" : value);
+                LOGGER.info("[MT-TELEMETRY-DEBUG] auth header {}: {}", name, value == null ? "<MISSING>" : "len=" + value.length() + " value=" + value);
+            }
+
+            int statusCode;
+            String contentType = "<none>";
+            String rawBody = "<none>";
+            try (EngineResponse response = request.execute()) {
+                statusCode = response.statusCode();
+                WebBody body = response.body();
+                if (body != null) {
+                    contentType = String.valueOf(body.contentType());
+                    try (InputStream in = body.open()) {
+                        rawBody = new String(in.readAllBytes(), StandardCharsets.UTF_8);
+                    }
+                }
+            }
+            LOGGER.info("[MT-TELEMETRY-DEBUG] RAW response: returnCode={} contentType={} body={}", statusCode, contentType, rawBody);
+
+            boolean accepted = statusCode >= 200 && statusCode < 300 && responseAccepted(rawBody);
+            if (!accepted) {
+                LOGGER.warn("[MT-TELEMETRY-DEBUG] batch NOT accepted (returnCode={}), leaving in queue (size={})", statusCode, state.pending.size());
+                return false;
             }
             synchronized (ActivityTelemetry.class) {
                 state.pending.remove(0);
             }
+            LOGGER.info("[MT-TELEMETRY-DEBUG] batch seq={} accepted & removed from queue", batch.sequence);
+        }
+    }
+
+    private static boolean responseAccepted(String rawBody) {
+        try {
+            Map<?, ?> map = GSON.fromJson(rawBody, Map.class);
+            if (map == null) return false;
+            return "success".equals(map.get("status")) && !Boolean.FALSE.equals(map.get("accepted"));
+        } catch (Throwable ignored) {
+            return false;
         }
     }
 
@@ -400,6 +523,7 @@ public class ActivityTelemetry {
             state.clientSessionId = UUID.randomUUID().toString();
             state.nextSequence = 1;
             state.authKey = authKey;
+            resetBackoff();
         }
     }
 
