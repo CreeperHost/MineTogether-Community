@@ -11,4 +11,12 @@ include("common")
 include("fabric")
 include("neoforge")
 
+if (file(".polylib-repo/settings.gradle").exists()) {
+    includeBuild(".polylib-repo") {
+        dependencySubstitution {
+            substitute module("net.creeperhost:polylib-fabric") using project(":fabric")
+        }
+    }
+}
+
 rootProject.name = "MineTogether Community"

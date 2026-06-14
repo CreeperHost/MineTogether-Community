@@ -82,8 +82,10 @@ public class MineTogetherClient {
     public static void openOrderUI(ModularGui gui) {
         if (Platform.isModLoaded("minetogetherpartners")) {
             LOGGER.info("minetogetherpartners loaded, Using minetogetherpartners order form");
-            MTPartners.openOrderUI(gui);
-            return;
+            if (MTPartners.openOrderUI(gui)) {
+                return;
+            }
+            LOGGER.warn("Falling back to minetogethercommunity order form.");
         }
         LOGGER.info("using minetogethercommunity order form");
         gui.mc().setScreen(new OrderGui.Screen(gui.getScreen(), true));
