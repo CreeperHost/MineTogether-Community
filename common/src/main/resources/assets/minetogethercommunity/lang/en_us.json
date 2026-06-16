@@ -404,6 +404,7 @@
     "minetogether:gui.cosmetics.button.wearing": "Wearing",
     "minetogether:gui.cosmetics.button.remove": "Remove Hat",
     "minetogether:gui.cosmetics.button.random": "Random",
+    "minetogether:gui.cosmetics.button.save": "Save",
     "minetogether:gui.cosmetics.hat.none": "None",
     "minetogether:gui.cosmetics.loading": "Loading cosmetics...",
     "minetogether:gui.cosmetics.search.suggestion": "Search...",

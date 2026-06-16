@@ -57,6 +57,11 @@ public class CosmeticsGui implements GuiProvider {
         GuiElement<?> root = gui.getRoot();
         final CosmeticTypes[] activeTab = {CosmeticTypes.HAT};
 
+        // Pending selections — updated on every list-entry click, flushed to the server on Save.
+        // Initialised from the in-memory profile so the current selection is pre-highlighted.
+        final String[] pendingHatId  = {CosmeticSelections.instance().selectedHatId};
+        final String[] pendingCapeId = {CosmeticSelections.instance().selectedCapeId};
+
         GuiElement<?> container = new GuiElement<>(root)
                 .constrain(LEFT, midPoint(root.get(LEFT), root.get(RIGHT), -(TOTAL_WIDTH / 2D)))
                 .constrain(WIDTH, literal(TOTAL_WIDTH))
@@ -134,7 +139,7 @@ public class CosmeticsGui implements GuiProvider {
 
         // Hat list
         GuiList<Hat> hatList = new GuiList<Hat>(listArea)
-                .setDisplayBuilder((parent, hat) -> hat == null ? new NoneEntry(parent) : new HatEntry(parent, hat))
+                .setDisplayBuilder((parent, hat) -> hat == null ? new NoneEntry(parent, pendingHatId) : new HatEntry(parent, hat, pendingHatId))
                 .setItemSpacing(2)
                 .setEnabled(() -> activeTab[0] == CosmeticTypes.HAT);
         Constraints.bind(hatList, listArea, 4);
@@ -152,7 +157,7 @@ public class CosmeticsGui implements GuiProvider {
 
         // Cape list
         GuiList<Cape> capeList = new GuiList<Cape>(listArea)
-                .setDisplayBuilder((parent, cape) -> cape == null ? new NoCapeEntry(parent) : new CapeEntry(parent, cape))
+                .setDisplayBuilder((parent, cape) -> cape == null ? new NoCapeEntry(parent, pendingCapeId) : new CapeEntry(parent, cape, pendingCapeId))
                 .setItemSpacing(2)
                 .setEnabled(() -> activeTab[0] == CosmeticTypes.CAPE);
         Constraints.bind(capeList, listArea, 4);
@@ -208,14 +213,14 @@ public class CosmeticsGui implements GuiProvider {
 
         new GuiText(previewPanel, () -> {
             if (activeTab[0] == CosmeticTypes.HAT) {
-                String id = CosmeticSelections.instance().selectedHatId;
+                String id = pendingHatId[0];
                 if (id == null || id.isEmpty())
                     return Component.translatable("minetogether:gui.cosmetics.none_equipped").withStyle(ChatFormatting.GRAY);
                 Hat hat = HatRegistry.get(id);
                 String name = hat != null ? hat.displayName() : id;
                 return Component.translatable("minetogether:gui.cosmetics.equipped", Component.literal(name).withStyle(ChatFormatting.GREEN));
             } else if (activeTab[0] == CosmeticTypes.CAPE) {
-                String id = CosmeticSelections.instance().selectedCapeId;
+                String id = pendingCapeId[0];
                 if (id == null || id.isEmpty())
                     return Component.translatable("minetogether:gui.cosmetics.cape.none_equipped").withStyle(ChatFormatting.GRAY);
                 Cape cape = CapeRegistry.get(id);
@@ -233,28 +238,14 @@ public class CosmeticsGui implements GuiProvider {
 
         // ── Bottom buttons ────────────────────────────────────────────────────
 
-        MTStyle.Flat.buttonPrimary(root, Component.translatable("minetogether:gui.cosmetics.button.random"))
+        MTStyle.Flat.buttonPrimary(root, Component.translatable("minetogether:gui.cosmetics.button.save"))
                 .onPress(() -> {
-                    if (activeTab[0] == CosmeticTypes.HAT) {
-                        List<Hat> available = HatRegistry.all();
-                        if (available.isEmpty()) return;
-                        Hat pick = available.get((int) (Math.random() * available.size()));
-                        CosmeticSelections.instance().selectedHatId = pick.id();
-                        
-                        CosmeticApiClient.selectAsync("hat", pick.id());
-                    } else if (activeTab[0] == CosmeticTypes.CAPE) {
-                        List<Cape> available = CapeRegistry.all();
-                        if (available.isEmpty()) return;
-                        Cape pick = available.get((int) (Math.random() * available.size()));
-                        CosmeticSelections.instance().selectedCapeId = pick.id();
-                        
-                        CosmeticApiClient.selectAsync("cape", pick.id());
-                    }
-                })
-                .setDisabled(() -> {
-                    if (activeTab[0] == CosmeticTypes.HAT) return HatRegistry.all().isEmpty();
-                    if (activeTab[0] == CosmeticTypes.CAPE) return CapeRegistry.all().isEmpty();
-                    return true;
+                    // CosmeticSelections is already up-to-date (written on every click for live rendering).
+                    // Just sync the current pending values to the server.
+                    String hatId  = pendingHatId[0];
+                    String capeId = pendingCapeId[0];
+                    CosmeticApiClient.selectAsync("hat",  hatId  == null || hatId.isEmpty()  ? null : hatId);
+                    CosmeticApiClient.selectAsync("cape", capeId == null || capeId.isEmpty() ? null : capeId);
                 })
                 .constrain(BOTTOM, relative(root.get(BOTTOM), -6))
                 .constrain(LEFT, match(container.get(LEFT)))
@@ -302,8 +293,11 @@ public class CosmeticsGui implements GuiProvider {
 
     private static class NoneEntry extends GuiElement<NoneEntry> implements BackgroundRender {
 
-        public NoneEntry(@NotNull GuiParent<?> parent) {
+        private final String[] pendingId;
+
+        public NoneEntry(@NotNull GuiParent<?> parent, String[] pendingId) {
             super(parent);
+            this.pendingId = pendingId;
             this.constrain(HEIGHT, literal(20));
 
             new GuiText(this, () -> Component.translatable("minetogether:gui.cosmetics.hat.none")
@@ -319,14 +313,13 @@ public class CosmeticsGui implements GuiProvider {
         @Override
         public boolean mouseClicked(double mouseX, double mouseY, int button) {
             if (!isMouseOver()) return false;
+            pendingId[0] = "";
             CosmeticSelections.instance().selectedHatId = "";
-            
-            CosmeticApiClient.selectAsync("hat", null);
             return true;
         }
 
-        private static boolean isNoneSelected() {
-            String id = CosmeticSelections.instance().selectedHatId;
+        private boolean isNoneSelected() {
+            String id = pendingId[0];
             return id == null || id.isEmpty();
         }
 
@@ -342,10 +335,12 @@ public class CosmeticsGui implements GuiProvider {
     private static class HatEntry extends GuiElement<HatEntry> implements BackgroundRender {
 
         private final Hat hat;
+        private final String[] pendingId;
 
-        public HatEntry(@NotNull GuiParent<?> parent, Hat hat) {
+        public HatEntry(@NotNull GuiParent<?> parent, Hat hat, String[] pendingId) {
             super(parent);
             this.hat = hat;
+            this.pendingId = pendingId;
             String subtitle = hat.locked()
                     ? (hat.howToUnlock() != null ? hat.howToUnlock() : "Locked")
                     : buildSubtitle(hat.author(), hat.mod());
@@ -354,9 +349,9 @@ public class CosmeticsGui implements GuiProvider {
 
             new GuiText(this, () -> {
                 if (hat.locked()) return Component.literal(hat.displayName()).withStyle(ChatFormatting.DARK_GRAY);
-                boolean equipped = hat.id().equals(CosmeticSelections.instance().selectedHatId);
+                boolean selected = hat.id().equals(pendingId[0]);
                 return Component.literal(hat.displayName())
-                        .withStyle(equipped ? ChatFormatting.GREEN : ChatFormatting.WHITE);
+                        .withStyle(selected ? ChatFormatting.GREEN : ChatFormatting.WHITE);
             })
                     .setAlignment(Align.LEFT)
                     .setShadow(false)
@@ -379,16 +374,15 @@ public class CosmeticsGui implements GuiProvider {
         @Override
         public boolean mouseClicked(double mouseX, double mouseY, int button) {
             if (!isMouseOver() || hat.locked()) return false;
+            pendingId[0] = hat.id();
             CosmeticSelections.instance().selectedHatId = hat.id();
-            
-            CosmeticApiClient.selectAsync("hat", hat.id());
             return true;
         }
 
         @Override
         public void renderBehind(GuiRender render, double mouseX, double mouseY, float partialTicks) {
             render.rect(getRectangle(), MTStyle.Flat.listEntryBackground(true));
-            if (!hat.locked() && hat.id().equals(CosmeticSelections.instance().selectedHatId)) {
+            if (!hat.locked() && hat.id().equals(pendingId[0])) {
                 render.borderRect(getRectangle(), 1, 0x2000CC44, 0xFF00AA33);
             }
         }
@@ -396,8 +390,11 @@ public class CosmeticsGui implements GuiProvider {
 
     private static class NoCapeEntry extends GuiElement<NoCapeEntry> implements BackgroundRender {
 
-        public NoCapeEntry(@NotNull GuiParent<?> parent) {
+        private final String[] pendingId;
+
+        public NoCapeEntry(@NotNull GuiParent<?> parent, String[] pendingId) {
             super(parent);
+            this.pendingId = pendingId;
             this.constrain(HEIGHT, literal(20));
 
             new GuiText(this, () -> Component.translatable("minetogether:gui.cosmetics.cape.none")
@@ -413,14 +410,13 @@ public class CosmeticsGui implements GuiProvider {
         @Override
         public boolean mouseClicked(double mouseX, double mouseY, int button) {
             if (!isMouseOver()) return false;
+            pendingId[0] = "";
             CosmeticSelections.instance().selectedCapeId = "";
-            
-            CosmeticApiClient.selectAsync("cape", null);
             return true;
         }
 
-        private static boolean isNoneSelected() {
-            String id = CosmeticSelections.instance().selectedCapeId;
+        private boolean isNoneSelected() {
+            String id = pendingId[0];
             return id == null || id.isEmpty();
         }
 
@@ -436,10 +432,12 @@ public class CosmeticsGui implements GuiProvider {
     private static class CapeEntry extends GuiElement<CapeEntry> implements BackgroundRender {
 
         private final Cape cape;
+        private final String[] pendingId;
 
-        public CapeEntry(@NotNull GuiParent<?> parent, Cape cape) {
+        public CapeEntry(@NotNull GuiParent<?> parent, Cape cape, String[] pendingId) {
             super(parent);
             this.cape = cape;
+            this.pendingId = pendingId;
             String subtitle = cape.locked()
                     ? (cape.howToUnlock() != null ? cape.howToUnlock() : "Locked")
                     : buildSubtitle(cape.author(), cape.mod());
@@ -448,9 +446,9 @@ public class CosmeticsGui implements GuiProvider {
 
             new GuiText(this, () -> {
                 if (cape.locked()) return Component.literal(cape.displayName()).withStyle(ChatFormatting.DARK_GRAY);
-                boolean equipped = cape.id().equals(CosmeticSelections.instance().selectedCapeId);
+                boolean selected = cape.id().equals(pendingId[0]);
                 return Component.literal(cape.displayName())
-                        .withStyle(equipped ? ChatFormatting.GREEN : ChatFormatting.WHITE);
+                        .withStyle(selected ? ChatFormatting.GREEN : ChatFormatting.WHITE);
             })
                     .setAlignment(Align.LEFT)
                     .setShadow(false)
@@ -473,16 +471,15 @@ public class CosmeticsGui implements GuiProvider {
         @Override
         public boolean mouseClicked(double mouseX, double mouseY, int button) {
             if (!isMouseOver() || cape.locked()) return false;
+            pendingId[0] = cape.id();
             CosmeticSelections.instance().selectedCapeId = cape.id();
-            
-            CosmeticApiClient.selectAsync("cape", cape.id());
             return true;
         }
 
         @Override
         public void renderBehind(GuiRender render, double mouseX, double mouseY, float partialTicks) {
             render.rect(getRectangle(), MTStyle.Flat.listEntryBackground(true));
-            if (!cape.locked() && cape.id().equals(CosmeticSelections.instance().selectedCapeId)) {
+            if (!cape.locked() && cape.id().equals(pendingId[0])) {
                 render.borderRect(getRectangle(), 1, 0x2000CC44, 0xFF00AA33);
             }
         }
