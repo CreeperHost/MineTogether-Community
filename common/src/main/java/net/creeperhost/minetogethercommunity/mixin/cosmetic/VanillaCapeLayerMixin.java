@@ -1,7 +1,7 @@
 package net.creeperhost.minetogethercommunity.mixin.cosmetic;
 
 import com.mojang.blaze3d.vertex.PoseStack;
-import net.creeperhost.minetogethercommunity.config.LocalConfig;
+import net.creeperhost.minetogethercommunity.cosmetic.CosmeticSelections;
 import net.creeperhost.minetogethercommunity.cosmetic.cape.CapeRegistry;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.player.AbstractClientPlayer;
@@ -20,7 +20,7 @@ public abstract class VanillaCapeLayerMixin {
             float limbSwing, float limbSwingAmount, float partialTicks,
             float ageInTicks, float netHeadYaw, float headPitch, CallbackInfo ci) {
         if (player != Minecraft.getInstance().player) return;
-        String capeId = LocalConfig.instance().selectedCapeId;
+        String capeId = CosmeticSelections.instance().selectedCapeId;
         if (capeId != null && !capeId.isEmpty() && CapeRegistry.get(capeId) != null) {
             ci.cancel();
         }

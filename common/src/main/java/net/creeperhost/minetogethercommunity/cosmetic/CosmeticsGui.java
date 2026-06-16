@@ -1,7 +1,7 @@
 package net.creeperhost.minetogethercommunity.cosmetic;
 
 import net.creeperhost.minetogethercommunity.chat.gui.MTStyle;
-import net.creeperhost.minetogethercommunity.config.LocalConfig;
+import net.creeperhost.minetogethercommunity.cosmetic.CosmeticSelections;
 import net.creeperhost.minetogethercommunity.cosmetic.cape.Cape;
 import net.creeperhost.minetogethercommunity.cosmetic.cape.CapeRegistry;
 import net.creeperhost.minetogethercommunity.cosmetic.hat.Hat;
@@ -207,14 +207,14 @@ public class CosmeticsGui implements GuiProvider {
 
         new GuiText(previewPanel, () -> {
             if (activeTab[0] == CosmeticTypes.HAT) {
-                String id = LocalConfig.instance().selectedHatId;
+                String id = CosmeticSelections.instance().selectedHatId;
                 if (id == null || id.isEmpty())
                     return Component.translatable("minetogether:gui.cosmetics.none_equipped").withStyle(ChatFormatting.GRAY);
                 Hat hat = HatRegistry.get(id);
                 String name = hat != null ? hat.displayName() : id;
                 return Component.translatable("minetogether:gui.cosmetics.equipped", Component.literal(name).withStyle(ChatFormatting.GREEN));
             } else if (activeTab[0] == CosmeticTypes.CAPE) {
-                String id = LocalConfig.instance().selectedCapeId;
+                String id = CosmeticSelections.instance().selectedCapeId;
                 if (id == null || id.isEmpty())
                     return Component.translatable("minetogether:gui.cosmetics.cape.none_equipped").withStyle(ChatFormatting.GRAY);
                 Cape cape = CapeRegistry.get(id);
@@ -238,14 +238,14 @@ public class CosmeticsGui implements GuiProvider {
                         List<Hat> available = HatRegistry.all();
                         if (available.isEmpty()) return;
                         Hat pick = available.get((int) (Math.random() * available.size()));
-                        LocalConfig.instance().selectedHatId = pick.id();
+                        CosmeticSelections.instance().selectedHatId = pick.id();
                     } else if (activeTab[0] == CosmeticTypes.CAPE) {
                         List<Cape> available = CapeRegistry.all();
                         if (available.isEmpty()) return;
                         Cape pick = available.get((int) (Math.random() * available.size()));
-                        LocalConfig.instance().selectedCapeId = pick.id();
+                        CosmeticSelections.instance().selectedCapeId = pick.id();
                     }
-                    LocalConfig.save();
+                    CosmeticSelections.save();
                 })
                 .setDisabled(() -> {
                     if (activeTab[0] == CosmeticTypes.HAT) return HatRegistry.all().isEmpty();
@@ -314,13 +314,13 @@ public class CosmeticsGui implements GuiProvider {
         @Override
         public boolean mouseClicked(double mouseX, double mouseY, int button) {
             if (!isMouseOver()) return false;
-            LocalConfig.instance().selectedHatId = "";
-            LocalConfig.save();
+            CosmeticSelections.instance().selectedHatId = "";
+            CosmeticSelections.save();
             return true;
         }
 
         private static boolean isNoneSelected() {
-            String id = LocalConfig.instance().selectedHatId;
+            String id = CosmeticSelections.instance().selectedHatId;
             return id == null || id.isEmpty();
         }
 
@@ -340,11 +340,15 @@ public class CosmeticsGui implements GuiProvider {
         public HatEntry(@NotNull GuiParent<?> parent, Hat hat) {
             super(parent);
             this.hat = hat;
-            boolean hasSubtitle = !hat.author().isEmpty() || !hat.mod().isEmpty();
+            String subtitle = hat.locked()
+                    ? (hat.howToUnlock() != null ? hat.howToUnlock() : "Locked")
+                    : buildSubtitle(hat.author(), hat.mod());
+            boolean hasSubtitle = !subtitle.isEmpty();
             this.constrain(HEIGHT, literal(hasSubtitle ? 28 : 20));
 
             new GuiText(this, () -> {
-                boolean equipped = hat.id().equals(LocalConfig.instance().selectedHatId);
+                if (hat.locked()) return Component.literal(hat.displayName()).withStyle(ChatFormatting.DARK_GRAY);
+                boolean equipped = hat.id().equals(CosmeticSelections.instance().selectedHatId);
                 return Component.literal(hat.displayName())
                         .withStyle(equipped ? ChatFormatting.GREEN : ChatFormatting.WHITE);
             })
@@ -356,7 +360,6 @@ public class CosmeticsGui implements GuiProvider {
                     .constrain(HEIGHT, literal(8));
 
             if (hasSubtitle) {
-                String subtitle = buildSubtitle(hat.author(), hat.mod());
                 new GuiText(this, Component.literal(subtitle).withStyle(ChatFormatting.GRAY))
                         .setAlignment(Align.LEFT)
                         .setShadow(false)
@@ -369,16 +372,16 @@ public class CosmeticsGui implements GuiProvider {
 
         @Override
         public boolean mouseClicked(double mouseX, double mouseY, int button) {
-            if (!isMouseOver()) return false;
-            LocalConfig.instance().selectedHatId = hat.id();
-            LocalConfig.save();
+            if (!isMouseOver() || hat.locked()) return false;
+            CosmeticSelections.instance().selectedHatId = hat.id();
+            CosmeticSelections.save();
             return true;
         }
 
         @Override
         public void renderBehind(GuiRender render, double mouseX, double mouseY, float partialTicks) {
             render.rect(getRectangle(), MTStyle.Flat.listEntryBackground(true));
-            if (hat.id().equals(LocalConfig.instance().selectedHatId)) {
+            if (!hat.locked() && hat.id().equals(CosmeticSelections.instance().selectedHatId)) {
                 render.borderRect(getRectangle(), 1, 0x2000CC44, 0xFF00AA33);
             }
         }
@@ -403,13 +406,13 @@ public class CosmeticsGui implements GuiProvider {
         @Override
         public boolean mouseClicked(double mouseX, double mouseY, int button) {
             if (!isMouseOver()) return false;
-            LocalConfig.instance().selectedCapeId = "";
-            LocalConfig.save();
+            CosmeticSelections.instance().selectedCapeId = "";
+            CosmeticSelections.save();
             return true;
         }
 
         private static boolean isNoneSelected() {
-            String id = LocalConfig.instance().selectedCapeId;
+            String id = CosmeticSelections.instance().selectedCapeId;
             return id == null || id.isEmpty();
         }
 
@@ -429,11 +432,15 @@ public class CosmeticsGui implements GuiProvider {
         public CapeEntry(@NotNull GuiParent<?> parent, Cape cape) {
             super(parent);
             this.cape = cape;
-            boolean hasSubtitle = !cape.author().isEmpty() || !cape.mod().isEmpty();
+            String subtitle = cape.locked()
+                    ? (cape.howToUnlock() != null ? cape.howToUnlock() : "Locked")
+                    : buildSubtitle(cape.author(), cape.mod());
+            boolean hasSubtitle = !subtitle.isEmpty();
             this.constrain(HEIGHT, literal(hasSubtitle ? 28 : 20));
 
             new GuiText(this, () -> {
-                boolean equipped = cape.id().equals(LocalConfig.instance().selectedCapeId);
+                if (cape.locked()) return Component.literal(cape.displayName()).withStyle(ChatFormatting.DARK_GRAY);
+                boolean equipped = cape.id().equals(CosmeticSelections.instance().selectedCapeId);
                 return Component.literal(cape.displayName())
                         .withStyle(equipped ? ChatFormatting.GREEN : ChatFormatting.WHITE);
             })
@@ -445,7 +452,6 @@ public class CosmeticsGui implements GuiProvider {
                     .constrain(HEIGHT, literal(8));
 
             if (hasSubtitle) {
-                String subtitle = buildSubtitle(cape.author(), cape.mod());
                 new GuiText(this, Component.literal(subtitle).withStyle(ChatFormatting.GRAY))
                         .setAlignment(Align.LEFT)
                         .setShadow(false)
@@ -458,16 +464,16 @@ public class CosmeticsGui implements GuiProvider {
 
         @Override
         public boolean mouseClicked(double mouseX, double mouseY, int button) {
-            if (!isMouseOver()) return false;
-            LocalConfig.instance().selectedCapeId = cape.id();
-            LocalConfig.save();
+            if (!isMouseOver() || cape.locked()) return false;
+            CosmeticSelections.instance().selectedCapeId = cape.id();
+            CosmeticSelections.save();
             return true;
         }
 
         @Override
         public void renderBehind(GuiRender render, double mouseX, double mouseY, float partialTicks) {
             render.rect(getRectangle(), MTStyle.Flat.listEntryBackground(true));
-            if (cape.id().equals(LocalConfig.instance().selectedCapeId)) {
+            if (!cape.locked() && cape.id().equals(CosmeticSelections.instance().selectedCapeId)) {
                 render.borderRect(getRectangle(), 1, 0x2000CC44, 0xFF00AA33);
             }
         }

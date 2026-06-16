@@ -29,8 +29,18 @@ import java.util.concurrent.CopyOnWriteArrayList;
 public class CosmeticDownloader {
 
     private static final Logger LOGGER = LogManager.getLogger();
-    //TODO Temp link
-    private static final String COSMETICS_URL = "https://vristingtest.playat.ch/cosmetics.json";
+
+    /** Base URL of the MineTogether profile/cosmetics API. */
+    private static final String CATALOG_BASE_URL = "http://localhost:61713";
+
+    /**
+     * CDN base URL used to download actual asset files.
+     * Hat assets are fetched from: {CDN_BASE}/hat/{id}/{id}.tc2
+     * Cape assets are fetched from: {CDN_BASE}/cape/{id}/{id}.png
+     */
+    private static final String CDN_BASE_URL = "http://localhost:61713";
+
+    private static final int PAGE_LIMIT = 100;
 
     private static volatile CosmeticDownloader INSTANCE;
 
@@ -91,43 +101,8 @@ public class CosmeticDownloader {
             Files.createDirectories(hatsCache);
             Files.createDirectories(capesCache);
 
-            LOGGER.info("Fetching cosmetics list from {}", COSMETICS_URL);
-            byte[] indexBytes = fetchBytes(client, COSMETICS_URL);
-            var root = JsonParser.parseReader(new InputStreamReader(
-                    new java.io.ByteArrayInputStream(indexBytes), StandardCharsets.UTF_8)
-            ).getAsJsonObject();
-
-            JsonArray hatsArray = root.getAsJsonArray("hats");
-            LOGGER.info("Found {} hats in cosmetics.json", hatsArray.size());
-            for (JsonElement el : hatsArray) {
-                var obj = el.getAsJsonObject();
-                String name = obj.get("name").getAsString();
-                String url = obj.get("url").getAsString();
-                String author = obj.has("author") ? obj.get("author").getAsString() : "";
-                String mod = obj.has("mod") ? obj.get("mod").getAsString() : "";
-                try {
-                    loadHat(client, hatsCache, name, url, author, mod);
-                } catch (Exception e) {
-                    LOGGER.warn("Skipping hat '{}': {}", name, e.getMessage());
-                }
-            }
-
-            if (root.has("capes")) {
-                JsonArray capesArray = root.getAsJsonArray("capes");
-                LOGGER.info("Found {} capes in cosmetics.json", capesArray.size());
-                for (JsonElement el : capesArray) {
-                    var obj = el.getAsJsonObject();
-                    String name = obj.get("name").getAsString();
-                    String url = obj.get("url").getAsString();
-                    String author = obj.has("author") ? obj.get("author").getAsString() : "";
-                    String mod = obj.has("mod") ? obj.get("mod").getAsString() : "";
-                    try {
-                        loadCape(client, capesCache, name, url, author, mod);
-                    } catch (Exception e) {
-                        LOGGER.warn("Skipping cape '{}': {}", name, e.getMessage());
-                    }
-                }
-            }
+            fetchAllCatalogForSlot(client, "hat", hatsCache);
+            fetchAllCatalogForSlot(client, "cape", capesCache);
 
             LOGGER.info("Loaded {} hats, {} capes", hats.size(), capes.size());
         } catch (Exception e) {
@@ -138,47 +113,105 @@ public class CosmeticDownloader {
         }
     }
 
-    private void loadHat(HttpClient client, Path cacheDir, String name, String url, String author, String mod) throws Exception {
-        String filename = name + ".tc2";
+    /**
+     * Pages through the catalog API for a given slot and loads each item.
+     */
+    private void fetchAllCatalogForSlot(HttpClient client, String slot, Path cacheDir) throws IOException, InterruptedException {
+        String cursor = null;
+        int totalFetched = 0;
+
+        do {
+            StringBuilder url = new StringBuilder(CATALOG_BASE_URL)
+                    .append("/minetogether/cosmetics/catalog")
+                    .append("?slot=").append(slot)
+                    .append("&limit=").append(PAGE_LIMIT);
+            if (cursor != null) url.append("&cursor=").append(cursor);
+
+            LOGGER.info("Fetching {} catalog (cursor={})", slot, cursor == null ? "start" : cursor);
+            byte[] body = fetchBytes(client, url.toString());
+            var root = JsonParser.parseReader(new InputStreamReader(
+                    new java.io.ByteArrayInputStream(body), StandardCharsets.UTF_8
+            )).getAsJsonObject();
+
+            JsonArray items = root.getAsJsonArray("cosmetics");
+            for (JsonElement el : items) {
+                var obj = el.getAsJsonObject();
+                String id = obj.get("id").getAsString();
+                String name = obj.get("name").getAsString();
+                String author = obj.has("author") && !obj.get("author").isJsonNull()
+                        ? obj.get("author").getAsString() : "";
+                boolean locked = obj.get("locked").getAsBoolean();
+                String howToUnlock = obj.has("howToUnlock") && !obj.get("howToUnlock").isJsonNull()
+                        ? obj.get("howToUnlock").getAsString() : null;
+
+                try {
+                    if (slot.equals("hat")) {
+                        loadHat(client, cacheDir, id, name, author, locked, howToUnlock);
+                    } else {
+                        loadCape(client, cacheDir, id, name, author, locked, howToUnlock);
+                    }
+                } catch (Exception e) {
+                    LOGGER.warn("Skipping {} '{}': {}", slot, id, e.getMessage());
+                }
+                totalFetched++;
+            }
+
+            cursor = root.has("nextCursor") && !root.get("nextCursor").isJsonNull()
+                    ? root.get("nextCursor").getAsString()
+                    : null;
+
+        } while (cursor != null);
+
+        LOGGER.info("Fetched {} {} catalog items", totalFetched, slot);
+    }
+
+    private void loadHat(HttpClient client, Path cacheDir, String id, String name, String author,
+                         boolean locked, String howToUnlock) throws Exception {
+        String filename = id + ".tc2";
         Path cached = cacheDir.resolve(filename);
         byte[] data;
         if (Files.exists(cached)) {
-            LOGGER.info("Loading hat '{}' from cache", name);
+            LOGGER.info("Loading hat '{}' from cache", id);
             data = Files.readAllBytes(cached);
         } else {
-            LOGGER.info("Downloading hat '{}' from {}", name, url);
-            data = fetchBytes(client, url);
+            // CDN convention: /{slot}/{id}/{id}.tc2
+            String assetUrl = CDN_BASE_URL + "/hat/" + id + "/" + id + ".tc2";
+            LOGGER.info("Downloading hat '{}' from {}", id, assetUrl);
+            data = fetchBytes(client, assetUrl);
             Files.write(cached, data);
         }
-        Hat hat = TechneLoader.load(name, author, mod, data);
+        Hat hat = TechneLoader.load(id, name, author, "", locked, howToUnlock, data);
         hats.add(hat);
     }
 
-    private void loadCape(HttpClient client, Path cacheDir, String name, String url, String author, String mod) throws Exception {
-        String filename = name + ".png";
+    private void loadCape(HttpClient client, Path cacheDir, String id, String name, String author,
+                          boolean locked, String howToUnlock) throws Exception {
+        String filename = id + ".png";
         Path cached = cacheDir.resolve(filename);
         byte[] data;
         if (Files.exists(cached)) {
-            LOGGER.info("Loading cape '{}' from cache", name);
+            LOGGER.info("Loading cape '{}' from cache", id);
             data = Files.readAllBytes(cached);
         } else {
-            LOGGER.info("Downloading cape '{}' from {}", name, url);
-            data = fetchBytes(client, url);
+            // CDN convention: /{slot}/{id}/{id}.png
+            String assetUrl = CDN_BASE_URL + "/cape/" + id + "/" + id + ".png";
+            LOGGER.info("Downloading cape '{}' from {}", id, assetUrl);
+            data = fetchBytes(client, assetUrl);
             Files.write(cached, data);
         }
 
-        ResourceLocation location = ResourceLocation.fromNamespaceAndPath("minetogethercommunity", "cape/" + name.toLowerCase().replace(' ', '_'));
+        ResourceLocation location = ResourceLocation.fromNamespaceAndPath(
+                "minetogethercommunity", "cape/" + id.toLowerCase().replace(' ', '_'));
         byte[] finalData = data;
         Minecraft.getInstance().execute(() -> {
             try {
-                NativeImage img =
-                        NativeImage.read(new java.io.ByteArrayInputStream(finalData));
+                NativeImage img = NativeImage.read(new java.io.ByteArrayInputStream(finalData));
                 DynamicTexture tex = new DynamicTexture(img);
                 Minecraft.getInstance().getTextureManager().register(location, tex);
-                capes.add(new Cape(name, name, author, mod, location, img.getWidth(), img.getHeight()));
-                LOGGER.info("Registered cape texture '{}' ({}x{})", name, img.getWidth(), img.getHeight());
+                capes.add(new Cape(id, name, author, "", locked, howToUnlock, location, img.getWidth(), img.getHeight()));
+                LOGGER.info("Registered cape texture '{}' ({}x{})", id, img.getWidth(), img.getHeight());
             } catch (Exception e) {
-                LOGGER.warn("Failed to register cape texture '{}': {}", name, e.getMessage());
+                LOGGER.warn("Failed to register cape texture '{}': {}", id, e.getMessage());
             }
         });
     }

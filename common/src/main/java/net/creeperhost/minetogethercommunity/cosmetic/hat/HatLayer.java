@@ -2,7 +2,7 @@ package net.creeperhost.minetogethercommunity.cosmetic.hat;
 
 import com.mojang.blaze3d.vertex.PoseStack;
 import com.mojang.math.Axis;
-import net.creeperhost.minetogethercommunity.config.LocalConfig;
+import net.creeperhost.minetogethercommunity.cosmetic.CosmeticSelections;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.model.PlayerModel;
 import net.minecraft.client.player.AbstractClientPlayer;
@@ -25,7 +25,7 @@ public class HatLayer<T extends AbstractClientPlayer> extends RenderLayer<T, Pla
                        float ageInTicks, float netHeadYaw, float headPitch) {
         if (player != Minecraft.getInstance().player) return;
 
-        String hatId = LocalConfig.instance().selectedHatId;
+        String hatId = CosmeticSelections.instance().selectedHatId;
         if (hatId == null || hatId.isEmpty()) return;
 
         Hat hat = HatRegistry.get(hatId);

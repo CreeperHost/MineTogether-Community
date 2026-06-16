@@ -3,7 +3,7 @@ package net.creeperhost.minetogethercommunity.cosmetic.cape;
 import com.mojang.blaze3d.vertex.PoseStack;
 import com.mojang.blaze3d.vertex.VertexConsumer;
 import com.mojang.math.Axis;
-import net.creeperhost.minetogethercommunity.config.LocalConfig;
+import net.creeperhost.minetogethercommunity.cosmetic.CosmeticSelections;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.model.PlayerModel;
 import net.minecraft.client.player.AbstractClientPlayer;
@@ -26,7 +26,7 @@ public class CapeLayer<T extends AbstractClientPlayer> extends RenderLayer<T, Pl
                        float ageInTicks, float netHeadYaw, float headPitch) {
         if (player != Minecraft.getInstance().player) return;
 
-        String capeId = LocalConfig.instance().selectedCapeId;
+        String capeId = CosmeticSelections.instance().selectedCapeId;
         if (capeId == null || capeId.isEmpty()) return;
 
         Cape cape = CapeRegistry.get(capeId);
