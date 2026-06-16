@@ -4,6 +4,7 @@ import com.mojang.brigadier.CommandDispatcher;
 import com.mojang.brigadier.builder.LiteralArgumentBuilder;
 import dev.architectury.event.events.client.ClientCommandRegistrationEvent;
 import dev.architectury.event.events.client.ClientGuiEvent;
+import dev.architectury.event.events.client.ClientPlayerEvent;
 import dev.architectury.hooks.client.screen.ScreenAccess;
 import dev.architectury.platform.Platform;
 import net.creeperhost.minetogether.session.MineTogetherSession;
@@ -13,6 +14,9 @@ import net.creeperhost.minetogethercommunity.chat.gui.ChatScreenInjection;
 import net.creeperhost.minetogethercommunity.compat.MTPartners;
 import net.creeperhost.minetogethercommunity.config.Config;
 import net.creeperhost.minetogethercommunity.connect.MineTogetherConnect;
+import net.creeperhost.minetogethercommunity.cosmetic.CosmeticApiClient;
+import net.creeperhost.minetogethercommunity.cosmetic.CosmeticDownloader;
+import net.creeperhost.minetogethercommunity.cosmetic.CosmeticSelections;
 import net.creeperhost.minetogethercommunity.gui.SettingGui;
 import net.creeperhost.minetogethercommunity.orderform.OrderGui;
 import net.creeperhost.minetogethercommunity.util.MTSessionProvider;
@@ -65,6 +69,21 @@ public class MineTogetherClient {
 
         ClientGuiEvent.INIT_POST.register(MineTogetherClient::onScreenOpen);
         ClientCommandRegistrationEvent.EVENT.register(MineTogetherClient::registerClientCommands);
+
+        // Kick off cosmetic catalog download and profile fetch as soon as the player enters a world,
+        // so the data is ready (or already cached) by the time they open the cosmetics GUI.
+        ClientPlayerEvent.CLIENT_PLAYER_JOIN.register(player -> {
+            CosmeticDownloader.instance().startDownload();
+            CosmeticApiClient.fetchProfileAsync();
+        });
+
+        // Clear the in-memory selections when the player leaves so stale data doesn't linger
+        // if a different account logs in during the same game session.
+        ClientPlayerEvent.CLIENT_PLAYER_QUIT.register(player -> {
+            CosmeticSelections cs = CosmeticSelections.instance();
+            cs.selectedHatId = "";
+            cs.selectedCapeId = "";
+        });
     }
 
     private static void registerClientCommands(CommandDispatcher<ClientCommandRegistrationEvent.ClientCommandSourceStack> dispatcher, CommandBuildContext context) {

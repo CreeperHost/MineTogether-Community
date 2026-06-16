@@ -1,6 +1,7 @@
 package net.creeperhost.minetogethercommunity.cosmetic;
 
 import net.creeperhost.minetogethercommunity.chat.gui.MTStyle;
+import net.creeperhost.minetogethercommunity.cosmetic.CosmeticApiClient;
 import net.creeperhost.minetogethercommunity.cosmetic.CosmeticSelections;
 import net.creeperhost.minetogethercommunity.cosmetic.cape.Cape;
 import net.creeperhost.minetogethercommunity.cosmetic.cape.CapeRegistry;
@@ -239,13 +240,16 @@ public class CosmeticsGui implements GuiProvider {
                         if (available.isEmpty()) return;
                         Hat pick = available.get((int) (Math.random() * available.size()));
                         CosmeticSelections.instance().selectedHatId = pick.id();
+                        
+                        CosmeticApiClient.selectAsync("hat", pick.id());
                     } else if (activeTab[0] == CosmeticTypes.CAPE) {
                         List<Cape> available = CapeRegistry.all();
                         if (available.isEmpty()) return;
                         Cape pick = available.get((int) (Math.random() * available.size()));
                         CosmeticSelections.instance().selectedCapeId = pick.id();
+                        
+                        CosmeticApiClient.selectAsync("cape", pick.id());
                     }
-                    CosmeticSelections.save();
                 })
                 .setDisabled(() -> {
                     if (activeTab[0] == CosmeticTypes.HAT) return HatRegistry.all().isEmpty();
@@ -265,6 +269,7 @@ public class CosmeticsGui implements GuiProvider {
                 .constrain(HEIGHT, literal(BUTTON_HEIGHT));
 
         CosmeticDownloader.instance().startDownload();
+        CosmeticApiClient.fetchProfileAsync();
         final int[] lastSizes = {0, 0};
         final String[] lastQuery = {""};
         gui.onTick(() -> {
@@ -315,7 +320,8 @@ public class CosmeticsGui implements GuiProvider {
         public boolean mouseClicked(double mouseX, double mouseY, int button) {
             if (!isMouseOver()) return false;
             CosmeticSelections.instance().selectedHatId = "";
-            CosmeticSelections.save();
+            
+            CosmeticApiClient.selectAsync("hat", null);
             return true;
         }
 
@@ -374,7 +380,8 @@ public class CosmeticsGui implements GuiProvider {
         public boolean mouseClicked(double mouseX, double mouseY, int button) {
             if (!isMouseOver() || hat.locked()) return false;
             CosmeticSelections.instance().selectedHatId = hat.id();
-            CosmeticSelections.save();
+            
+            CosmeticApiClient.selectAsync("hat", hat.id());
             return true;
         }
 
@@ -407,7 +414,8 @@ public class CosmeticsGui implements GuiProvider {
         public boolean mouseClicked(double mouseX, double mouseY, int button) {
             if (!isMouseOver()) return false;
             CosmeticSelections.instance().selectedCapeId = "";
-            CosmeticSelections.save();
+            
+            CosmeticApiClient.selectAsync("cape", null);
             return true;
         }
 
@@ -466,7 +474,8 @@ public class CosmeticsGui implements GuiProvider {
         public boolean mouseClicked(double mouseX, double mouseY, int button) {
             if (!isMouseOver() || cape.locked()) return false;
             CosmeticSelections.instance().selectedCapeId = cape.id();
-            CosmeticSelections.save();
+            
+            CosmeticApiClient.selectAsync("cape", cape.id());
             return true;
         }
 

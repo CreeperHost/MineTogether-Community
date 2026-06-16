@@ -38,7 +38,7 @@ public class CosmeticDownloader {
      * Hat assets are fetched from: {CDN_BASE}/hat/{id}/{id}.tc2
      * Cape assets are fetched from: {CDN_BASE}/cape/{id}/{id}.png
      */
-    private static final String CDN_BASE_URL = "https://localhost:61713";
+    private static final String CDN_BASE_URL = "https://cosmetic.cdn.minetogether.io";
 
     private static final int PAGE_LIMIT = 100;
 
@@ -134,6 +134,10 @@ public class CosmeticDownloader {
             )).getAsJsonObject();
 
             JsonArray items = root.getAsJsonArray("cosmetics");
+            if (items == null) {
+                LOGGER.warn("No 'cosmetics' array in response for slot '{}'. Full response: {}", slot, root);
+                break;
+            }
             for (JsonElement el : items) {
                 var obj = el.getAsJsonObject();
                 String id = obj.get("id").getAsString();
@@ -167,45 +171,39 @@ public class CosmeticDownloader {
 
     private void loadHat(HttpClient client, Path cacheDir, String id, String name, String author,
                          boolean locked, String howToUnlock) throws Exception {
-        String filename = id + ".tc2";
-        Path cached = cacheDir.resolve(filename);
-        byte[] data;
-        if (Files.exists(cached)) {
-            LOGGER.info("Loading hat '{}' from cache", id);
-            data = Files.readAllBytes(cached);
-        } else {
-            // CDN convention: /{slot}/{id}/{id}.tc2
-            String assetUrl = CDN_BASE_URL + "/hat/" + id + "/" + id + ".tc2";
-            LOGGER.info("Downloading hat '{}' from {}", id, assetUrl);
-            data = fetchBytes(client, assetUrl);
-            Files.write(cached, data);
-        }
+        String cdnBase = CDN_BASE_URL + "/hat/" + id;
+        Path itemDir = cacheDir.resolve(id);
+        List<String> files = fetchAndCacheFiles(client, cdnBase, itemDir);
+
+        // Find the .tc2 file from the list the metadata declared
+        String tc2File = files.stream()
+                .filter(f -> f.toLowerCase().endsWith(".tc2"))
+                .findFirst()
+                .orElseThrow(() -> new IOException("No .tc2 file in metadata for hat '" + id + "'"));
+
+        byte[] data = Files.readAllBytes(itemDir.resolve(tc2File));
         Hat hat = TechneLoader.load(id, name, author, "", locked, howToUnlock, data);
         hats.add(hat);
     }
 
     private void loadCape(HttpClient client, Path cacheDir, String id, String name, String author,
                           boolean locked, String howToUnlock) throws Exception {
-        String filename = id + ".png";
-        Path cached = cacheDir.resolve(filename);
-        byte[] data;
-        if (Files.exists(cached)) {
-            LOGGER.info("Loading cape '{}' from cache", id);
-            data = Files.readAllBytes(cached);
-        } else {
-            // CDN convention: /{slot}/{id}/{id}.png
-            String assetUrl = CDN_BASE_URL + "/cape/" + id + "/" + id + ".png";
-            LOGGER.info("Downloading cape '{}' from {}", id, assetUrl);
-            data = fetchBytes(client, assetUrl);
-            Files.write(cached, data);
-        }
+        String cdnBase = CDN_BASE_URL + "/cape/" + id;
+        Path itemDir = cacheDir.resolve(id);
+        List<String> files = fetchAndCacheFiles(client, cdnBase, itemDir);
 
+        // Find the .png file from the list the metadata declared
+        String pngFile = files.stream()
+                .filter(f -> f.toLowerCase().endsWith(".png"))
+                .findFirst()
+                .orElseThrow(() -> new IOException("No .png file in metadata for cape '" + id + "'"));
+
+        byte[] data = Files.readAllBytes(itemDir.resolve(pngFile));
         ResourceLocation location = ResourceLocation.fromNamespaceAndPath(
                 "minetogethercommunity", "cape/" + id.toLowerCase().replace(' ', '_'));
-        byte[] finalData = data;
         Minecraft.getInstance().execute(() -> {
             try {
-                NativeImage img = NativeImage.read(new java.io.ByteArrayInputStream(finalData));
+                NativeImage img = NativeImage.read(new java.io.ByteArrayInputStream(data));
                 DynamicTexture tex = new DynamicTexture(img);
                 Minecraft.getInstance().getTextureManager().register(location, tex);
                 capes.add(new Cape(id, name, author, "", locked, howToUnlock, location, img.getWidth(), img.getHeight()));
@@ -214,6 +212,46 @@ public class CosmeticDownloader {
                 LOGGER.warn("Failed to register cape texture '{}': {}", id, e.getMessage());
             }
         });
+    }
+
+    /**
+     * Fetches {@code metadata.json} from {@code cdnBase/metadata.json}, reads the {@code files}
+     * array, and downloads any files not already present in {@code itemDir}.
+     * Returns the full list of filenames declared in the metadata.
+     */
+    private List<String> fetchAndCacheFiles(HttpClient client, String cdnBase, Path itemDir) throws IOException, InterruptedException {
+        Files.createDirectories(itemDir);
+
+        // Fetch metadata (always — it's tiny and tells us what files belong here)
+        String metaUrl = cdnBase + "/metadata.json";
+        LOGGER.info("Fetching metadata from {}", metaUrl);
+        byte[] metaBytes = fetchBytes(client, metaUrl);
+
+        var meta = JsonParser.parseReader(new InputStreamReader(
+                new java.io.ByteArrayInputStream(metaBytes), StandardCharsets.UTF_8
+        )).getAsJsonObject();
+
+        JsonArray filesArray = meta.getAsJsonArray("files");
+        if (filesArray == null || filesArray.isEmpty())
+            throw new IOException("No 'files' array in metadata at " + metaUrl);
+
+        List<String> fileNames = new java.util.ArrayList<>();
+        for (JsonElement el : filesArray) {
+            String filename = el.getAsString();
+            fileNames.add(filename);
+
+            Path dest = itemDir.resolve(filename);
+            if (Files.exists(dest)) {
+                LOGGER.info("  [cached] {}", filename);
+            } else {
+                String fileUrl = cdnBase + "/" + filename;
+                LOGGER.info("  [download] {} from {}", filename, fileUrl);
+                byte[] fileData = fetchBytes(client, fileUrl);
+                Files.write(dest, fileData);
+            }
+        }
+
+        return fileNames;
     }
 
     private byte[] fetchBytes(HttpClient client, String url) throws IOException, InterruptedException {
