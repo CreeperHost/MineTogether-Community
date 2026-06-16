@@ -1,5 +1,6 @@
 package net.creeperhost.minetogethercommunity.cosmetic;
 
+import com.google.common.hash.Hashing;
 import com.google.gson.JsonArray;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
@@ -16,6 +17,8 @@ import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.nio.charset.StandardCharsets;
+import java.util.Locale;
+import java.util.UUID;
 
 /**
  * Thin client for the MineTogether cosmetics profile API.
@@ -124,6 +127,88 @@ public class CosmeticApiClient {
                 LOGGER.error("Failed to fetch cosmetic profile", e);
             }
         }, "CosmeticProfileFetch");
+        t.setDaemon(true);
+        t.start();
+    }
+
+    /**
+     * Asynchronously fetches the cosmetic selections for a <em>remote</em> player (not the local player)
+     * and stores the result in {@link PlayerCosmeticCache}.
+     * <p>
+     * The MT full-hash is derived from the player's Minecraft UUID using the same SHA-256 formula
+     * as {@link net.creeperhost.minetogethercommunity.chat.ChatAuthImpl#getHash()} — no extra API
+     * call is needed to convert UUID → hash.
+     *
+     * @param uuid The Minecraft UUID of the other player.
+     */
+    public static void fetchProfileForPlayerAsync(UUID uuid) {
+        // MT full hash = SHA-256( uuid.toString() ).toUpperCase() — matches ChatAuthImpl.getHash()
+        String fullHash = Hashing.sha256()
+                .hashString(uuid.toString(), StandardCharsets.UTF_8)
+                .toString()
+                .toUpperCase(Locale.ROOT);
+
+        Thread t = new Thread(() -> {
+            try {
+                String token = MineTogetherSession.getDefault().getTokenAsync().get().toString();
+                String body = "{\"target\":\"" + fullHash + "\"}";
+
+                HttpClient client = HttpClient.newBuilder()
+                        .followRedirects(HttpClient.Redirect.NORMAL)
+                        .build();
+
+                HttpRequest request = HttpRequest.newBuilder(URI.create(API_BASE + "/minetogether/cosmetics/profile"))
+                        .POST(HttpRequest.BodyPublishers.ofString(body, StandardCharsets.UTF_8))
+                        .header("Content-Type", "application/json")
+                        .header("Authorization", "Bearer " + token)
+                        .build();
+
+                HttpResponse<byte[]> response = client.send(request, HttpResponse.BodyHandlers.ofByteArray());
+
+                // Always produce an entry even if the player has no cosmetics, so render layers
+                // know the fetch is done and won't try again until the player re-enters range.
+                CosmeticSelections cs = new CosmeticSelections();
+
+                if (response.statusCode() == 200) {
+                    JsonObject root = JsonParser.parseReader(new InputStreamReader(
+                            new java.io.ByteArrayInputStream(response.body()), StandardCharsets.UTF_8
+                    )).getAsJsonObject();
+
+                    JsonObject cosmetics = root.has("cosmetics") ? root.getAsJsonObject("cosmetics") : null;
+                    if (cosmetics != null) {
+                        JsonArray selections = cosmetics.has("selections")
+                                ? cosmetics.getAsJsonArray("selections") : null;
+                        if (selections != null) {
+                            for (JsonElement el : selections) {
+                                JsonObject sel = el.getAsJsonObject();
+                                String slot = sel.has("slot") ? sel.get("slot").getAsString() : null;
+                                String cosmeticId = sel.has("cosmeticId") && !sel.get("cosmeticId").isJsonNull()
+                                        ? sel.get("cosmeticId").getAsString() : null;
+                                if (slot == null || cosmeticId == null || cosmeticId.isEmpty()) continue;
+                                switch (slot) {
+                                    case "hat"  -> cs.selectedHatId  = cosmeticId;
+                                    case "cape" -> cs.selectedCapeId = cosmeticId;
+                                    default     -> LOGGER.debug("Ignoring unhandled slot '{}' for player {}", slot, uuid);
+                                }
+                            }
+                        }
+                    }
+                    LOGGER.debug("Loaded cosmetic profile for {}: hat='{}', cape='{}'",
+                            uuid, cs.selectedHatId, cs.selectedCapeId);
+                } else {
+                    // 404 = no MT account / no cosmetics — treat as "no cosmetics" silently
+                    LOGGER.debug("Cosmetic profile for {} returned HTTP {} — no cosmetics equipped",
+                            uuid, response.statusCode());
+                }
+
+                PlayerCosmeticCache.put(uuid, cs);
+
+            } catch (Exception e) {
+                LOGGER.error("Failed to fetch cosmetic profile for player {}", uuid, e);
+                // Cancel the fetching mark so the next entry into range triggers a retry
+                PlayerCosmeticCache.cancelFetching(uuid);
+            }
+        }, "CosmeticProfileFetch-" + uuid);
         t.setDaemon(true);
         t.start();
     }

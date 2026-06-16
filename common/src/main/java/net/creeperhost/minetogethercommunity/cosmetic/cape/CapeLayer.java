@@ -4,6 +4,7 @@ import com.mojang.blaze3d.vertex.PoseStack;
 import com.mojang.blaze3d.vertex.VertexConsumer;
 import com.mojang.math.Axis;
 import net.creeperhost.minetogethercommunity.cosmetic.CosmeticSelections;
+import net.creeperhost.minetogethercommunity.cosmetic.PlayerCosmeticCache;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.model.PlayerModel;
 import net.minecraft.client.player.AbstractClientPlayer;
@@ -24,9 +25,16 @@ public class CapeLayer<T extends AbstractClientPlayer> extends RenderLayer<T, Pl
     public void render(PoseStack poseStack, MultiBufferSource bufferSource, int packedLight, T player,
                        float limbSwing, float limbSwingAmount, float partialTicks,
                        float ageInTicks, float netHeadYaw, float headPitch) {
-        if (player != Minecraft.getInstance().player) return;
-
-        String capeId = CosmeticSelections.instance().selectedCapeId;
+        String capeId;
+        if (player == Minecraft.getInstance().player) {
+            // Local player — read from the singleton kept in sync with the GUI
+            capeId = CosmeticSelections.instance().selectedCapeId;
+        } else {
+            // Remote player — look up the per-player cache (null = profile not fetched yet)
+            CosmeticSelections cs = PlayerCosmeticCache.get(player.getUUID());
+            if (cs == null) return;
+            capeId = cs.selectedCapeId;
+        }
         if (capeId == null || capeId.isEmpty()) return;
 
         Cape cape = CapeRegistry.get(capeId);
