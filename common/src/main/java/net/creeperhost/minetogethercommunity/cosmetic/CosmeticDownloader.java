@@ -12,6 +12,7 @@ import net.minecraft.client.renderer.texture.DynamicTexture;
 import net.minecraft.resources.ResourceLocation;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.jetbrains.annotations.Nullable;
 
 import java.io.IOException;
 import java.io.InputStreamReader;
@@ -22,37 +23,39 @@ import java.net.http.HttpResponse;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CopyOnWriteArrayList;
 
+/**
+ * Manages cosmetic asset lifecycle in two distinct phases:
+ *
+ * <ol>
+ *   <li><b>Catalog fetch</b> — {@link #startCatalogFetch()} downloads lightweight metadata
+ *       (id, name, locked state, etc.) for every available cosmetic, paginated from the
+ *       catalog API. This is fast and starts immediately when the player enters a world.</li>
+ *   <li><b>On-demand asset download</b> — {@link #ensureAssetLoaded(String, String)} fetches
+ *       the actual 3-D model / texture for a single cosmetic, triggered when a player is seen
+ *       wearing it or when the user selects it in the GUI.</li>
+ * </ol>
+ *
+ * All network and file-I/O work runs on daemon threads; results are registered on the
+ * Minecraft main thread where required (texture registration).
+ */
 public class CosmeticDownloader {
 
     private static final Logger LOGGER = LogManager.getLogger();
 
-    /** Base URL of the MineTogether profile/cosmetics API. */
     private static final String CATALOG_BASE_URL = "https://api.creeper.host";
-
-    /**
-     * CDN base URL used to download actual asset files.
-     * Hat assets are fetched from: {CDN_BASE}/hat/{id}/{id}.tc2
-     * Cape assets are fetched from: {CDN_BASE}/cape/{id}/{id}.png
-     */
     private static final String CDN_BASE_URL = "https://cosmetic.cdn.minetogether.io";
-
     private static final int PAGE_LIMIT = 100;
 
+    // ── Singleton ──────────────────────────────────────────────────────────────
+
     private static volatile CosmeticDownloader INSTANCE;
-
-    private final Path cacheBase;
-    private final List<Hat> hats = new CopyOnWriteArrayList<>();
-    private final List<Cape> capes = new CopyOnWriteArrayList<>();
-    private volatile boolean loading = false;
-    private volatile boolean loaded = false;
-
-    private CosmeticDownloader(Path cacheBase) {
-        this.cacheBase = cacheBase;
-    }
 
     public static CosmeticDownloader instance() {
         if (INSTANCE == null) {
@@ -67,58 +70,152 @@ public class CosmeticDownloader {
         return INSTANCE;
     }
 
-    public List<Hat> getHats() {
-        if (!loading && !loaded) startDownload();
-        return Collections.unmodifiableList(hats);
+    // ── State ──────────────────────────────────────────────────────────────────
+
+    private final Path cacheBase;
+
+    /** Shared HTTP client — reused across all download threads. */
+    private final HttpClient httpClient;
+
+    // Catalog (lightweight metadata — populated eagerly by startCatalogFetch)
+    private final List<CosmeticItem> hatCatalogList  = new CopyOnWriteArrayList<>();
+    private final List<CosmeticItem> capeCatalogList = new CopyOnWriteArrayList<>();
+    private final ConcurrentHashMap<String, CosmeticItem> hatCatalogById  = new ConcurrentHashMap<>();
+    private final ConcurrentHashMap<String, CosmeticItem> capeCatalogById = new ConcurrentHashMap<>();
+
+    // Loaded assets (heavy — populated lazily by ensureAssetLoaded)
+    private final ConcurrentHashMap<String, Hat>  loadedHats  = new ConcurrentHashMap<>();
+    private final ConcurrentHashMap<String, Cape> loadedCapes = new ConcurrentHashMap<>();
+
+    /** IDs for which an asset download is currently in flight. Prevents duplicate requests. */
+    private final Set<String> loadingAssetIds = Collections.newSetFromMap(new ConcurrentHashMap<>());
+
+    // Catalog fetch state
+    private volatile boolean catalogLoading = false;
+    private volatile boolean catalogLoaded  = false;
+
+    // ── Constructor ────────────────────────────────────────────────────────────
+
+    private CosmeticDownloader(Path cacheBase) {
+        this.cacheBase = cacheBase;
+        this.httpClient = HttpClient.newBuilder()
+                .followRedirects(HttpClient.Redirect.NORMAL)
+                .build();
     }
 
-    public List<Cape> getCapes() {
-        if (!loading && !loaded) startDownload();
-        return Collections.unmodifiableList(capes);
-    }
+    // ── Public API ─────────────────────────────────────────────────────────────
 
-    public boolean isLoading() { return loading; }
-    public boolean isLoaded() { return loaded; }
-
-    public void startDownload() {
+    /**
+     * Starts an asynchronous fetch of the cosmetic catalog (metadata only — no assets).
+     * Idempotent: safe to call multiple times; only the first call has any effect.
+     */
+    public void startCatalogFetch() {
         synchronized (this) {
-            if (loading || loaded) return;
-            loading = true;
+            if (catalogLoading || catalogLoaded) return;
+            catalogLoading = true;
         }
-        Thread t = new Thread(this::downloadAll, "CosmeticsDownloader");
+        Thread t = new Thread(this::fetchCatalog, "CosmeticsCatalogFetch");
         t.setDaemon(true);
         t.start();
     }
 
-    private void downloadAll() {
-        try {
-            HttpClient client = HttpClient.newBuilder()
-                    .followRedirects(HttpClient.Redirect.NORMAL)
-                    .build();
+    /**
+     * Ensures the rendered assets for the given cosmetic (model geometry + texture) are
+     * downloaded and registered.  No-op if already loaded or currently loading.
+     *
+     * @param slot {@code "hat"} or {@code "cape"}
+     * @param id   The cosmetic ID from the catalog
+     */
+    public void ensureAssetLoaded(String slot, String id) {
+        if (id == null || id.isEmpty()) return;
+        // Skip if already fully loaded
+        if ("hat".equals(slot)  && loadedHats.containsKey(id))  return;
+        if ("cape".equals(slot) && loadedCapes.containsKey(id)) return;
+        // Claim the download slot — only one thread proceeds per id
+        if (!loadingAssetIds.add(id)) return;
 
-            Path hatsCache = cacheBase.resolve("hats");
-            Path capesCache = cacheBase.resolve("capes");
-            Files.createDirectories(hatsCache);
-            Files.createDirectories(capesCache);
+        Thread t = new Thread(() -> {
+            try {
+                if ("hat".equals(slot)) {
+                    downloadAndRegisterHat(id);
+                } else {
+                    downloadAndRegisterCape(id);
+                }
+            } catch (Exception e) {
+                LOGGER.error("Failed to download {} asset '{}'", slot, id, e);
+                loadingAssetIds.remove(id); // allow retry on next request
+            }
+        }, "CosmeticAssetLoad-" + id);
+        t.setDaemon(true);
+        t.start();
+    }
 
-            fetchAllCatalogForSlot(client, "hat", hatsCache);
-            fetchAllCatalogForSlot(client, "cape", capesCache);
+    // ── Catalog accessors ──────────────────────────────────────────────────────
 
-            LOGGER.info("Loaded {} hats, {} capes", hats.size(), capes.size());
-        } catch (Exception e) {
-            LOGGER.error("Failed to load cosmetics", e);
-        } finally {
-            loading = false;
-            loaded = true;
-        }
+    /** Ordered list of all known hat metadata entries (may grow as pages arrive). */
+    public List<CosmeticItem> getHatCatalog() {
+        return Collections.unmodifiableList(hatCatalogList);
+    }
+
+    /** Ordered list of all known cape metadata entries (may grow as pages arrive). */
+    public List<CosmeticItem> getCapeCatalog() {
+        return Collections.unmodifiableList(capeCatalogList);
+    }
+
+    /** @return {@code true} while the catalog is being fetched from the server. */
+    public boolean isCatalogLoading() { return catalogLoading; }
+
+    /** @return {@code true} once the catalog fetch has completed (success or failure). */
+    public boolean isCatalogLoaded()  { return catalogLoaded; }
+
+    // ── Asset accessors ────────────────────────────────────────────────────────
+
+    /**
+     * Returns the fully loaded {@link Hat} for the given id, or {@code null} if not yet
+     * downloaded.  Triggers a download via {@link #ensureAssetLoaded} if not already in
+     * progress.
+     */
+    public @Nullable Hat getLoadedHat(String id) {
+        return loadedHats.get(id);
     }
 
     /**
-     * Pages through the catalog API for a given slot and loads each item.
+     * Returns the fully loaded {@link Cape} for the given id, or {@code null} if not yet
+     * downloaded.
      */
-    private void fetchAllCatalogForSlot(HttpClient client, String slot, Path cacheDir) throws IOException, InterruptedException {
+    public @Nullable Cape getLoadedCape(String id) {
+        return loadedCapes.get(id);
+    }
+
+    /** @return {@code true} if an asset download for {@code id} is currently in flight. */
+    public boolean isAssetLoading(String id) {
+        return loadingAssetIds.contains(id);
+    }
+
+    // ── Internal: catalog fetch ────────────────────────────────────────────────
+
+    private void fetchCatalog() {
+        try {
+            // Ensure cache directories exist before any asset downloads start
+            Files.createDirectories(cacheBase.resolve("hats"));
+            Files.createDirectories(cacheBase.resolve("capes"));
+
+            fetchCatalogForSlot("hat");
+            fetchCatalogForSlot("cape");
+            LOGGER.info("Cosmetic catalog loaded: {} hats, {} capes",
+                    hatCatalogList.size(), capeCatalogList.size());
+        } catch (Exception e) {
+            LOGGER.error("Failed to fetch cosmetics catalog", e);
+        } finally {
+            catalogLoading = false;
+            catalogLoaded  = true;
+        }
+    }
+
+    /** Pages through the catalog API and populates the in-memory catalog lists/maps. */
+    private void fetchCatalogForSlot(String slot) throws IOException, InterruptedException {
         String cursor = null;
-        int totalFetched = 0;
+        int total = 0;
 
         do {
             StringBuilder url = new StringBuilder(CATALOG_BASE_URL)
@@ -127,20 +224,20 @@ public class CosmeticDownloader {
                     .append("&limit=").append(PAGE_LIMIT);
             if (cursor != null) url.append("&cursor=").append(cursor);
 
-            LOGGER.info("Fetching {} catalog (cursor={})", slot, cursor == null ? "start" : cursor);
-            byte[] body = fetchBytes(client, url.toString());
+            byte[] body = fetchBytes(url.toString());
             var root = JsonParser.parseReader(new InputStreamReader(
                     new java.io.ByteArrayInputStream(body), StandardCharsets.UTF_8
             )).getAsJsonObject();
 
             JsonArray items = root.getAsJsonArray("cosmetics");
             if (items == null) {
-                LOGGER.warn("No 'cosmetics' array in response for slot '{}'. Full response: {}", slot, root);
+                LOGGER.warn("No 'cosmetics' array in catalog response for slot '{}'", slot);
                 break;
             }
+
             for (JsonElement el : items) {
-                var obj = el.getAsJsonObject();
-                String id = obj.get("id").getAsString();
+                var obj     = el.getAsJsonObject();
+                String id   = obj.get("id").getAsString();
                 String name = obj.get("name").getAsString();
                 String author = obj.has("author") && !obj.get("author").isJsonNull()
                         ? obj.get("author").getAsString() : "";
@@ -148,51 +245,75 @@ public class CosmeticDownloader {
                 String howToUnlock = obj.has("howToUnlock") && !obj.get("howToUnlock").isJsonNull()
                         ? obj.get("howToUnlock").getAsString() : null;
 
-                try {
-                    if (slot.equals("hat")) {
-                        loadHat(client, cacheDir, id, name, author, locked, howToUnlock);
-                    } else {
-                        loadCape(client, cacheDir, id, name, author, locked, howToUnlock);
-                    }
-                } catch (Exception e) {
-                    LOGGER.warn("Skipping {} '{}': {}", slot, id, e.getMessage());
+                CosmeticItem item = new CosmeticItem(id, name, author, "", locked, howToUnlock);
+                if ("hat".equals(slot)) {
+                    hatCatalogList.add(item);
+                    hatCatalogById.put(id, item);
+                } else {
+                    capeCatalogList.add(item);
+                    capeCatalogById.put(id, item);
                 }
-                totalFetched++;
+                total++;
             }
 
             cursor = root.has("nextCursor") && !root.get("nextCursor").isJsonNull()
-                    ? root.get("nextCursor").getAsString()
-                    : null;
+                    ? root.get("nextCursor").getAsString() : null;
 
         } while (cursor != null);
 
-        LOGGER.info("Fetched {} {} catalog items", totalFetched, slot);
+        LOGGER.info("Fetched {} {} catalog entries", total, slot);
     }
 
-    private void loadHat(HttpClient client, Path cacheDir, String id, String name, String author,
-                         boolean locked, String howToUnlock) throws Exception {
-        String cdnBase = CDN_BASE_URL + "/hat/" + id;
-        Path itemDir = cacheDir.resolve(id);
-        List<String> files = fetchAndCacheFiles(client, cdnBase, itemDir);
+    // ── Internal: on-demand asset download ────────────────────────────────────
 
-        // Find the .tc2 file from the list the metadata declared
+    /**
+     * Downloads the {@code .tc2} asset for a hat, parses it via {@link TechneLoader}, and
+     * registers it on the Minecraft main thread (after TechneLoader's own texture registration).
+     */
+    private void downloadAndRegisterHat(String id) throws Exception {
+        CosmeticItem item = hatCatalogById.get(id);
+        if (item == null) {
+            LOGGER.warn("Hat asset requested for id '{}' not present in catalog — skipping", id);
+            loadingAssetIds.remove(id);
+            return;
+        }
+
+        Path itemDir = cacheBase.resolve("hats").resolve(id);
+        List<String> files = fetchAndCacheFiles(CDN_BASE_URL + "/hat/" + id, itemDir);
+
         String tc2File = files.stream()
                 .filter(f -> f.toLowerCase().endsWith(".tc2"))
                 .findFirst()
                 .orElseThrow(() -> new IOException("No .tc2 file in metadata for hat '" + id + "'"));
 
         byte[] data = Files.readAllBytes(itemDir.resolve(tc2File));
-        Hat hat = TechneLoader.load(id, name, author, "", locked, howToUnlock, data);
-        hats.add(hat);
+        // TechneLoader internally queues texture registration on the Minecraft main thread.
+        Hat hat = TechneLoader.load(id, item.displayName(), item.author(), item.mod(),
+                item.locked(), item.howToUnlock(), data);
+
+        // Schedule the registry addition AFTER TechneLoader's own Minecraft.execute() so the
+        // texture is guaranteed to be registered before any render layer can see this hat.
+        Minecraft.getInstance().execute(() -> {
+            loadedHats.put(id, hat);
+            loadingAssetIds.remove(id);
+            LOGGER.info("Hat asset ready: '{}'", id);
+        });
     }
 
-    private void loadCape(HttpClient client, Path cacheDir, String id, String name, String author,
-                          boolean locked, String howToUnlock) throws Exception {
-        String cdnBase = CDN_BASE_URL + "/cape/" + id;
-        Path itemDir = cacheDir.resolve(id);
-        List<String> files = fetchAndCacheFiles(client, cdnBase, itemDir);
+    /**
+     * Downloads the {@code .png} asset for a cape and registers it on the Minecraft main thread.
+     */
+    private void downloadAndRegisterCape(String id) throws Exception {
+        CosmeticItem item = capeCatalogById.get(id);
+        if (item == null) {
+            LOGGER.warn("Cape asset requested for id '{}' not present in catalog — skipping", id);
+            loadingAssetIds.remove(id);
+            return;
+        }
 
-        // Find the .png file from the list the metadata declared
+        Path itemDir = cacheBase.resolve("capes").resolve(id);
+        List<String> files = fetchAndCacheFiles(CDN_BASE_URL + "/cape/" + id, itemDir);
+
         String pngFile = files.stream()
                 .filter(f -> f.toLowerCase().endsWith(".png"))
                 .findFirst()
@@ -201,31 +322,38 @@ public class CosmeticDownloader {
         byte[] data = Files.readAllBytes(itemDir.resolve(pngFile));
         ResourceLocation location = ResourceLocation.fromNamespaceAndPath(
                 "minetogethercommunity", "cape/" + id.toLowerCase().replace(' ', '_'));
+
         Minecraft.getInstance().execute(() -> {
             try {
                 NativeImage img = NativeImage.read(new java.io.ByteArrayInputStream(data));
                 DynamicTexture tex = new DynamicTexture(img);
                 Minecraft.getInstance().getTextureManager().register(location, tex);
-                capes.add(new Cape(id, name, author, "", locked, howToUnlock, location, img.getWidth(), img.getHeight()));
-                LOGGER.info("Registered cape texture '{}' ({}x{})", id, img.getWidth(), img.getHeight());
+                Cape cape = new Cape(id, item.displayName(), item.author(), item.mod(),
+                        item.locked(), item.howToUnlock(), location, img.getWidth(), img.getHeight());
+                loadedCapes.put(id, cape);
+                loadingAssetIds.remove(id);
+                LOGGER.info("Cape asset ready: '{}' ({}x{})", id, img.getWidth(), img.getHeight());
             } catch (Exception e) {
-                LOGGER.warn("Failed to register cape texture '{}': {}", id, e.getMessage());
+                LOGGER.error("Failed to register cape texture '{}'", id, e);
+                loadingAssetIds.remove(id);
             }
         });
     }
 
+    // ── Internal: CDN helpers ──────────────────────────────────────────────────
+
     /**
-     * Fetches {@code metadata.json} from {@code cdnBase/metadata.json}, reads the {@code files}
-     * array, and downloads any files not already present in {@code itemDir}.
-     * Returns the full list of filenames declared in the metadata.
+     * Fetches {@code metadata.json} from the CDN, then downloads any listed files that are
+     * not already cached on disk.
+     *
+     * @return the list of filenames declared in the metadata
      */
-    private List<String> fetchAndCacheFiles(HttpClient client, String cdnBase, Path itemDir) throws IOException, InterruptedException {
+    private List<String> fetchAndCacheFiles(String cdnBase, Path itemDir)
+            throws IOException, InterruptedException {
         Files.createDirectories(itemDir);
 
-        // Fetch metadata (always — it's tiny and tells us what files belong here)
         String metaUrl = cdnBase + "/metadata.json";
-        LOGGER.info("Fetching metadata from {}", metaUrl);
-        byte[] metaBytes = fetchBytes(client, metaUrl);
+        byte[] metaBytes = fetchBytes(metaUrl);
 
         var meta = JsonParser.parseReader(new InputStreamReader(
                 new java.io.ByteArrayInputStream(metaBytes), StandardCharsets.UTF_8
@@ -235,29 +363,29 @@ public class CosmeticDownloader {
         if (filesArray == null || filesArray.isEmpty())
             throw new IOException("No 'files' array in metadata at " + metaUrl);
 
-        List<String> fileNames = new java.util.ArrayList<>();
+        List<String> fileNames = new ArrayList<>();
         for (JsonElement el : filesArray) {
             String filename = el.getAsString();
             fileNames.add(filename);
 
             Path dest = itemDir.resolve(filename);
             if (Files.exists(dest)) {
-                LOGGER.info("  [cached] {}", filename);
+                LOGGER.debug("  [cached] {}", filename);
             } else {
                 String fileUrl = cdnBase + "/" + filename;
-                LOGGER.info("  [download] {} from {}", filename, fileUrl);
-                byte[] fileData = fetchBytes(client, fileUrl);
+                LOGGER.debug("  [download] {}", fileUrl);
+                byte[] fileData = fetchBytes(fileUrl);
                 Files.write(dest, fileData);
             }
         }
-
         return fileNames;
     }
 
-    private byte[] fetchBytes(HttpClient client, String url) throws IOException, InterruptedException {
+    private byte[] fetchBytes(String url) throws IOException, InterruptedException {
         HttpRequest req = HttpRequest.newBuilder(URI.create(url)).GET().build();
-        HttpResponse<byte[]> resp = client.send(req, HttpResponse.BodyHandlers.ofByteArray());
-        if (resp.statusCode() != 200) throw new IOException("HTTP " + resp.statusCode() + " for " + url);
+        HttpResponse<byte[]> resp = httpClient.send(req, HttpResponse.BodyHandlers.ofByteArray());
+        if (resp.statusCode() != 200)
+            throw new IOException("HTTP " + resp.statusCode() + " for " + url);
         return resp.body();
     }
 }

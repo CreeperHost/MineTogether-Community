@@ -77,7 +77,7 @@ public class MineTogetherClient {
         // Kick off cosmetic catalog download and profile fetch as soon as the player enters a world,
         // so the data is ready (or already cached) by the time they open the cosmetics GUI.
         ClientPlayerEvent.CLIENT_PLAYER_JOIN.register(player -> {
-            CosmeticDownloader.instance().startDownload();
+            CosmeticDownloader.instance().startCatalogFetch();
             CosmeticApiClient.fetchProfileAsync();
         });
 

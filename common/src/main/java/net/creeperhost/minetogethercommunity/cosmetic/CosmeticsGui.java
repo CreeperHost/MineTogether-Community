@@ -1,11 +1,7 @@
 package net.creeperhost.minetogethercommunity.cosmetic;
 
 import net.creeperhost.minetogethercommunity.chat.gui.MTStyle;
-import net.creeperhost.minetogethercommunity.cosmetic.CosmeticApiClient;
-import net.creeperhost.minetogethercommunity.cosmetic.CosmeticSelections;
-import net.creeperhost.minetogethercommunity.cosmetic.cape.Cape;
 import net.creeperhost.minetogethercommunity.cosmetic.cape.CapeRegistry;
-import net.creeperhost.minetogethercommunity.cosmetic.hat.Hat;
 import net.creeperhost.minetogethercommunity.cosmetic.hat.HatRegistry;
 import net.creeperhost.polylib.client.modulargui.ModularGui;
 import net.creeperhost.polylib.client.modulargui.ModularGuiScreen;
@@ -38,6 +34,9 @@ public class CosmeticsGui implements GuiProvider {
     private static final int BUTTON_HEIGHT = 14;
     private static final int TAB_HEIGHT = 18;
 
+    /** Spinner frames cycled in the preview panel while a cosmetic asset is downloading. */
+    private static final char[] SPINNER = {'|', '/', '-', '\\'};
+
     private static boolean isImplemented(CosmeticTypes type) {
         return type == CosmeticTypes.HAT || type == CosmeticTypes.CAPE;
     }
@@ -61,6 +60,12 @@ public class CosmeticsGui implements GuiProvider {
         // Initialised from the in-memory profile so the current selection is pre-highlighted.
         final String[] pendingHatId  = {CosmeticSelections.instance().selectedHatId};
         final String[] pendingCapeId = {CosmeticSelections.instance().selectedCapeId};
+
+        // Kick off asset downloads for whatever the player already has equipped,
+        // in case they weren't downloaded yet (e.g. the GUI was opened before the profile fetch completed).
+        CosmeticDownloader d = CosmeticDownloader.instance();
+        if (!pendingHatId[0].isEmpty())  d.ensureAssetLoaded("hat",  pendingHatId[0]);
+        if (!pendingCapeId[0].isEmpty()) d.ensureAssetLoaded("cape", pendingCapeId[0]);
 
         GuiElement<?> container = new GuiElement<>(root)
                 .constrain(LEFT, midPoint(root.get(LEFT), root.get(RIGHT), -(TOTAL_WIDTH / 2D)))
@@ -104,9 +109,9 @@ public class CosmeticsGui implements GuiProvider {
                 .constrain(WIDTH, literal(LIST_WIDTH))
                 .constrain(BOTTOM, match(container.get(BOTTOM)));
 
-        // Loading indicator
+        // Loading indicator — visible while the catalog is still being fetched
         new GuiText(listPanel, () ->
-                CosmeticDownloader.instance().isLoading()
+                CosmeticDownloader.instance().isCatalogLoading()
                         ? Component.translatable("minetogether:gui.cosmetics.loading").withStyle(ChatFormatting.YELLOW)
                         : Component.empty())
                 .setShadow(false)
@@ -137,9 +142,11 @@ public class CosmeticsGui implements GuiProvider {
                 .constrain(RIGHT, match(listPanel.get(RIGHT)))
                 .constrain(BOTTOM, relative(listPanel.get(BOTTOM), -14));
 
-        // Hat list
-        GuiList<Hat> hatList = new GuiList<Hat>(listArea)
-                .setDisplayBuilder((parent, hat) -> hat == null ? new NoneEntry(parent, pendingHatId) : new HatEntry(parent, hat, pendingHatId))
+        // Hat list — uses CosmeticItem (lightweight catalog metadata)
+        GuiList<CosmeticItem> hatList = new GuiList<CosmeticItem>(listArea)
+                .setDisplayBuilder((parent, item) -> item == null
+                        ? new NoneEntry(parent, pendingHatId)
+                        : new HatEntry(parent, item, pendingHatId))
                 .setItemSpacing(2)
                 .setEnabled(() -> activeTab[0] == CosmeticTypes.HAT);
         Constraints.bind(hatList, listArea, 4);
@@ -155,9 +162,11 @@ public class CosmeticsGui implements GuiProvider {
                 .setScrollableElement(hatList)
                 .setSliderState(hatList.scrollState());
 
-        // Cape list
-        GuiList<Cape> capeList = new GuiList<Cape>(listArea)
-                .setDisplayBuilder((parent, cape) -> cape == null ? new NoCapeEntry(parent, pendingCapeId) : new CapeEntry(parent, cape, pendingCapeId))
+        // Cape list — uses CosmeticItem
+        GuiList<CosmeticItem> capeList = new GuiList<CosmeticItem>(listArea)
+                .setDisplayBuilder((parent, item) -> item == null
+                        ? new NoCapeEntry(parent, pendingCapeId)
+                        : new CapeEntry(parent, item, pendingCapeId))
                 .setItemSpacing(2)
                 .setEnabled(() -> activeTab[0] == CosmeticTypes.CAPE);
         Constraints.bind(capeList, listArea, 4);
@@ -197,37 +206,59 @@ public class CosmeticsGui implements GuiProvider {
                 .constrain(WIDTH, literal(13))
                 .constrain(HEIGHT, literal(11));
 
-        // Mirror view (left) — offset 120° + mirror frame border
+        // Mirror view (left)
         new OffsetFollowRenderer(previewPanel, Minecraft.getInstance().player, 120.0F, trackingEnabled)
                 .constrain(HEIGHT, literal(70))
                 .constrain(TOP, midPoint(previewPanel.get(TOP), previewPanel.get(BOTTOM), -35))
                 .constrain(LEFT, relative(previewPanel.get(LEFT), 4))
                 .constrain(RIGHT, midPoint(previewPanel.get(LEFT), previewPanel.get(RIGHT), -2));
 
-        // Front view (right) — offset -20° so player faces slightly right
+        // Front view (right)
         new OffsetFollowRenderer(previewPanel, Minecraft.getInstance().player, -20.0F, trackingEnabled)
                 .constrain(HEIGHT, literal(70))
                 .constrain(TOP, midPoint(previewPanel.get(TOP), previewPanel.get(BOTTOM), -35))
                 .constrain(LEFT, midPoint(previewPanel.get(LEFT), previewPanel.get(RIGHT), 2))
                 .constrain(RIGHT, relative(previewPanel.get(RIGHT), -4));
 
+        // Status / spinner text at the bottom of the preview panel.
+        // Shows a loading spinner while the selected cosmetic's asset is downloading,
+        // then the "equipped" name once ready (or "none" when nothing is selected).
         new GuiText(previewPanel, () -> {
             if (activeTab[0] == CosmeticTypes.HAT) {
                 String id = pendingHatId[0];
                 if (id == null || id.isEmpty())
-                    return Component.translatable("minetogether:gui.cosmetics.none_equipped").withStyle(ChatFormatting.GRAY);
-                Hat hat = HatRegistry.get(id);
-                String name = hat != null ? hat.displayName() : id;
-                return Component.translatable("minetogether:gui.cosmetics.equipped", Component.literal(name).withStyle(ChatFormatting.GREEN));
+                    return Component.translatable("minetogether:gui.cosmetics.none_equipped")
+                            .withStyle(ChatFormatting.GRAY);
+                // Asset not yet available — show spinner
+                if (CosmeticDownloader.instance().getLoadedHat(id) == null) {
+                    int frame = (int) ((System.currentTimeMillis() / 150) % SPINNER.length);
+                    return Component.literal(SPINNER[frame] + " Loading...")
+                            .withStyle(ChatFormatting.YELLOW);
+                }
+                CosmeticItem item = HatRegistry.getCatalogEntry(id);
+                String name = item != null ? item.displayName() : id;
+                return Component.translatable("minetogether:gui.cosmetics.equipped",
+                        Component.literal(name).withStyle(ChatFormatting.GREEN));
+
             } else if (activeTab[0] == CosmeticTypes.CAPE) {
                 String id = pendingCapeId[0];
                 if (id == null || id.isEmpty())
-                    return Component.translatable("minetogether:gui.cosmetics.cape.none_equipped").withStyle(ChatFormatting.GRAY);
-                Cape cape = CapeRegistry.get(id);
-                String name = cape != null ? cape.displayName() : id;
-                return Component.translatable("minetogether:gui.cosmetics.equipped", Component.literal(name).withStyle(ChatFormatting.GREEN));
+                    return Component.translatable("minetogether:gui.cosmetics.cape.none_equipped")
+                            .withStyle(ChatFormatting.GRAY);
+                // Asset not yet available — show spinner
+                if (CosmeticDownloader.instance().getLoadedCape(id) == null) {
+                    int frame = (int) ((System.currentTimeMillis() / 150) % SPINNER.length);
+                    return Component.literal(SPINNER[frame] + " Loading...")
+                            .withStyle(ChatFormatting.YELLOW);
+                }
+                CosmeticItem item = CapeRegistry.getCatalogEntry(id);
+                String name = item != null ? item.displayName() : id;
+                return Component.translatable("minetogether:gui.cosmetics.equipped",
+                        Component.literal(name).withStyle(ChatFormatting.GREEN));
+
             } else {
-                return Component.translatable("minetogether:gui.cosmetics.coming_soon").withStyle(ChatFormatting.GRAY);
+                return Component.translatable("minetogether:gui.cosmetics.coming_soon")
+                        .withStyle(ChatFormatting.GRAY);
             }
         })
                 .setShadow(false)
@@ -259,8 +290,10 @@ public class CosmeticsGui implements GuiProvider {
                 .constrain(WIDTH, literal((TOTAL_WIDTH / 2) - 2))
                 .constrain(HEIGHT, literal(BUTTON_HEIGHT));
 
-        CosmeticDownloader.instance().startDownload();
+        // Start the catalog fetch (idempotent — no-op if already started by the world-join hook).
+        CosmeticDownloader.instance().startCatalogFetch();
         CosmeticApiClient.fetchProfileAsync();
+
         final int[] lastSizes = {0, 0};
         final String[] lastQuery = {""};
         gui.onTick(() -> {
@@ -268,7 +301,8 @@ public class CosmeticsGui implements GuiProvider {
             boolean queryChanged = !q.equals(lastQuery[0]);
             if (queryChanged) lastQuery[0] = q;
 
-            List<Hat> availableHats = HatRegistry.all();
+            // Refresh hat list when new catalog entries arrive or search query changes
+            List<CosmeticItem> availableHats = HatRegistry.catalog();
             if (availableHats.size() != lastSizes[0] || queryChanged) {
                 lastSizes[0] = availableHats.size();
                 hatList.getList().clear();
@@ -278,7 +312,9 @@ public class CosmeticsGui implements GuiProvider {
                         .forEach(hatList.getList()::add);
                 hatList.markDirty();
             }
-            List<Cape> availableCapes = CapeRegistry.all();
+
+            // Refresh cape list similarly
+            List<CosmeticItem> availableCapes = CapeRegistry.catalog();
             if (availableCapes.size() != lastSizes[1] || queryChanged) {
                 lastSizes[1] = availableCapes.size();
                 capeList.getList().clear();
@@ -290,6 +326,8 @@ public class CosmeticsGui implements GuiProvider {
             }
         });
     }
+
+    // ── List entry inner classes ───────────────────────────────────────────────
 
     private static class NoneEntry extends GuiElement<NoneEntry> implements BackgroundRender {
 
@@ -334,23 +372,23 @@ public class CosmeticsGui implements GuiProvider {
 
     private static class HatEntry extends GuiElement<HatEntry> implements BackgroundRender {
 
-        private final Hat hat;
+        private final CosmeticItem item;
         private final String[] pendingId;
 
-        public HatEntry(@NotNull GuiParent<?> parent, Hat hat, String[] pendingId) {
+        public HatEntry(@NotNull GuiParent<?> parent, CosmeticItem item, String[] pendingId) {
             super(parent);
-            this.hat = hat;
+            this.item = item;
             this.pendingId = pendingId;
-            String subtitle = hat.locked()
-                    ? (hat.howToUnlock() != null ? hat.howToUnlock() : "Locked")
-                    : buildSubtitle(hat.author(), hat.mod());
+            String subtitle = item.locked()
+                    ? (item.howToUnlock() != null ? item.howToUnlock() : "Locked")
+                    : buildSubtitle(item.author(), item.mod());
             boolean hasSubtitle = !subtitle.isEmpty();
             this.constrain(HEIGHT, literal(hasSubtitle ? 28 : 20));
 
             new GuiText(this, () -> {
-                if (hat.locked()) return Component.literal(hat.displayName()).withStyle(ChatFormatting.DARK_GRAY);
-                boolean selected = hat.id().equals(pendingId[0]);
-                return Component.literal(hat.displayName())
+                if (item.locked()) return Component.literal(item.displayName()).withStyle(ChatFormatting.DARK_GRAY);
+                boolean selected = item.id().equals(pendingId[0]);
+                return Component.literal(item.displayName())
                         .withStyle(selected ? ChatFormatting.GREEN : ChatFormatting.WHITE);
             })
                     .setAlignment(Align.LEFT)
@@ -373,16 +411,18 @@ public class CosmeticsGui implements GuiProvider {
 
         @Override
         public boolean mouseClicked(double mouseX, double mouseY, int button) {
-            if (!isMouseOver() || hat.locked()) return false;
-            pendingId[0] = hat.id();
-            CosmeticSelections.instance().selectedHatId = hat.id();
+            if (!isMouseOver() || item.locked()) return false;
+            pendingId[0] = item.id();
+            CosmeticSelections.instance().selectedHatId = item.id();
+            // Kick off asset download so the hat renders on the player immediately
+            CosmeticDownloader.instance().ensureAssetLoaded("hat", item.id());
             return true;
         }
 
         @Override
         public void renderBehind(GuiRender render, double mouseX, double mouseY, float partialTicks) {
             render.rect(getRectangle(), MTStyle.Flat.listEntryBackground(true));
-            if (!hat.locked() && hat.id().equals(pendingId[0])) {
+            if (!item.locked() && item.id().equals(pendingId[0])) {
                 render.borderRect(getRectangle(), 1, 0x2000CC44, 0xFF00AA33);
             }
         }
@@ -431,23 +471,23 @@ public class CosmeticsGui implements GuiProvider {
 
     private static class CapeEntry extends GuiElement<CapeEntry> implements BackgroundRender {
 
-        private final Cape cape;
+        private final CosmeticItem item;
         private final String[] pendingId;
 
-        public CapeEntry(@NotNull GuiParent<?> parent, Cape cape, String[] pendingId) {
+        public CapeEntry(@NotNull GuiParent<?> parent, CosmeticItem item, String[] pendingId) {
             super(parent);
-            this.cape = cape;
+            this.item = item;
             this.pendingId = pendingId;
-            String subtitle = cape.locked()
-                    ? (cape.howToUnlock() != null ? cape.howToUnlock() : "Locked")
-                    : buildSubtitle(cape.author(), cape.mod());
+            String subtitle = item.locked()
+                    ? (item.howToUnlock() != null ? item.howToUnlock() : "Locked")
+                    : buildSubtitle(item.author(), item.mod());
             boolean hasSubtitle = !subtitle.isEmpty();
             this.constrain(HEIGHT, literal(hasSubtitle ? 28 : 20));
 
             new GuiText(this, () -> {
-                if (cape.locked()) return Component.literal(cape.displayName()).withStyle(ChatFormatting.DARK_GRAY);
-                boolean selected = cape.id().equals(pendingId[0]);
-                return Component.literal(cape.displayName())
+                if (item.locked()) return Component.literal(item.displayName()).withStyle(ChatFormatting.DARK_GRAY);
+                boolean selected = item.id().equals(pendingId[0]);
+                return Component.literal(item.displayName())
                         .withStyle(selected ? ChatFormatting.GREEN : ChatFormatting.WHITE);
             })
                     .setAlignment(Align.LEFT)
@@ -470,16 +510,18 @@ public class CosmeticsGui implements GuiProvider {
 
         @Override
         public boolean mouseClicked(double mouseX, double mouseY, int button) {
-            if (!isMouseOver() || cape.locked()) return false;
-            pendingId[0] = cape.id();
-            CosmeticSelections.instance().selectedCapeId = cape.id();
+            if (!isMouseOver() || item.locked()) return false;
+            pendingId[0] = item.id();
+            CosmeticSelections.instance().selectedCapeId = item.id();
+            // Kick off asset download so the cape renders on the player immediately
+            CosmeticDownloader.instance().ensureAssetLoaded("cape", item.id());
             return true;
         }
 
         @Override
         public void renderBehind(GuiRender render, double mouseX, double mouseY, float partialTicks) {
             render.rect(getRectangle(), MTStyle.Flat.listEntryBackground(true));
-            if (!cape.locked() && cape.id().equals(pendingId[0])) {
+            if (!item.locked() && item.id().equals(pendingId[0])) {
                 render.borderRect(getRectangle(), 1, 0x2000CC44, 0xFF00AA33);
             }
         }
@@ -490,6 +532,8 @@ public class CosmeticsGui implements GuiProvider {
         if (!author.isEmpty()) return author;
         return mod;
     }
+
+    // ── Player preview renderer ────────────────────────────────────────────────
 
     private static class OffsetFollowRenderer extends GuiElement<OffsetFollowRenderer> implements BackgroundRender {
         private final LivingEntity entity;

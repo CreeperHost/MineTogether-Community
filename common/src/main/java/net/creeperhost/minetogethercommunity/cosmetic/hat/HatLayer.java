@@ -36,7 +36,7 @@ public class HatLayer<T extends AbstractClientPlayer> extends RenderLayer<T, Pla
         }
         if (hatId == null || hatId.isEmpty()) return;
 
-        Hat hat = HatRegistry.get(hatId);
+        Hat hat = HatRegistry.getLoaded(hatId);
         if (hat == null) return;
 
         poseStack.pushPose();

@@ -29,7 +29,7 @@ public abstract class VanillaCapeLayerMixin {
             if (cs == null) return; // Profile not yet fetched — let vanilla cape show for now
             capeId = cs.selectedCapeId;
         }
-        if (capeId != null && !capeId.isEmpty() && CapeRegistry.get(capeId) != null) {
+        if (capeId != null && !capeId.isEmpty() && CapeRegistry.getLoaded(capeId) != null) {
             ci.cancel();
         }
     }

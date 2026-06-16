@@ -37,7 +37,7 @@ public class CapeLayer<T extends AbstractClientPlayer> extends RenderLayer<T, Pl
         }
         if (capeId == null || capeId.isEmpty()) return;
 
-        Cape cape = CapeRegistry.get(capeId);
+        Cape cape = CapeRegistry.getLoaded(capeId);
         if (cape == null) return;
 
         poseStack.pushPose();

@@ -123,6 +123,12 @@ public class CosmeticApiClient {
                 LOGGER.info("Loaded cosmetic profile: hat='{}', cape='{}'",
                         cs.selectedHatId, cs.selectedCapeId);
 
+                // Trigger lazy asset downloads for whatever the local player is wearing
+                if (!cs.selectedHatId.isEmpty())
+                    CosmeticDownloader.instance().ensureAssetLoaded("hat",  cs.selectedHatId);
+                if (!cs.selectedCapeId.isEmpty())
+                    CosmeticDownloader.instance().ensureAssetLoaded("cape", cs.selectedCapeId);
+
             } catch (Exception e) {
                 LOGGER.error("Failed to fetch cosmetic profile", e);
             }
@@ -200,6 +206,12 @@ public class CosmeticApiClient {
                     LOGGER.debug("Cosmetic profile for {} returned HTTP {} — no cosmetics equipped",
                             uuid, response.statusCode());
                 }
+
+                // Trigger lazy asset downloads for whatever this remote player is wearing
+                if (!cs.selectedHatId.isEmpty())
+                    CosmeticDownloader.instance().ensureAssetLoaded("hat",  cs.selectedHatId);
+                if (!cs.selectedCapeId.isEmpty())
+                    CosmeticDownloader.instance().ensureAssetLoaded("cape", cs.selectedCapeId);
 
                 PlayerCosmeticCache.put(uuid, cs);
 
