@@ -31,14 +31,14 @@ public class CosmeticDownloader {
     private static final Logger LOGGER = LogManager.getLogger();
 
     /** Base URL of the MineTogether profile/cosmetics API. */
-    private static final String CATALOG_BASE_URL = "http://localhost:61713";
+    private static final String CATALOG_BASE_URL = "https://api.creeper.host";
 
     /**
      * CDN base URL used to download actual asset files.
      * Hat assets are fetched from: {CDN_BASE}/hat/{id}/{id}.tc2
      * Cape assets are fetched from: {CDN_BASE}/cape/{id}/{id}.png
      */
-    private static final String CDN_BASE_URL = "http://localhost:61713";
+    private static final String CDN_BASE_URL = "https://localhost:61713";
 
     private static final int PAGE_LIMIT = 100;
 
