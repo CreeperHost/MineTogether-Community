@@ -19,14 +19,8 @@ dependencies {
     modImplementation "net.fabricmc:fabric-loader:${rootProject.fabric_loader_version}"
     modApi "dev.architectury:architectury:${rootProject.architectury_version}"
 
-    if (rootProject.file(".polylib-repo").exists()) {
-        modCompileOnly("net.creeperhost:polylib-fabric:${polylib_version}") {
-            transitive false
-        }
-    } else {
-        modApi("net.creeperhost:polylib-fabric:${polylib_version}") {
-            transitive false
-        }
+    modApi("net.creeperhost:polylib-fabric:${polylib_version}") {
+        transitive false
     }
     modApi "blue.endless:jankson:${jankson_version}"
     modApi("net.creeperhost:MineTogetherLib:${mtlib_version}") {
@@ -49,7 +43,7 @@ dependencies {
 
     modApi "dev.ftb.mods:ftb-pack-companion:${ftb_companion_version}"
     //TODO we should start putting this on maven so we don't need to keep the jar around
-//    compileOnly('minetogetherpartners-neoforge:minetogetherpartners-neoforge:1.21-6.3.4')
+    compileOnly('minetogetherpartners-neoforge:minetogetherpartners-neoforge:1.21-6.3.4')
 }
 
 test {

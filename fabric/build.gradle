@@ -36,39 +36,7 @@ dependencies {
     modImplementation "net.fabricmc:fabric-loader:${rootProject.fabric_loader_version}"
     modApi "net.fabricmc.fabric-api:fabric-api:${rootProject.fabric_api_version}"
     modApi "dev.architectury:architectury-fabric:${rootProject.architectury_version}"
-
-    if (rootProject.file(".polylib-repo").exists()) {
-        // Sideloaded polylib (settings.gradle includeBuild's .polylib-repo and
-        // substitutes net.creeperhost:polylib-fabric with its :fabric project).
-        //
-        // Compile against the local source via that substitution, but RUN against
-        // polylib's *production* jar. The production jar (a) has Architectury's
-        // @ExpectPlatform transform applied, so platform stubs are rewired instead of
-        // throwing AssertionError, and (b) is intermediary-mapped, so Loom remaps it
-        // cleanly. Neither is true of the raw dev jars: a fileTree of them skips the
-        // @ExpectPlatform transform, and consuming the project via modImplementation
-        // double-remaps the already-named variant and corrupts method signatures.
-        modCompileOnly("net.creeperhost:polylib-fabric:${polylib_version}") {
-            transitive false
-        }
-        modLocalRuntime fileTree(rootProject.file(".polylib-repo/fabric/build/libs")) {
-            include "polylib-*-fabric.jar"
-        }
-        modLocalRuntime "teamreborn:energy:4.1.0"
-        implementation "io.sentry:sentry:5.7.2"
-
-        // Build (and freshen) polylib's production jar before any run task. :fabric:assemble
-        // transitively builds the shadowed common classes too. Guarded by the .polylib-repo
-        // check, so plain Maven-only builds never reference the included build.
-        def polylibProductionJar = gradle.includedBuild(".polylib-repo").task(":fabric:assemble")
-        ["runClient", "runClientLogin", "runServer"].each { runTaskName ->
-            tasks.matching { it.name == runTaskName }.configureEach {
-                dependsOn polylibProductionJar
-            }
-        }
-    } else {
-        modApi("net.creeperhost:polylib-fabric:${polylib_version}")
-    }
+    modApi("net.creeperhost:polylib-fabric:${polylib_version}")
 
     common(project(path: ":common", configuration: "namedElements")) { transitive false }
     shadowCommon(project(path: ":common", configuration: "transformProductionFabric")) { transitive false }
