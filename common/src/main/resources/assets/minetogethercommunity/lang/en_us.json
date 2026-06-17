@@ -86,6 +86,13 @@
     "minetogether:gui.settings.button.unblock.info": "Un-Mute User",
     "minetogether:gui.settings.button.nick_name": "Nickname: %s",
     "minetogether:gui.settings.button.profile": "Edit Profile",
+    "minetogether:gui.settings.button.profile_visibility": "Profile Visibility: ",
+    "minetogether:gui.settings.visibility.loading": "Loading",
+    "minetogether:gui.settings.visibility.saving": "Saving",
+    "minetogether:gui.settings.visibility.public": "Public",
+    "minetogether:gui.settings.visibility.friends": "Friends",
+    "minetogether:gui.settings.visibility.friends_of_friends": "Friends of Friends",
+    "minetogether:gui.settings.visibility.private": "Private",
 
     "minetogether:gui.profile.title": "MineTogether Profile",
     "minetogether:gui.profile.display_name": "Display Name",

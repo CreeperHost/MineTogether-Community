@@ -3,6 +3,9 @@ package net.creeperhost.minetogethercommunity.gui;
 import net.creeperhost.minetogethercommunity.chat.MineTogetherChat;
 import net.creeperhost.minetogethercommunity.chat.gui.FriendChatGui;
 import net.creeperhost.minetogethercommunity.chat.gui.MTStyle;
+import net.creeperhost.minetogethercommunity.MineTogether;
+import net.creeperhost.minetogethercommunity.activity.GetProfileVisibilityRequest;
+import net.creeperhost.minetogethercommunity.activity.PutProfileVisibilityRequest;
 import net.creeperhost.minetogethercommunity.config.Config;
 import net.creeperhost.minetogethercommunity.config.LocalConfig;
 import net.creeperhost.minetogether.lib.chat.profile.Profile;
@@ -23,6 +26,7 @@ import net.minecraft.network.chat.Component;
 import org.apache.commons.lang3.StringUtils;
 import org.jetbrains.annotations.NotNull;
 
+import java.util.concurrent.CompletableFuture;
 import java.util.function.Supplier;
 
 import static net.creeperhost.polylib.client.modulargui.lib.geometry.Constraint.*;
@@ -39,6 +43,9 @@ public class SettingGui implements GuiProvider {
     private boolean showBlocked = false;
     private double blockedAnim;
     private GuiList<Profile> blockedList;
+    private volatile String profileVisibility = "public";
+    private volatile boolean visibilityLoading = false;
+    private volatile boolean visibilitySaving = false;
 
     private SettingGui() {}
 
@@ -147,9 +154,18 @@ public class SettingGui implements GuiProvider {
                 .constrain(RIGHT, match(settings.get(RIGHT)))
                 .constrain(HEIGHT, literal(buttonHeight));
 
+        GuiButton visibility = MTStyle.Flat.button(settings, Component.empty())
+                .onPress(this::cycleProfileVisibility)
+                .setDisabled(() -> !MineTogetherChat.getOurProfile().hasAccount() || visibilityLoading || visibilitySaving)
+                .constrain(TOP, relative(profileScreen.get(BOTTOM), 4))
+                .constrain(LEFT, match(settings.get(LEFT)))
+                .constrain(RIGHT, match(settings.get(RIGHT)))
+                .constrain(HEIGHT, literal(buttonHeight));
+        visibility.getLabel().setTextSupplier(() -> Component.translatable("minetogether:gui.settings.button.profile_visibility").append(profileVisibilityLabel()));
+
         GuiButton cosmetics = MTStyle.Flat.button(settings, Component.translatable("minetogether:gui.settings.button.cosmetics"))
                 .onPress(() -> gui.mc().setScreen(new CosmeticsGui.Screen(gui.getScreen())))
-                .constrain(TOP, relative(profileScreen.get(BOTTOM), 4))
+                .constrain(TOP, relative(visibility.get(BOTTOM), 4))
                 .setDisabled(Minecraft.getInstance().player == null)
                 .constrain(LEFT, match(settings.get(LEFT)))
                 .constrain(RIGHT, match(settings.get(RIGHT)))
@@ -193,6 +209,7 @@ public class SettingGui implements GuiProvider {
                 .setSliderState(blockedList.scrollState());
 
         updateBlockedList();
+        fetchProfileVisibility();
         gui.onTick(this::tick);
         gui.onResize(this::updateBlockedList);
     }
@@ -227,6 +244,76 @@ public class SettingGui implements GuiProvider {
             return Component.translatable("minetogether:gui.settings.button.enabled").withStyle(ChatFormatting.GREEN);
         }
         return Component.translatable("minetogether:gui.settings.button.disabled").withStyle(ChatFormatting.RED);
+    }
+
+    private Component profileVisibilityLabel() {
+        if (visibilityLoading) {
+            return Component.translatable("minetogether:gui.settings.visibility.loading").withStyle(ChatFormatting.GRAY);
+        }
+        if (visibilitySaving) {
+            return Component.translatable("minetogether:gui.settings.visibility.saving").withStyle(ChatFormatting.GRAY);
+        }
+        return switch (profileVisibility) {
+            case "private" -> Component.translatable("minetogether:gui.settings.visibility.private").withStyle(ChatFormatting.RED);
+            case "friends" -> Component.translatable("minetogether:gui.settings.visibility.friends").withStyle(ChatFormatting.YELLOW);
+            case "friends_of_friends" -> Component.translatable("minetogether:gui.settings.visibility.friends_of_friends").withStyle(ChatFormatting.AQUA);
+            default -> Component.translatable("minetogether:gui.settings.visibility.public").withStyle(ChatFormatting.GREEN);
+        };
+    }
+
+    private void fetchProfileVisibility() {
+        if (visibilityLoading || !MineTogetherChat.getOurProfile().hasAccount()) return;
+        visibilityLoading = true;
+        CompletableFuture.runAsync(() -> {
+            try {
+                GetProfileVisibilityRequest.Response response = MineTogether.API.execute(new GetProfileVisibilityRequest()).apiResponse();
+                if (response.success) {
+                    profileVisibility = normalizeProfileVisibility(response.visibility);
+                }
+            } catch (Throwable ignored) {
+                profileVisibility = "public";
+            } finally {
+                visibilityLoading = false;
+            }
+        });
+    }
+
+    private void cycleProfileVisibility() {
+        String next = nextProfileVisibility(profileVisibility);
+        profileVisibility = next;
+        visibilitySaving = true;
+        CompletableFuture.runAsync(() -> {
+            try {
+                PutProfileVisibilityRequest.Response response = MineTogether.API.execute(new PutProfileVisibilityRequest(next)).apiResponse();
+                if (response.success) {
+                    profileVisibility = normalizeProfileVisibility(response.visibility);
+                }
+            } catch (Throwable ignored) {
+                profileVisibility = next;
+            } finally {
+                visibilitySaving = false;
+            }
+        });
+    }
+
+    private static String nextProfileVisibility(String current) {
+        return switch (normalizeProfileVisibility(current)) {
+            case "public" -> "friends";
+            case "friends" -> "friends_of_friends";
+            case "friends_of_friends" -> "private";
+            default -> "public";
+        };
+    }
+
+    private static String normalizeProfileVisibility(String value) {
+        if (value == null) return "public";
+        String normalized = value.trim().toLowerCase().replace("-", "_").replace(" ", "_");
+        return switch (normalized) {
+            case "private", "friends", "friends_of_friends" -> normalized;
+            case "friend" -> "friends";
+            case "friend_of_friend", "friendsoffriends" -> "friends_of_friends";
+            default -> "public";
+        };
     }
 
     private void toggleEnabled() {

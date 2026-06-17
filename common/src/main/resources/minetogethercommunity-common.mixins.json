@@ -7,6 +7,7 @@
       "chat.ScreenMixin",
       "chat.ingame.ChatComponentMixin",
       "chat.ingame.GuiMixin",
+      "activity.ClientPacketListenerMixin",
       "connect.JoinMultiplayerScreenMixin",
       "connect.ServerSelectionListMixin",
       "cosmetic.LivingEntityRendererAccess",
