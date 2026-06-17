@@ -13,6 +13,8 @@ import net.minecraft.client.renderer.RenderType;
 import net.minecraft.client.renderer.entity.RenderLayerParent;
 import net.minecraft.client.renderer.entity.layers.RenderLayer;
 import net.minecraft.client.renderer.texture.OverlayTexture;
+import net.minecraft.world.entity.EquipmentSlot;
+import net.minecraft.world.item.Items;
 import net.minecraft.util.Mth;
 
 public class CapeLayer<T extends AbstractClientPlayer> extends RenderLayer<T, PlayerModel<T>> {
@@ -36,6 +38,7 @@ public class CapeLayer<T extends AbstractClientPlayer> extends RenderLayer<T, Pl
             capeId = cs.selectedCapeId;
         }
         if (capeId == null || capeId.isEmpty()) return;
+        if (player.getItemBySlot(EquipmentSlot.CHEST).is(Items.ELYTRA)) return;
 
         Cape cape = CapeRegistry.getLoaded(capeId);
         if (cape == null) return;

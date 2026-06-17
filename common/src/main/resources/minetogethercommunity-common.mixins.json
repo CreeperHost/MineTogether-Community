@@ -10,6 +10,7 @@
       "activity.ClientPacketListenerMixin",
       "connect.JoinMultiplayerScreenMixin",
       "connect.ServerSelectionListMixin",
+      "cosmetic.ElytraLayerMixin",
       "cosmetic.LivingEntityRendererAccess",
       "cosmetic.PlayerModelAccess",
       "cosmetic.PlayerRendererMixin",

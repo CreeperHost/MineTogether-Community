@@ -64,7 +64,9 @@ public class CosmeticApiClient {
                 }
 
                 String token = MineTogetherSession.getDefault().getTokenAsync().get().toString();
-                String body = "{\"target\":\"" + fullHash + "\"}";
+                JsonObject bodyObj = new JsonObject();
+                bodyObj.addProperty("target", fullHash);
+                String body = bodyObj.toString();
 
                 HttpClient client = HttpClient.newBuilder()
                         .followRedirects(HttpClient.Redirect.NORMAL)
@@ -111,7 +113,7 @@ public class CosmeticApiClient {
                     String cosmeticId = sel.has("cosmeticId") && !sel.get("cosmeticId").isJsonNull()
                             ? sel.get("cosmeticId").getAsString() : null;
 
-                    if (slot == null || cosmeticId == null || cosmeticId.isEmpty()) continue;
+                    if (slot == null || cosmeticId == null || cosmeticId.isEmpty() || cosmeticId.equals("none")) continue;
 
                     switch (slot) {
                         case "hat"  -> cs.selectedHatId  = cosmeticId;
@@ -157,7 +159,9 @@ public class CosmeticApiClient {
         Thread t = new Thread(() -> {
             try {
                 String token = MineTogetherSession.getDefault().getTokenAsync().get().toString();
-                String body = "{\"target\":\"" + fullHash + "\"}";
+                JsonObject bodyObj = new JsonObject();
+                bodyObj.addProperty("target", fullHash);
+                String body = bodyObj.toString();
 
                 HttpClient client = HttpClient.newBuilder()
                         .followRedirects(HttpClient.Redirect.NORMAL)
@@ -190,7 +194,7 @@ public class CosmeticApiClient {
                                 String slot = sel.has("slot") ? sel.get("slot").getAsString() : null;
                                 String cosmeticId = sel.has("cosmeticId") && !sel.get("cosmeticId").isJsonNull()
                                         ? sel.get("cosmeticId").getAsString() : null;
-                                if (slot == null || cosmeticId == null || cosmeticId.isEmpty()) continue;
+                                if (slot == null || cosmeticId == null || cosmeticId.isEmpty() || cosmeticId.equals("none")) continue;
                                 switch (slot) {
                                     case "hat"  -> cs.selectedHatId  = cosmeticId;
                                     case "cape" -> cs.selectedCapeId = cosmeticId;
@@ -237,20 +241,34 @@ public class CosmeticApiClient {
             try {
                 String token = MineTogetherSession.getDefault().getTokenAsync().get().toString();
 
-                String idValue = (cosmeticId == null || cosmeticId.isEmpty()) ? "null" : "\"" + cosmeticId + "\"";
-                String body = "{\"selections\":[{\"slot\":\"" + slot + "\",\"cosmeticId\":" + idValue + "}]}";
+                boolean clear = cosmeticId == null || cosmeticId.isEmpty() || cosmeticId.equals("none");
+
+                JsonArray selectionsArr = new JsonArray();
+                JsonObject selection = new JsonObject();
+                selection.addProperty("slot", slot);
+                if (!clear) {
+                    selection.addProperty("cosmeticId", cosmeticId);
+                }
+                selectionsArr.add(selection);
+                JsonObject bodyObj = new JsonObject();
+                bodyObj.add("selections", selectionsArr);
+                String body = bodyObj.toString();
 
                 HttpClient client = HttpClient.newBuilder()
                         .followRedirects(HttpClient.Redirect.NORMAL)
                         .build();
 
-                HttpRequest request = HttpRequest.newBuilder(URI.create(API_BASE + "/minetogether/cosmetics/select"))
-                        .POST(HttpRequest.BodyPublishers.ofString(body, StandardCharsets.UTF_8))
+                HttpRequest.Builder requestBuilder = HttpRequest.newBuilder(URI.create(API_BASE + "/minetogether/cosmetics/select"))
                         .header("Content-Type", "application/json")
-                        .header("Authorization", "Bearer " + token)
-                        .build();
+                        .header("Authorization", "Bearer " + token);
 
-                HttpResponse<String> response = client.send(request, HttpResponse.BodyHandlers.ofString());
+                if (clear) {
+                    requestBuilder.method("DELETE", HttpRequest.BodyPublishers.ofString(body, StandardCharsets.UTF_8));
+                } else {
+                    requestBuilder.POST(HttpRequest.BodyPublishers.ofString(body, StandardCharsets.UTF_8));
+                }
+
+                HttpResponse<String> response = client.send(requestBuilder.build(), HttpResponse.BodyHandlers.ofString());
 
                 if (response.statusCode() == 200) {
                     LOGGER.info("Cosmetic selection updated: slot={}, id={}", slot, cosmeticId);
