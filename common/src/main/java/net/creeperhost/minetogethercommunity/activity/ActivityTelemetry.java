@@ -16,6 +16,7 @@ import net.covers1624.quack.net.httpapi.WebBody;
 import net.creeperhost.minetogether.lib.web.WebConstants;
 import net.creeperhost.minetogethercommunity.MineTogether;
 import net.creeperhost.minetogethercommunity.MineTogetherPlatform;
+import net.creeperhost.minetogethercommunity.config.LocalConfig;
 import net.creeperhost.minetogethercommunity.util.ModPackInfo;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.multiplayer.ServerData;
@@ -210,6 +211,7 @@ public class ActivityTelemetry {
     }
 
     private static boolean shouldSkipTelemetry() {
+        if (!LocalConfig.instance().activityTelemetry) return true;
         Minecraft mc = Minecraft.getInstance();
         if (mc.player != null && mc.player.isCreative()) return true;
         if (mc.hasSingleplayerServer() && mc.getSingleplayerServer() != null && mc.getSingleplayerServer().getWorldData().isAllowCommands()) return true;

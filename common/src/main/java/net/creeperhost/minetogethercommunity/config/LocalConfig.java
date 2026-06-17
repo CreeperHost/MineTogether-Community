@@ -101,5 +101,7 @@ public class LocalConfig {
     @Comment ("Stores the currently selected chat TAB. Either VANILLA or PUBLIC.")
     public ChatTarget selectedTab = ChatTarget.PUBLIC;
 
+    @Comment ("If activity telemetry (advancements, quest completions, playtime) is enabled.")
+    public boolean activityTelemetry = true;
 
 }

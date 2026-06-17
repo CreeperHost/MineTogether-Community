@@ -125,9 +125,26 @@ public class SettingGui implements GuiProvider {
                 .constrain(HEIGHT, literal(buttonHeight));
         shiftClickMention.getLabel().setTextSupplier(() -> Component.translatable("minetogether:gui.settings.button.shift_click_mention").append(state(LocalConfig.instance().shiftClickMention)));
 
+        GuiButton activityTelemetry = MTStyle.Flat.button(settings, Component.empty())
+                .onPress(() -> setLocalConfig(() -> LocalConfig.instance().activityTelemetry ^= true))
+                .constrain(TOP, relative(shiftClickMention.get(BOTTOM), 4))
+                .constrain(LEFT, match(settings.get(LEFT)))
+                .constrain(RIGHT, match(settings.get(RIGHT)))
+                .constrain(HEIGHT, literal(buttonHeight));
+        activityTelemetry.getLabel().setTextSupplier(() -> Component.translatable("minetogether:gui.settings.button.activity_telemetry").append(state(LocalConfig.instance().activityTelemetry)));
+
+        GuiButton visibility = MTStyle.Flat.button(settings, Component.empty())
+                .onPress(this::cycleProfileVisibility)
+                .setDisabled(() -> !MineTogetherChat.getOurProfile().hasAccount() || visibilityLoading || visibilitySaving)
+                .constrain(TOP, relative(activityTelemetry.get(BOTTOM), 4))
+                .constrain(LEFT, match(settings.get(LEFT)))
+                .constrain(RIGHT, match(settings.get(RIGHT)))
+                .constrain(HEIGHT, literal(buttonHeight));
+        visibility.getLabel().setTextSupplier(() -> Component.translatable("minetogether:gui.settings.button.profile_visibility").append(profileVisibilityLabel()));
+
         GuiButton blocked = MTStyle.Flat.button(settings, Component.translatable("minetogether:gui.settings.button.blocked"))
                 .onPress(() -> showBlocked ^= true)
-                .constrain(TOP, relative(shiftClickMention.get(BOTTOM), 4))
+                .constrain(TOP, relative(visibility.get(BOTTOM), 4))
                 .constrain(LEFT, match(settings.get(LEFT)))
                 .constrain(RIGHT, match(settings.get(RIGHT)))
                 .constrain(HEIGHT, literal(buttonHeight));
@@ -154,18 +171,9 @@ public class SettingGui implements GuiProvider {
                 .constrain(RIGHT, match(settings.get(RIGHT)))
                 .constrain(HEIGHT, literal(buttonHeight));
 
-        GuiButton visibility = MTStyle.Flat.button(settings, Component.empty())
-                .onPress(this::cycleProfileVisibility)
-                .setDisabled(() -> !MineTogetherChat.getOurProfile().hasAccount() || visibilityLoading || visibilitySaving)
-                .constrain(TOP, relative(profileScreen.get(BOTTOM), 4))
-                .constrain(LEFT, match(settings.get(LEFT)))
-                .constrain(RIGHT, match(settings.get(RIGHT)))
-                .constrain(HEIGHT, literal(buttonHeight));
-        visibility.getLabel().setTextSupplier(() -> Component.translatable("minetogether:gui.settings.button.profile_visibility").append(profileVisibilityLabel()));
-
         GuiButton cosmetics = MTStyle.Flat.button(settings, Component.translatable("minetogether:gui.settings.button.cosmetics"))
                 .onPress(() -> gui.mc().setScreen(new CosmeticsGui.Screen(gui.getScreen())))
-                .constrain(TOP, relative(visibility.get(BOTTOM), 4))
+                .constrain(TOP, relative(profileScreen.get(BOTTOM), 4))
                 .setDisabled(Minecraft.getInstance().player == null)
                 .constrain(LEFT, match(settings.get(LEFT)))
                 .constrain(RIGHT, match(settings.get(RIGHT)))
