@@ -209,8 +209,15 @@ public class ActivityTelemetry {
         });
     }
 
+    private static boolean shouldSkipTelemetry() {
+        Minecraft mc = Minecraft.getInstance();
+        if (mc.player != null && mc.player.isCreative()) return true;
+        if (mc.hasSingleplayerServer() && mc.getSingleplayerServer() != null && mc.getSingleplayerServer().getWorldData().isAllowCommands()) return true;
+        return false;
+    }
+
     private static void queuePlaytime(long now) {
-        if (!enabled || playtimeStarted <= 0 || now <= playtimeStarted) return;
+        if (!enabled || shouldSkipTelemetry() || playtimeStarted <= 0 || now <= playtimeStarted) return;
         int deltaSeconds = (int) Math.min((now - playtimeStarted) / 1000L, 600L);
         if (deltaSeconds <= 0) return;
 
@@ -223,7 +230,7 @@ public class ActivityTelemetry {
     }
 
     public static void queueQuest(String questId, String rawTitle, String rawDescription, String iconItemId) {
-        if (!enabled) return;
+        if (!enabled || shouldSkipTelemetry()) return;
 
         ActivityModels.Metadata metadata = new ActivityModels.Metadata();
         metadata.type = "quest";
@@ -251,7 +258,7 @@ public class ActivityTelemetry {
     }
 
     private static void queueAdvancement(String advancementId, Object holder, String source) {
-        if (!enabled) return;
+        if (!enabled || shouldSkipTelemetry()) return;
 
         ActivityModels.Metadata metadata = metadataForAdvancement(advancementId, holder);
         ActivityModels.AdvancementEvent event = new ActivityModels.AdvancementEvent();
