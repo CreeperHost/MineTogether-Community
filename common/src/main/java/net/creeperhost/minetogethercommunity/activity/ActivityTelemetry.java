@@ -210,6 +210,34 @@ public class ActivityTelemetry {
         queue(batch);
     }
 
+    public static void queueQuest(String questId, String rawTitle, String rawDescription, String iconItemId) {
+        if (!enabled) return;
+
+        ActivityModels.Metadata metadata = new ActivityModels.Metadata();
+        metadata.type = "quest";
+        metadata.provider = "ftbquests";
+        metadata.contentId = questId;
+        metadata.titleEn = rawTitle != null ? rawTitle : "";
+        metadata.descriptionEn = rawDescription != null ? rawDescription : "";
+        metadata.iconItemId = iconItemId != null ? iconItemId : "";
+        metadata.locale = "en_us";
+        metadata.metadataRef = hash("quest:ftbquests:" + questId + ":" + metadata.titleEn + ":" + metadata.descriptionEn);
+
+        ActivityModels.QuestEvent event = new ActivityModels.QuestEvent();
+        event.metadataRef = metadata.metadataRef;
+        event.provider = "ftbquests";
+        event.completedAt = System.currentTimeMillis();
+        event.source = "incremental";
+        event.eventId = hash(state.clientSessionId + ":" + currentWorld().key + ":" + modpackIdentity() + ":" + questId);
+
+        ActivityModels.Batch batch = newBaseBatch();
+        batch.metadata.add(metadata);
+        batch.questCompletions.add(event);
+        LOGGER.info("[MT-TELEMETRY-DEBUG] queueQuest id={} title={} descLen={}", questId, metadata.titleEn, metadata.descriptionEn.length());
+        queue(batch);
+        flush();
+    }
+
     private static void queueAdvancement(String advancementId, Object holder, String source) {
         if (!enabled) return;
 
