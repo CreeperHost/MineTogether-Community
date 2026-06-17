@@ -92,8 +92,16 @@ public class CosmeticsGui implements GuiProvider {
             CosmeticTypes type = allTypes[i];
             boolean implemented = isImplemented(type);
             int topOffset = 4 + i * (TAB_HEIGHT + 3);
-            MTStyle.Flat.buttonPrimary(categoryPanel, Component.translatable("minetogether:gui.cosmetics.tab." + type.name().toLowerCase()))
-                    .setDisabled(() -> !implemented || activeTab[0] == type)
+            String tabKey = "minetogether:gui.cosmetics.tab." + type.name().toLowerCase();
+            GuiButton.flatColourButton(
+                            categoryPanel,
+                            () -> Component.translatable(tabKey),
+                            isHovered -> {
+                                if (!implemented) return 0x88202020;
+                                if (activeTab[0] == type) return isHovered ? 0xFF44AA44 : 0xFF118811;
+                                return isHovered ? 0xFF909090 : 0xFF505050;
+                            })
+                    .setDisabled(() -> !implemented)
                     .onPress(() -> activeTab[0] = type)
                     .constrain(TOP, relative(categoryPanel.get(TOP), topOffset))
                     .constrain(LEFT, relative(categoryPanel.get(LEFT), 4))
