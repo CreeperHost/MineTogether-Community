@@ -37,10 +37,18 @@ public class TailModelParser {
     }
 
     private static TailRotation readRotation(JsonObject rotation) {
-        return new TailRotation(
-                readVec3(rotation.getAsJsonArray("origin")),
-                rotation.get("axis").getAsString(),
-                rotation.get("angle").getAsFloat());
+        float x = rotation.has("x") ? rotation.get("x").getAsFloat() : 0.0F;
+        float y = rotation.has("y") ? rotation.get("y").getAsFloat() : 0.0F;
+        float z = rotation.has("z") ? rotation.get("z").getAsFloat() : 0.0F;
+        if (rotation.has("axis") && rotation.has("angle")) {
+            float angle = rotation.get("angle").getAsFloat();
+            switch (rotation.get("axis").getAsString()) {
+                case "x" -> x = angle;
+                case "y" -> y = angle;
+                case "z" -> z = angle;
+            }
+        }
+        return new TailRotation(readVec3(rotation.getAsJsonArray("origin")), x, y, z);
     }
 
     private static TailFace readFace(JsonObject faces, String dir) {

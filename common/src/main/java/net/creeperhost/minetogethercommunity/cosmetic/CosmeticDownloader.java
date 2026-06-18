@@ -288,11 +288,9 @@ public class CosmeticDownloader {
      * registers it on the Minecraft main thread (after TechneLoader's own texture registration).
      */
     private void downloadAndRegisterHat(String id) throws Exception {
-        CosmeticItem item = hatCatalogById.get(id);
-        if (item == null) {
-            LOGGER.warn("Hat asset requested for id '{}' not present in catalog — skipping", id);
-            loadingAssetIds.remove(id);
-            return;
+        CosmeticItem item = catalogItemOrFallback(hatCatalogById, id);
+        if (!hatCatalogById.containsKey(id)) {
+            LOGGER.debug("Hat asset '{}' requested before catalog entry was available; using fallback metadata", id);
         }
 
         Path itemDir = cacheBase.resolve("hats").resolve(id);
@@ -321,11 +319,9 @@ public class CosmeticDownloader {
      * Downloads the {@code .png} asset for a cape and registers it on the Minecraft main thread.
      */
     private void downloadAndRegisterCape(String id) throws Exception {
-        CosmeticItem item = capeCatalogById.get(id);
-        if (item == null) {
-            LOGGER.warn("Cape asset requested for id '{}' not present in catalog — skipping", id);
-            loadingAssetIds.remove(id);
-            return;
+        CosmeticItem item = catalogItemOrFallback(capeCatalogById, id);
+        if (!capeCatalogById.containsKey(id)) {
+            LOGGER.debug("Cape asset '{}' requested before catalog entry was available; using fallback metadata", id);
         }
 
         Path itemDir = cacheBase.resolve("capes").resolve(id);
@@ -361,11 +357,9 @@ public class CosmeticDownloader {
      * JSON, and registers the texture + model on the Minecraft main thread.
      */
     private void downloadAndRegisterTail(String id) throws Exception {
-        CosmeticItem item = tailCatalogById.get(id);
-        if (item == null) {
-            LOGGER.warn("Tail asset requested for id '{}' not present in catalog — skipping", id);
-            loadingAssetIds.remove(id);
-            return;
+        CosmeticItem item = catalogItemOrFallback(tailCatalogById, id);
+        if (!tailCatalogById.containsKey(id)) {
+            LOGGER.debug("Tail asset '{}' requested before catalog entry was available; using fallback metadata", id);
         }
 
         Path itemDir = cacheBase.resolve("tails").resolve(id);
@@ -466,5 +460,14 @@ public class CosmeticDownloader {
     private static ResourceLocation textureLocation(String slot, String id) {
         String safeId = id.toLowerCase(Locale.ROOT).replaceAll("[^a-z0-9/._-]", "_");
         return ResourceLocation.fromNamespaceAndPath("minetogethercommunity", slot + "/" + safeId);
+    }
+
+    private static CosmeticItem catalogItemOrFallback(ConcurrentHashMap<String, CosmeticItem> catalog, String id) {
+        CosmeticItem item = catalog.get(id);
+        return item != null ? item : fallbackCatalogItem(id);
+    }
+
+    private static CosmeticItem fallbackCatalogItem(String id) {
+        return new CosmeticItem(id, id, "", "", false, null);
     }
 }

@@ -43,9 +43,9 @@ public class TailModel {
                         el.name(), el.from()[0], el.from()[1], el.from()[2],
                         el.to()[0], el.to()[1], el.to()[2]);
                 if (el.rotation() != null) {
-                    LOGGER.info("[TailModel]     rotation origin=[{},{},{}] axis={} angle={}",
+                    LOGGER.info("[TailModel]     rotation origin=[{},{},{}] xyz=[{},{},{}]",
                             el.rotation().origin()[0], el.rotation().origin()[1], el.rotation().origin()[2],
-                            el.rotation().axis(), el.rotation().angle());
+                            el.rotation().x(), el.rotation().y(), el.rotation().z());
                 }
                 logFace("north", el.north());
                 logFace("south", el.south());
@@ -89,13 +89,13 @@ public class TailModel {
         float xOffset = tailPose.x(index);
         float yOffset = tailPose.y(index);
         float zOffset = tailPose.z(index);
-        if ((rotation == null || rotation.angle() == 0.0F)
+        if ((rotation == null || (rotation.x() == 0.0F && rotation.y() == 0.0F && rotation.z() == 0.0F))
                 && xOffset == 0.0F && yOffset == 0.0F && zOffset == 0.0F) return verts;
 
         float[] origin = rotation != null ? rotation.origin() : center(element);
-        float baseX = rotation != null && "x".equals(rotation.axis()) ? (float) Math.toRadians(rotation.angle()) : 0.0F;
-        float baseY = rotation != null && "y".equals(rotation.axis()) ? (float) Math.toRadians(rotation.angle()) : 0.0F;
-        float baseZ = rotation != null && "z".equals(rotation.axis()) ? (float) Math.toRadians(rotation.angle()) : 0.0F;
+        float baseX = rotation != null ? (float) Math.toRadians(rotation.x()) : 0.0F;
+        float baseY = rotation != null ? (float) Math.toRadians(rotation.y()) : 0.0F;
+        float baseZ = rotation != null ? (float) Math.toRadians(rotation.z()) : 0.0F;
 
         float[][] out = new float[verts.length][3];
         for (int i = 0; i < verts.length; i++) {

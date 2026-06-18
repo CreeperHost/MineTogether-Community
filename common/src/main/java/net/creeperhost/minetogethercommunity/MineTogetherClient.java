@@ -90,6 +90,7 @@ public class MineTogetherClient {
             CosmeticSelections cs = CosmeticSelections.instance();
             cs.selectedHatId = "";
             cs.selectedCapeId = "";
+            cs.selectedTailId = "";
             // Also drop all cached remote-player profiles so they're re-fetched on next join
             PlayerCosmeticCache.clearAll();
         });
