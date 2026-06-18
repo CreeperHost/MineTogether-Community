@@ -3,6 +3,7 @@ package net.creeperhost.minetogethercommunity.cosmetic;
 import net.creeperhost.minetogethercommunity.chat.gui.MTStyle;
 import net.creeperhost.minetogethercommunity.cosmetic.cape.CapeRegistry;
 import net.creeperhost.minetogethercommunity.cosmetic.hat.HatRegistry;
+import net.creeperhost.minetogethercommunity.cosmetic.tail.TailRegistry;
 import net.creeperhost.polylib.client.modulargui.ModularGui;
 import net.creeperhost.polylib.client.modulargui.ModularGuiScreen;
 import net.creeperhost.polylib.client.modulargui.elements.*;
@@ -38,7 +39,7 @@ public class CosmeticsGui implements GuiProvider {
     private static final char[] SPINNER = {'|', '/', '-', '\\'};
 
     private static boolean isImplemented(CosmeticTypes type) {
-        return type == CosmeticTypes.HAT || type == CosmeticTypes.CAPE;
+        return type == CosmeticTypes.HAT || type == CosmeticTypes.CAPE || type == CosmeticTypes.TAIL;
     }
 
     @Override
@@ -60,12 +61,12 @@ public class CosmeticsGui implements GuiProvider {
         // Initialised from the in-memory profile so the current selection is pre-highlighted.
         final String[] pendingHatId  = {CosmeticSelections.instance().selectedHatId};
         final String[] pendingCapeId = {CosmeticSelections.instance().selectedCapeId};
+        final String[] pendingTailId = {CosmeticSelections.instance().selectedTailId};
 
-        // Kick off asset downloads for whatever the player already has equipped,
-        // in case they weren't downloaded yet (e.g. the GUI was opened before the profile fetch completed).
         CosmeticDownloader d = CosmeticDownloader.instance();
         if (!pendingHatId[0].isEmpty())  d.ensureAssetLoaded("hat",  pendingHatId[0]);
         if (!pendingCapeId[0].isEmpty()) d.ensureAssetLoaded("cape", pendingCapeId[0]);
+        if (!pendingTailId[0].isEmpty()) d.ensureAssetLoaded("tail", pendingTailId[0]);
 
         GuiElement<?> container = new GuiElement<>(root)
                 .constrain(LEFT, midPoint(root.get(LEFT), root.get(RIGHT), -(TOTAL_WIDTH / 2D)))
@@ -190,6 +191,26 @@ public class CosmeticsGui implements GuiProvider {
                 .setScrollableElement(capeList)
                 .setSliderState(capeList.scrollState());
 
+        // Tail list
+        GuiList<CosmeticItem> tailList = new GuiList<CosmeticItem>(listArea)
+                .setDisplayBuilder((parent, item) -> item == null
+                        ? new NoTailEntry(parent, pendingTailId)
+                        : new TailEntry(parent, item, pendingTailId))
+                .setItemSpacing(2)
+                .setEnabled(() -> activeTab[0] == CosmeticTypes.TAIL);
+        Constraints.bind(tailList, listArea, 4);
+
+        var tailScrollBar = MTStyle.Flat.scrollBar(listArea, Axis.Y);
+        tailScrollBar.container
+                .setEnabled(() -> activeTab[0] == CosmeticTypes.TAIL && tailList.hiddenSize() > 0)
+                .constrain(TOP, match(tailList.get(TOP)))
+                .constrain(BOTTOM, match(tailList.get(BOTTOM)))
+                .constrain(RIGHT, match(listArea.get(RIGHT)))
+                .constrain(WIDTH, literal(4));
+        tailScrollBar.primary
+                .setScrollableElement(tailList)
+                .setSliderState(tailList.scrollState());
+
         // ── Right: player preview panel ───────────────────────────────────────
 
         GuiElement<?> previewPanel = MTStyle.Flat.contentArea(container)
@@ -264,6 +285,21 @@ public class CosmeticsGui implements GuiProvider {
                 return Component.translatable("minetogether:gui.cosmetics.equipped",
                         Component.literal(name).withStyle(ChatFormatting.GREEN));
 
+            } else if (activeTab[0] == CosmeticTypes.TAIL) {
+                String id = pendingTailId[0];
+                if (id == null || id.isEmpty())
+                    return Component.translatable("minetogether:gui.cosmetics.tail.none_equipped")
+                            .withStyle(ChatFormatting.GRAY);
+                if (CosmeticDownloader.instance().getLoadedTail(id) == null) {
+                    int frame = (int) ((System.currentTimeMillis() / 150) % SPINNER.length);
+                    return Component.literal(SPINNER[frame] + " Loading...")
+                            .withStyle(ChatFormatting.YELLOW);
+                }
+                CosmeticItem item = TailRegistry.getCatalogEntry(id);
+                String name = item != null ? item.displayName() : id;
+                return Component.translatable("minetogether:gui.cosmetics.equipped",
+                        Component.literal(name).withStyle(ChatFormatting.GREEN));
+
             } else {
                 return Component.translatable("minetogether:gui.cosmetics.coming_soon")
                         .withStyle(ChatFormatting.GRAY);
@@ -283,8 +319,10 @@ public class CosmeticsGui implements GuiProvider {
                     // Just sync the current pending values to the server.
                     String hatId  = pendingHatId[0];
                     String capeId = pendingCapeId[0];
+                    String tailId = pendingTailId[0];
                     CosmeticApiClient.selectAsync("hat",  hatId  == null || hatId.isEmpty()  ? null : hatId);
                     CosmeticApiClient.selectAsync("cape", capeId == null || capeId.isEmpty() ? null : capeId);
+                    CosmeticApiClient.selectAsync("tail", tailId == null || tailId.isEmpty() ? null : tailId);
                 })
                 .constrain(BOTTOM, relative(root.get(BOTTOM), -6))
                 .constrain(LEFT, match(container.get(LEFT)))
@@ -302,7 +340,7 @@ public class CosmeticsGui implements GuiProvider {
         CosmeticDownloader.instance().startCatalogFetch();
         CosmeticApiClient.fetchProfileAsync();
 
-        final int[] lastSizes = {0, 0};
+        final int[] lastSizes = {0, 0, 0};
         final String[] lastQuery = {""};
         gui.onTick(() -> {
             String q = searchQuery[0].toLowerCase(Locale.ROOT);
@@ -321,16 +359,26 @@ public class CosmeticsGui implements GuiProvider {
                 hatList.markDirty();
             }
 
-            // Refresh cape list similarly
             List<CosmeticItem> availableCapes = CapeRegistry.catalog();
             if (availableCapes.size() != lastSizes[1] || queryChanged) {
                 lastSizes[1] = availableCapes.size();
                 capeList.getList().clear();
-                capeList.getList().add(null); // None entry
+                capeList.getList().add(null);
                 availableCapes.stream()
                         .filter(c -> q.isEmpty() || c.displayName().toLowerCase(Locale.ROOT).contains(q))
                         .forEach(capeList.getList()::add);
                 capeList.markDirty();
+            }
+
+            List<CosmeticItem> availableTails = TailRegistry.catalog();
+            if (availableTails.size() != lastSizes[2] || queryChanged) {
+                lastSizes[2] = availableTails.size();
+                tailList.getList().clear();
+                tailList.getList().add(null);
+                availableTails.stream()
+                        .filter(t -> q.isEmpty() || t.displayName().toLowerCase(Locale.ROOT).contains(q))
+                        .forEach(tailList.getList()::add);
+                tailList.markDirty();
             }
         });
     }
@@ -532,6 +580,101 @@ public class CosmeticsGui implements GuiProvider {
             if (!item.locked() && item.id().equals(pendingId[0])) {
                 render.borderRect(getRectangle(), 1, 0x2000CC44, 0xFF00AA33);
             }
+        }
+    }
+
+    private static class NoTailEntry extends GuiElement<NoTailEntry> implements BackgroundRender {
+
+        private final String[] pendingId;
+
+        public NoTailEntry(@NotNull GuiParent<?> parent, String[] pendingId) {
+            super(parent);
+            this.pendingId = pendingId;
+            this.constrain(HEIGHT, literal(20));
+
+            new GuiText(this, () -> Component.translatable("minetogether:gui.cosmetics.tail.none")
+                    .withStyle(isNoneSelected() ? ChatFormatting.GREEN : ChatFormatting.WHITE))
+                    .setAlignment(Align.LEFT)
+                    .setShadow(false)
+                    .constrain(TOP, relative(get(TOP), 6))
+                    .constrain(LEFT, relative(get(LEFT), 6))
+                    .constrain(RIGHT, relative(get(RIGHT), -6))
+                    .constrain(HEIGHT, literal(8));
+        }
+
+        @Override
+        public boolean mouseClicked(double mouseX, double mouseY, int button) {
+            if (!isMouseOver()) return false;
+            pendingId[0] = "";
+            CosmeticSelections.instance().selectedTailId = "";
+            return true;
+        }
+
+        private boolean isNoneSelected() {
+            String id = pendingId[0];
+            return id == null || id.isEmpty();
+        }
+
+        @Override
+        public void renderBehind(GuiRender render, double mouseX, double mouseY, float partialTicks) {
+            render.rect(getRectangle(), MTStyle.Flat.listEntryBackground(true));
+            if (isNoneSelected()) render.borderRect(getRectangle(), 1, 0x2000CC44, 0xFF00AA33);
+        }
+    }
+
+    private static class TailEntry extends GuiElement<TailEntry> implements BackgroundRender {
+
+        private final CosmeticItem item;
+        private final String[] pendingId;
+
+        public TailEntry(@NotNull GuiParent<?> parent, CosmeticItem item, String[] pendingId) {
+            super(parent);
+            this.item = item;
+            this.pendingId = pendingId;
+            String subtitle = item.locked()
+                    ? (item.howToUnlock() != null ? item.howToUnlock() : "Locked")
+                    : buildSubtitle(item.author(), item.mod());
+            boolean hasSubtitle = !subtitle.isEmpty();
+            this.constrain(HEIGHT, literal(hasSubtitle ? 28 : 20));
+
+            new GuiText(this, () -> {
+                if (item.locked()) return Component.literal(item.displayName()).withStyle(ChatFormatting.DARK_GRAY);
+                boolean selected = item.id().equals(pendingId[0]);
+                return Component.literal(item.displayName())
+                        .withStyle(selected ? ChatFormatting.GREEN : ChatFormatting.WHITE);
+            })
+                    .setAlignment(Align.LEFT)
+                    .setShadow(false)
+                    .constrain(TOP, relative(get(TOP), hasSubtitle ? 4 : 6))
+                    .constrain(LEFT, relative(get(LEFT), 6))
+                    .constrain(RIGHT, relative(get(RIGHT), -6))
+                    .constrain(HEIGHT, literal(8));
+
+            if (hasSubtitle) {
+                new GuiText(this, Component.literal(subtitle).withStyle(ChatFormatting.GRAY))
+                        .setAlignment(Align.LEFT)
+                        .setShadow(false)
+                        .constrain(TOP, relative(get(TOP), 14))
+                        .constrain(LEFT, relative(get(LEFT), 6))
+                        .constrain(RIGHT, relative(get(RIGHT), -6))
+                        .constrain(HEIGHT, literal(7));
+            }
+        }
+
+        @Override
+        public boolean mouseClicked(double mouseX, double mouseY, int button) {
+            if (!isMouseOver() || item.locked()) return false;
+            pendingId[0] = item.id();
+            CosmeticSelections.instance().selectedTailId = item.id();
+            CosmeticDownloader.instance().ensureAssetLoaded("tail", item.id());
+            return true;
+        }
+
+        @Override
+        public void renderBehind(GuiRender render, double mouseX, double mouseY, float partialTicks) {
+            render.rect(getRectangle(), MTStyle.Flat.listEntryBackground(true));
+            if (!item.locked() && item.id().equals(pendingId[0]))
+                render.borderRect(getRectangle(), 1, 0x2000CC44, 0xFF00AA33);
         }
     }
 

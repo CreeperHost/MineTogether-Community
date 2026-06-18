@@ -15,6 +15,7 @@ public class CosmeticSelections {
     // ── Selected cosmetic IDs — empty/null means "none" ───────────────────────
     public volatile String selectedHatId = "";
     public volatile String selectedCapeId = "";
+    public volatile String selectedTailId = "";
 
     // ── Singleton access ───────────────────────────────────────────────────────
 

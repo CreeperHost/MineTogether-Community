@@ -2,11 +2,15 @@ package net.creeperhost.minetogethercommunity.cosmetic;
 
 import com.google.gson.JsonArray;
 import com.google.gson.JsonElement;
+import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
 import com.mojang.blaze3d.platform.NativeImage;
 import dev.architectury.platform.Platform;
 import net.creeperhost.minetogethercommunity.cosmetic.cape.Cape;
 import net.creeperhost.minetogethercommunity.cosmetic.hat.Hat;
+import net.creeperhost.minetogethercommunity.cosmetic.tail.Tail;
+import net.creeperhost.minetogethercommunity.cosmetic.tail.TailModel;
+import net.creeperhost.minetogethercommunity.cosmetic.tail.TailModelParser;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.renderer.texture.DynamicTexture;
 import net.minecraft.resources.ResourceLocation;
@@ -26,6 +30,7 @@ import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+import java.util.Locale;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CopyOnWriteArrayList;
@@ -80,12 +85,15 @@ public class CosmeticDownloader {
     // Catalog (lightweight metadata — populated eagerly by startCatalogFetch)
     private final List<CosmeticItem> hatCatalogList  = new CopyOnWriteArrayList<>();
     private final List<CosmeticItem> capeCatalogList = new CopyOnWriteArrayList<>();
+    private final List<CosmeticItem> tailCatalogList = new CopyOnWriteArrayList<>();
     private final ConcurrentHashMap<String, CosmeticItem> hatCatalogById  = new ConcurrentHashMap<>();
     private final ConcurrentHashMap<String, CosmeticItem> capeCatalogById = new ConcurrentHashMap<>();
+    private final ConcurrentHashMap<String, CosmeticItem> tailCatalogById = new ConcurrentHashMap<>();
 
     // Loaded assets (heavy — populated lazily by ensureAssetLoaded)
     private final ConcurrentHashMap<String, Hat>  loadedHats  = new ConcurrentHashMap<>();
     private final ConcurrentHashMap<String, Cape> loadedCapes = new ConcurrentHashMap<>();
+    private final ConcurrentHashMap<String, Tail> loadedTails = new ConcurrentHashMap<>();
 
     /** IDs for which an asset download is currently in flight. Prevents duplicate requests. */
     private final Set<String> loadingAssetIds = Collections.newSetFromMap(new ConcurrentHashMap<>());
@@ -131,6 +139,7 @@ public class CosmeticDownloader {
         // Skip if already fully loaded
         if ("hat".equals(slot)  && loadedHats.containsKey(id))  return;
         if ("cape".equals(slot) && loadedCapes.containsKey(id)) return;
+        if ("tail".equals(slot) && loadedTails.containsKey(id)) return;
         // Claim the download slot — only one thread proceeds per id
         if (!loadingAssetIds.add(id)) return;
 
@@ -138,8 +147,10 @@ public class CosmeticDownloader {
             try {
                 if ("hat".equals(slot)) {
                     downloadAndRegisterHat(id);
-                } else {
+                } else if ("cape".equals(slot)) {
                     downloadAndRegisterCape(id);
+                } else if ("tail".equals(slot)) {
+                    downloadAndRegisterTail(id);
                 }
             } catch (Exception e) {
                 LOGGER.error("Failed to download {} asset '{}'", slot, id, e);
@@ -152,14 +163,16 @@ public class CosmeticDownloader {
 
     // ── Catalog accessors ──────────────────────────────────────────────────────
 
-    /** Ordered list of all known hat metadata entries (may grow as pages arrive). */
     public List<CosmeticItem> getHatCatalog() {
         return Collections.unmodifiableList(hatCatalogList);
     }
 
-    /** Ordered list of all known cape metadata entries (may grow as pages arrive). */
     public List<CosmeticItem> getCapeCatalog() {
         return Collections.unmodifiableList(capeCatalogList);
+    }
+
+    public List<CosmeticItem> getTailCatalog() {
+        return Collections.unmodifiableList(tailCatalogList);
     }
 
     /** @return {@code true} while the catalog is being fetched from the server. */
@@ -179,12 +192,12 @@ public class CosmeticDownloader {
         return loadedHats.get(id);
     }
 
-    /**
-     * Returns the fully loaded {@link Cape} for the given id, or {@code null} if not yet
-     * downloaded.
-     */
     public @Nullable Cape getLoadedCape(String id) {
         return loadedCapes.get(id);
+    }
+
+    public @Nullable Tail getLoadedTail(String id) {
+        return loadedTails.get(id);
     }
 
     /** @return {@code true} if an asset download for {@code id} is currently in flight. */
@@ -196,14 +209,15 @@ public class CosmeticDownloader {
 
     private void fetchCatalog() {
         try {
-            // Ensure cache directories exist before any asset downloads start
             Files.createDirectories(cacheBase.resolve("hats"));
             Files.createDirectories(cacheBase.resolve("capes"));
+            Files.createDirectories(cacheBase.resolve("tails"));
 
             fetchCatalogForSlot("hat");
             fetchCatalogForSlot("cape");
-            LOGGER.info("Cosmetic catalog loaded: {} hats, {} capes",
-                    hatCatalogList.size(), capeCatalogList.size());
+            fetchCatalogForSlot("tail");
+            LOGGER.info("Cosmetic catalog loaded: {} hats, {} capes, {} tails",
+                    hatCatalogList.size(), capeCatalogList.size(), tailCatalogList.size());
         } catch (Exception e) {
             LOGGER.error("Failed to fetch cosmetics catalog", e);
         } finally {
@@ -249,9 +263,12 @@ public class CosmeticDownloader {
                 if ("hat".equals(slot)) {
                     hatCatalogList.add(item);
                     hatCatalogById.put(id, item);
-                } else {
+                } else if ("cape".equals(slot)) {
                     capeCatalogList.add(item);
                     capeCatalogById.put(id, item);
+                } else {
+                    tailCatalogList.add(item);
+                    tailCatalogById.put(id, item);
                 }
                 total++;
             }
@@ -320,8 +337,7 @@ public class CosmeticDownloader {
                 .orElseThrow(() -> new IOException("No .png file in metadata for cape '" + id + "'"));
 
         byte[] data = Files.readAllBytes(itemDir.resolve(pngFile));
-        ResourceLocation location = ResourceLocation.fromNamespaceAndPath(
-                "minetogethercommunity", "cape/" + id.toLowerCase().replace(' ', '_'));
+        ResourceLocation location = textureLocation("cape", id);
 
         Minecraft.getInstance().execute(() -> {
             try {
@@ -335,6 +351,64 @@ public class CosmeticDownloader {
                 LOGGER.info("Cape asset ready: '{}' ({}x{})", id, img.getWidth(), img.getHeight());
             } catch (Exception e) {
                 LOGGER.error("Failed to register cape texture '{}'", id, e);
+                loadingAssetIds.remove(id);
+            }
+        });
+    }
+
+    /**
+     * Downloads the {@code model.json} and texture {@code .png} for a tail, parses the block-model
+     * JSON, and registers the texture + model on the Minecraft main thread.
+     */
+    private void downloadAndRegisterTail(String id) throws Exception {
+        CosmeticItem item = tailCatalogById.get(id);
+        if (item == null) {
+            LOGGER.warn("Tail asset requested for id '{}' not present in catalog — skipping", id);
+            loadingAssetIds.remove(id);
+            return;
+        }
+
+        Path itemDir = cacheBase.resolve("tails").resolve(id);
+        List<String> files = fetchAndCacheFiles(CDN_BASE_URL + "/tail/" + id, itemDir);
+
+        String jsonFile = files.stream()
+                .filter(f -> f.toLowerCase().endsWith(".json"))
+                .findFirst()
+                .orElseThrow(() -> new IOException("No .json file in metadata for tail '" + id + "'"));
+
+        String pngFile = files.stream()
+                .filter(f -> f.toLowerCase().endsWith(".png"))
+                .findFirst()
+                .orElseThrow(() -> new IOException("No .png file in metadata for tail '" + id + "'"));
+
+        byte[] jsonData = Files.readAllBytes(itemDir.resolve(jsonFile));
+        byte[] pngData  = Files.readAllBytes(itemDir.resolve(pngFile));
+
+        JsonObject modelRoot = JsonParser.parseReader(new java.io.InputStreamReader(
+                new java.io.ByteArrayInputStream(jsonData), java.nio.charset.StandardCharsets.UTF_8
+        )).getAsJsonObject();
+
+        var elements = net.creeperhost.minetogethercommunity.cosmetic.tail.TailModelParser.parse(modelRoot);
+        int texW = modelRoot.has("texture_size") ? modelRoot.getAsJsonArray("texture_size").get(0).getAsInt() : 64;
+        int texH = modelRoot.has("texture_size") ? modelRoot.getAsJsonArray("texture_size").get(1).getAsInt() : 32;
+        LOGGER.info("Tail '{}' parsed: {} elements, texSize={}x{}", id, elements.size(), texW, texH);
+
+        ResourceLocation location = textureLocation("tail", id);
+
+        Minecraft.getInstance().execute(() -> {
+            try {
+                NativeImage img = NativeImage.read(new java.io.ByteArrayInputStream(pngData));
+                DynamicTexture tex = new DynamicTexture(img);
+                Minecraft.getInstance().getTextureManager().register(location, tex);
+
+                var model = new net.creeperhost.minetogethercommunity.cosmetic.tail.TailModel(elements, texW, texH);
+                Tail tail = new Tail(id, item.displayName(), item.author(), item.mod(),
+                        item.locked(), item.howToUnlock(), location, texW, texH, elements, model);
+                loadedTails.put(id, tail);
+                loadingAssetIds.remove(id);
+                LOGGER.info("Tail asset ready: '{}'", id);
+            } catch (Exception e) {
+                LOGGER.error("Failed to register tail texture '{}'", id, e);
                 loadingAssetIds.remove(id);
             }
         });
@@ -387,5 +461,10 @@ public class CosmeticDownloader {
         if (resp.statusCode() != 200)
             throw new IOException("HTTP " + resp.statusCode() + " for " + url);
         return resp.body();
+    }
+
+    private static ResourceLocation textureLocation(String slot, String id) {
+        String safeId = id.toLowerCase(Locale.ROOT).replaceAll("[^a-z0-9/._-]", "_");
+        return ResourceLocation.fromNamespaceAndPath("minetogethercommunity", slot + "/" + safeId);
     }
 }
