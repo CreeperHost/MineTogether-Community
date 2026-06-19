@@ -213,9 +213,16 @@ public class CosmeticDownloader {
             Files.createDirectories(cacheBase.resolve("capes"));
             Files.createDirectories(cacheBase.resolve("tails"));
 
-            fetchCatalogForSlot("hat");
-            fetchCatalogForSlot("cape");
-            fetchCatalogForSlot("tail");
+            try {
+                fetchCatalogForSlot("hat");
+                fetchCatalogForSlot("cape");
+                fetchCatalogForSlot("tail");
+            } catch (Exception e) {
+                LOGGER.error("Failed to fetch remote cosmetics catalog; local cosmetics will still be loaded", e);
+            }
+
+            loadLocalHatCatalog();
+            loadLocalTailCatalog();
             LOGGER.info("Cosmetic catalog loaded: {} hats, {} capes, {} tails",
                     hatCatalogList.size(), capeCatalogList.size(), tailCatalogList.size());
         } catch (Exception e) {
@@ -281,6 +288,47 @@ public class CosmeticDownloader {
         LOGGER.info("Fetched {} {} catalog entries", total, slot);
     }
 
+    private void loadLocalHatCatalog() throws IOException {
+        loadLocalCatalog("hats", hatCatalogList, hatCatalogById);
+    }
+
+    private void loadLocalTailCatalog() throws IOException {
+        loadLocalCatalog("tails", tailCatalogList, tailCatalogById);
+    }
+
+    private void loadLocalCatalog(String slotDir, List<CosmeticItem> catalogList, ConcurrentHashMap<String, CosmeticItem> catalogById)
+            throws IOException {
+        Path cosmeticsDir = cacheBase.resolve(slotDir);
+        if (!Files.isDirectory(cosmeticsDir)) return;
+
+        try (var stream = Files.list(cosmeticsDir)) {
+            stream.filter(Files::isDirectory).forEach(dir -> {
+                Path metadata = dir.resolve("metadata.json");
+                if (!Files.isRegularFile(metadata)) return;
+
+                try (var reader = Files.newBufferedReader(metadata, StandardCharsets.UTF_8)) {
+                    JsonObject root = JsonParser.parseReader(reader).getAsJsonObject();
+                    String id = root.has("id") ? root.get("id").getAsString() : dir.getFileName().toString();
+                    if (catalogById.containsKey(id)) return;
+
+                    String name = root.has("name") ? root.get("name").getAsString() : id;
+                    String author = root.has("author") && !root.get("author").isJsonNull()
+                            ? root.get("author").getAsString() : "Local";
+                    boolean locked = root.has("locked") && root.get("locked").getAsBoolean();
+                    String howToUnlock = root.has("howToUnlock") && !root.get("howToUnlock").isJsonNull()
+                            ? root.get("howToUnlock").getAsString() : null;
+
+                    CosmeticItem item = new CosmeticItem(id, name, author, "local", locked, howToUnlock);
+                    catalogList.add(item);
+                    catalogById.put(id, item);
+                    LOGGER.info("Loaded local {} catalog entry '{}'", slotDir, id);
+                } catch (Exception e) {
+                    LOGGER.error("Failed to load local {} metadata '{}'", slotDir, metadata, e);
+                }
+            });
+        }
+    }
+
     // ── Internal: on-demand asset download ────────────────────────────────────
 
     /**
@@ -295,12 +343,18 @@ public class CosmeticDownloader {
 
         Path itemDir = cacheBase.resolve("hats").resolve(id);
         List<String> files = fetchAndCacheFiles(CDN_BASE_URL + "/hat/" + id, itemDir);
+        JsonObject metadata = readMetadata(itemDir);
+        String type = metadataString(metadata, "type", "tc2").toLowerCase(Locale.ROOT);
+
+        if ("json".equals(type)) {
+            downloadAndRegisterJsonHat(id, item, itemDir, files);
+            return;
+        }
 
         String tc2File = files.stream()
-                .filter(f -> f.toLowerCase().endsWith(".tc2"))
+                .filter(f -> f.toLowerCase(Locale.ROOT).endsWith(".tc2"))
                 .findFirst()
                 .orElseThrow(() -> new IOException("No .tc2 file in metadata for hat '" + id + "'"));
-
         byte[] data = Files.readAllBytes(itemDir.resolve(tc2File));
         // TechneLoader internally queues texture registration on the Minecraft main thread.
         Hat hat = TechneLoader.load(id, item.displayName(), item.author(), item.mod(),
@@ -312,6 +366,50 @@ public class CosmeticDownloader {
             loadedHats.put(id, hat);
             loadingAssetIds.remove(id);
             LOGGER.info("Hat asset ready: '{}'", id);
+        });
+    }
+
+    private void downloadAndRegisterJsonHat(String id, CosmeticItem item, Path itemDir, List<String> files) throws Exception {
+        String jsonFile = files.stream()
+                .filter(f -> f.toLowerCase(Locale.ROOT).endsWith(".json"))
+                .filter(f -> !"metadata.json".equalsIgnoreCase(f))
+                .findFirst()
+                .orElseThrow(() -> new IOException("No model .json file in metadata for JSON hat '" + id + "'"));
+
+        String pngFile = files.stream()
+                .filter(f -> f.toLowerCase(Locale.ROOT).endsWith(".png"))
+                .findFirst()
+                .orElseThrow(() -> new IOException("No .png file in metadata for JSON hat '" + id + "'"));
+
+        byte[] jsonData = Files.readAllBytes(itemDir.resolve(jsonFile));
+        byte[] pngData = Files.readAllBytes(itemDir.resolve(pngFile));
+        JsonObject modelRoot = JsonParser.parseReader(new InputStreamReader(
+                new java.io.ByteArrayInputStream(jsonData), StandardCharsets.UTF_8
+        )).getAsJsonObject();
+
+        var elements = TailModelParser.parse(modelRoot);
+        int texW = modelRoot.has("texture_size") ? modelRoot.getAsJsonArray("texture_size").get(0).getAsInt() : 64;
+        int texH = modelRoot.has("texture_size") ? modelRoot.getAsJsonArray("texture_size").get(1).getAsInt() : 32;
+        ResourceLocation location = textureLocation("hat", id);
+        LOGGER.info("JSON hat '{}' parsed: {} elements, texSize={}x{}", id, elements.size(), texW, texH);
+
+        Minecraft.getInstance().execute(() -> {
+            try {
+                NativeImage img = NativeImage.read(new java.io.ByteArrayInputStream(pngData));
+                DynamicTexture tex = new DynamicTexture(img);
+                Minecraft.getInstance().getTextureManager().register(location, tex);
+
+                TailModel model = new TailModel(elements, texW, texH);
+                Hat hat = new Hat(id, item.displayName(), item.author(), item.mod(),
+                        item.locked(), item.howToUnlock(), location, texW, texH,
+                        "json", Collections.emptyList(), elements, model);
+                loadedHats.put(id, hat);
+                loadingAssetIds.remove(id);
+                LOGGER.info("JSON hat asset ready: '{}'", id);
+            } catch (Exception e) {
+                LOGGER.error("Failed to register JSON hat texture '{}'", id, e);
+                loadingAssetIds.remove(id);
+            }
         });
     }
 
@@ -420,8 +518,18 @@ public class CosmeticDownloader {
             throws IOException, InterruptedException {
         Files.createDirectories(itemDir);
 
-        String metaUrl = cdnBase + "/metadata.json";
-        byte[] metaBytes = fetchBytes(metaUrl);
+        Path localMetadata = itemDir.resolve("metadata.json");
+        byte[] metaBytes;
+        String metadataSource;
+        if (Files.isRegularFile(localMetadata)) {
+            metaBytes = Files.readAllBytes(localMetadata);
+            metadataSource = localMetadata.toString();
+        } else {
+            String metaUrl = cdnBase + "/metadata.json";
+            metaBytes = fetchBytes(metaUrl);
+            Files.write(localMetadata, metaBytes);
+            metadataSource = metaUrl;
+        }
 
         var meta = JsonParser.parseReader(new InputStreamReader(
                 new java.io.ByteArrayInputStream(metaBytes), StandardCharsets.UTF_8
@@ -429,7 +537,7 @@ public class CosmeticDownloader {
 
         JsonArray filesArray = meta.getAsJsonArray("files");
         if (filesArray == null || filesArray.isEmpty())
-            throw new IOException("No 'files' array in metadata at " + metaUrl);
+            throw new IOException("No 'files' array in metadata at " + metadataSource);
 
         List<String> fileNames = new ArrayList<>();
         for (JsonElement el : filesArray) {
@@ -447,6 +555,19 @@ public class CosmeticDownloader {
             }
         }
         return fileNames;
+    }
+
+    private JsonObject readMetadata(Path itemDir) throws IOException {
+        Path metadata = itemDir.resolve("metadata.json");
+        if (!Files.isRegularFile(metadata)) return new JsonObject();
+        try (var reader = Files.newBufferedReader(metadata, StandardCharsets.UTF_8)) {
+            return JsonParser.parseReader(reader).getAsJsonObject();
+        }
+    }
+
+    private static String metadataString(JsonObject metadata, String key, String fallback) {
+        if (!metadata.has(key) || metadata.get(key).isJsonNull()) return fallback;
+        return metadata.get(key).getAsString();
     }
 
     private byte[] fetchBytes(String url) throws IOException, InterruptedException {

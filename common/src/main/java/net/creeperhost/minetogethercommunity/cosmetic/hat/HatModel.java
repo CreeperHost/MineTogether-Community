@@ -17,6 +17,10 @@ public class HatModel extends Model {
 
     public HatModel(Hat hat) {
         super(RenderType::entityCutoutNoCull);
+        if (hat.isJsonModel()) {
+            this.hat = null;
+            return;
+        }
 
         MeshDefinition mesh = new MeshDefinition();
         PartDefinition root = mesh.getRoot();
@@ -48,6 +52,7 @@ public class HatModel extends Model {
 
     @Override
     public void renderToBuffer(PoseStack poseStack, VertexConsumer consumer, int packedLight, int packedOverlay, int color) {
+        if (hat == null) return;
         hat.render(poseStack, consumer, packedLight, packedOverlay, color);
     }
 }

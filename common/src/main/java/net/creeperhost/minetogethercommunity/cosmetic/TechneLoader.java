@@ -17,6 +17,7 @@ import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Collections;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipInputStream;
 
@@ -116,7 +117,8 @@ public class TechneLoader {
             }
         });
 
-        return new Hat(id, displayName, author, mod, locked, howToUnlock, texLoc, texW, texH, cuboids);
+        return new Hat(id, displayName, author, mod, locked, howToUnlock, texLoc, texW, texH,
+                "tc2", cuboids, Collections.emptyList(), null);
     }
 
     private static float[] parseVec3(String s) {

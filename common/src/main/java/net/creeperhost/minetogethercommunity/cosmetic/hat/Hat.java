@@ -1,8 +1,28 @@
 package net.creeperhost.minetogethercommunity.cosmetic.hat;
 
+import net.creeperhost.minetogethercommunity.cosmetic.tail.TailElement;
+import net.creeperhost.minetogethercommunity.cosmetic.tail.TailModel;
 import net.minecraft.resources.ResourceLocation;
+import org.jetbrains.annotations.Nullable;
 
 import java.util.List;
 
-public record Hat(String id, String displayName, String author, String mod, boolean locked, String howToUnlock, ResourceLocation texture, int texWidth, int texHeight, List<HatCuboid> cuboids) {
+public record Hat(
+        String id,
+        String displayName,
+        String author,
+        String mod,
+        boolean locked,
+        String howToUnlock,
+        ResourceLocation texture,
+        int texWidth,
+        int texHeight,
+        String type,
+        List<HatCuboid> cuboids,
+        List<TailElement> jsonElements,
+        @Nullable TailModel jsonModel
+) {
+    public boolean isJsonModel() {
+        return "json".equals(type);
+    }
 }
