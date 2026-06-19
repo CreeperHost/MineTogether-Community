@@ -7,6 +7,7 @@ import com.google.gson.JsonParser;
 import com.mojang.blaze3d.platform.NativeImage;
 import net.creeperhost.minetogethercommunity.cosmetic.hat.Hat;
 import net.creeperhost.minetogethercommunity.cosmetic.hat.HatCuboid;
+import net.creeperhost.minetogethercommunity.cosmetic.hat.HatModelType;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.renderer.texture.DynamicTexture;
 import net.minecraft.resources.ResourceLocation;
@@ -16,8 +17,8 @@ import org.apache.logging.log4j.Logger;
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.List;
 import java.util.Collections;
+import java.util.List;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipInputStream;
 
@@ -118,7 +119,7 @@ public class TechneLoader {
         });
 
         return new Hat(id, displayName, author, mod, locked, howToUnlock, texLoc, texW, texH,
-                "tc2", cuboids, Collections.emptyList(), null);
+                HatModelType.TC2, cuboids, Collections.emptyList(), null);
     }
 
     private static float[] parseVec3(String s) {

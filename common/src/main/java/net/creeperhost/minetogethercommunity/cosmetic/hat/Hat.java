@@ -17,12 +17,12 @@ public record Hat(
         ResourceLocation texture,
         int texWidth,
         int texHeight,
-        String type,
+        HatModelType type,
         List<HatCuboid> cuboids,
         List<TailElement> jsonElements,
         @Nullable TailModel jsonModel
 ) {
     public boolean isJsonModel() {
-        return "json".equals(type);
+        return type == HatModelType.JSON;
     }
 }

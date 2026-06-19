@@ -8,6 +8,7 @@ import com.mojang.blaze3d.platform.NativeImage;
 import dev.architectury.platform.Platform;
 import net.creeperhost.minetogethercommunity.cosmetic.cape.Cape;
 import net.creeperhost.minetogethercommunity.cosmetic.hat.Hat;
+import net.creeperhost.minetogethercommunity.cosmetic.hat.HatModelType;
 import net.creeperhost.minetogethercommunity.cosmetic.tail.Tail;
 import net.creeperhost.minetogethercommunity.cosmetic.tail.TailModel;
 import net.creeperhost.minetogethercommunity.cosmetic.tail.TailModelParser;
@@ -344,11 +345,15 @@ public class CosmeticDownloader {
         Path itemDir = cacheBase.resolve("hats").resolve(id);
         List<String> files = fetchAndCacheFiles(CDN_BASE_URL + "/hat/" + id, itemDir);
         JsonObject metadata = readMetadata(itemDir);
-        String type = metadataString(metadata, "type", "tc2").toLowerCase(Locale.ROOT);
+        HatModelType type = HatModelType.fromMetadata(metadataString(metadata, "type", HatModelType.TC2.metadataValue()));
 
-        if ("json".equals(type)) {
-            downloadAndRegisterJsonHat(id, item, itemDir, files);
-            return;
+        switch (type) {
+            case JSON -> {
+                downloadAndRegisterJsonHat(id, item, itemDir, files);
+                return;
+            }
+            case TC2 -> {
+            }
         }
 
         String tc2File = files.stream()
@@ -402,7 +407,7 @@ public class CosmeticDownloader {
                 TailModel model = new TailModel(elements, texW, texH);
                 Hat hat = new Hat(id, item.displayName(), item.author(), item.mod(),
                         item.locked(), item.howToUnlock(), location, texW, texH,
-                        "json", Collections.emptyList(), elements, model);
+                        HatModelType.JSON, Collections.emptyList(), elements, model);
                 loadedHats.put(id, hat);
                 loadingAssetIds.remove(id);
                 LOGGER.info("JSON hat asset ready: '{}'", id);
