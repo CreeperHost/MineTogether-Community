@@ -52,7 +52,7 @@ public class TailLayer<T extends AbstractClientPlayer> extends RenderLayer<T, Pl
         // All values in model-pixel units (same scale as entity model coords).
         // x: centre tail at block-model x=8 → -8; y: map block-model y=8 to body y=12 → 12-8=4;
         // z: start tail at body back face z=2 → +2.
-        poseStack.translate(-8.0F / 16.0F, 4.0F / 16.0F, 2.0F / 16.0F);
+        poseStack.translate(-8.0F / 16.0F, 2.0F / 16.0F, 2.0F / 16.0F);
 
         TailPose tailPose = createTailPose(player, partialTicks, ageInTicks);
         tail.model().render(poseStack, bufferSource.getBuffer(RenderType.entityCutoutNoCull(tail.texture())), packedLight, tailPose);
@@ -61,42 +61,53 @@ public class TailLayer<T extends AbstractClientPlayer> extends RenderLayer<T, Pl
     }
 
     private TailPose createTailPose(T player, float partialTicks, float ageInTicks) {
-        float seed = ageInTicks * (float) (Math.PI * 2.0D) / 120.0F;
-        float xSeed = ageInTicks * (float) (Math.PI * 2.0D) / 240.0F;
+        float idleSeed = ageInTicks * (float) (Math.PI * 2.0D) / 140.0F;
+        float walk = Mth.lerp(partialTicks, player.walkDistO, player.walkDist);
+        float bob = Mth.lerp(partialTicks, player.oBob, player.bob);
+        float walkPhase = walk * 6.0F;
+        float walkWave = Mth.sin(walkPhase) * bob;
+        float walkCounterWave = Mth.cos(walkPhase) * bob;
 
-        float xAngleOffset = 0.0F;
-        float yAngleMultiplier = 1.0F;
+        float lift = 0.0F;
+        float sideLag = 0.0F;
         if (player.isPassenger()) {
-            xAngleOffset = (float) Math.toRadians(13.0F);
-            yAngleMultiplier = 0.25F;
+            lift = (float) Math.toRadians(8.0F);
         } else {
+            double d0 = Mth.lerp((double) partialTicks, player.xCloakO, player.xCloak)
+                    - Mth.lerp((double) partialTicks, player.xo, player.getX());
+            double d1 = Mth.lerp((double) partialTicks, player.yCloakO, player.yCloak)
+                    - Mth.lerp((double) partialTicks, player.yo, player.getY());
+            double d2 = Mth.lerp((double) partialTicks, player.zCloakO, player.zCloak)
+                    - Mth.lerp((double) partialTicks, player.zo, player.getZ());
             float bodyYaw = Mth.rotLerp(partialTicks, player.yBodyRotO, player.yBodyRot);
-            double motionX = Mth.lerp(partialTicks, player.xo, player.getX()) - player.xo;
-            double motionZ = Mth.lerp(partialTicks, player.zo, player.getZ()) - player.zo;
             float sin = Mth.sin(bodyYaw * (float) (Math.PI / 180.0D));
-            float cos = Mth.cos(bodyYaw * (float) (Math.PI / 180.0D));
-            float forwardMotion = (float) (motionX * sin - motionZ * cos);
-            xAngleOffset = Mth.clamp(-forwardMotion * 1.75F, -0.12F, 0.18F);
-            yAngleMultiplier = Mth.clamp(1.0F - Math.abs(xAngleOffset) * 4.0F, 0.35F, 1.0F);
+            float back = -Mth.cos(bodyYaw * (float) (Math.PI / 180.0D));
+            float verticalLag = Mth.clamp((float) d1 * 10.0F, -6.0F, 20.0F);
+            float backwardLag = Mth.clamp((float) (d0 * sin + d2 * back) * 100.0F, 0.0F, 40.0F);
+            float sidewaysLag = Mth.clamp((float) (d0 * back - d2 * sin) * 100.0F, -16.0F, 16.0F);
+            lift = Mth.clamp(backwardLag / 260.0F + verticalLag / 500.0F, -0.05F, 0.16F);
+            sideLag = sidewaysLag / 220.0F;
         }
 
         float[] x = new float[6];
         float[] y = new float[6];
         float[] z = new float[6];
-        x[0] = xAngleOffset * 0.35F;
-        x[1] = xAngleOffset * 0.35F;
-        x[2] = xAngleOffset * 0.30F;
-        x[3] = -xAngleOffset * 0.25F + Mth.cos(xSeed - 4.0F) / 16.0F;
-        x[4] = -xAngleOffset * 0.30F + Mth.cos(xSeed - 5.0F) / 18.0F;
-        x[5] = -xAngleOffset * 0.35F + Mth.cos(xSeed - 6.0F) / 18.0F;
+        x[0] = lift * 0.28F + walkWave * 0.012F;
+        x[1] = lift * 0.24F + walkWave * 0.010F;
+        x[2] = lift * 0.18F + Mth.cos(idleSeed - 2.0F) / 110.0F;
+        x[3] = -lift * 0.08F + Mth.cos(idleSeed - 3.0F) / 95.0F;
+        x[4] = -lift * 0.10F + Mth.cos(idleSeed - 4.0F) / 95.0F;
+        x[5] = -lift * 0.12F + Mth.cos(idleSeed - 5.0F) / 95.0F;
 
         for (int i = 0; i < y.length; i++) {
-            y[i] = Mth.cos(seed - (i + 1.0F)) / 14.0F * yAngleMultiplier;
+            float delay = i * 0.65F;
+            y[i] = sideLag * (0.12F + i * 0.025F)
+                    + Mth.cos(idleSeed - delay) / 80.0F
+                    + Mth.sin(walkPhase - delay) * bob * 0.022F;
         }
-        z[2] = Mth.cos(xSeed - 3.0F) / 28.0F;
-        z[3] = Mth.cos(xSeed - 4.0F) / 20.0F;
-        z[4] = Mth.cos(xSeed - 5.0F) / 20.0F;
-        z[5] = Mth.cos(xSeed - 6.0F) / 20.0F;
+        z[3] = walkCounterWave * 0.004F;
+        z[4] = walkCounterWave * 0.005F;
+        z[5] = walkCounterWave * 0.006F;
 
         return new TailPose(cumulative(x), cumulative(y), cumulative(z));
     }
