@@ -16,6 +16,7 @@ public class CosmeticSelections {
     public volatile String selectedHatId = "";
     public volatile String selectedCapeId = "";
     public volatile String selectedTailId = "";
+    public volatile boolean suppressVanillaCapeForPreview = false;
 
     // ── Singleton access ───────────────────────────────────────────────────────
 

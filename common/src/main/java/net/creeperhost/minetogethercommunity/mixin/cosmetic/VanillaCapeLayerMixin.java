@@ -22,7 +22,12 @@ public abstract class VanillaCapeLayerMixin {
             float ageInTicks, float netHeadYaw, float headPitch, CallbackInfo ci) {
         String capeId;
         if (player == Minecraft.getInstance().player) {
-            capeId = CosmeticSelections.instance().selectedCapeId;
+            CosmeticSelections selections = CosmeticSelections.instance();
+            if (selections.suppressVanillaCapeForPreview) {
+                ci.cancel();
+                return;
+            }
+            capeId = selections.selectedCapeId;
         } else {
             // For remote players: only suppress if we've fetched their profile and they have an MT cape
             CosmeticSelections cs = PlayerCosmeticCache.get(player.getUUID());
