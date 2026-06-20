@@ -1,5 +1,6 @@
 package net.creeperhost.minetogethercommunity.cosmetic;
 
+import com.mojang.blaze3d.platform.Lighting;
 import net.creeperhost.minetogethercommunity.chat.gui.MTStyle;
 import net.creeperhost.minetogethercommunity.cosmetic.cape.CapeRegistry;
 import net.creeperhost.minetogethercommunity.cosmetic.hat.HatRegistry;
@@ -727,13 +728,17 @@ public class CosmeticsGui implements GuiProvider {
             entity.yHeadRot = entity.getYRot();
             entity.yHeadRotO = entity.getYRot();
 
-            GuiEntityRenderer.renderEntityInInventory(render, xPos, yPos, scale, quaternionf, quaternionf1, entity);
-
-            entity.yBodyRot = prevBodyRot;
-            entity.setYRot(prevYRot);
-            entity.setXRot(prevXRot);
-            entity.yHeadRotO = prevHeadRotO;
-            entity.yHeadRot = prevHeadRot;
+            try {
+                Lighting.setupForEntityInInventory();
+                GuiEntityRenderer.renderEntityInInventory(render, xPos, yPos, scale, quaternionf, quaternionf1, entity);
+            } finally {
+                Lighting.setupFor3DItems();
+                entity.yBodyRot = prevBodyRot;
+                entity.setYRot(prevYRot);
+                entity.setXRot(prevXRot);
+                entity.yHeadRotO = prevHeadRotO;
+                entity.yHeadRot = prevHeadRot;
+            }
         }
     }
 
