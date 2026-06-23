@@ -18,5 +18,6 @@ public record Wing(
         int texWidth,
         int texHeight,
         List<TailElement> elements,
-        TailModel model
+        TailModel model,
+        WingAnimation animation
 ) {}

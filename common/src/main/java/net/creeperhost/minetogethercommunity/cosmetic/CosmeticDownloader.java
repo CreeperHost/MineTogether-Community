@@ -13,6 +13,7 @@ import net.creeperhost.minetogethercommunity.cosmetic.tail.Tail;
 import net.creeperhost.minetogethercommunity.cosmetic.tail.TailModel;
 import net.creeperhost.minetogethercommunity.cosmetic.tail.TailModelParser;
 import net.creeperhost.minetogethercommunity.cosmetic.wing.Wing;
+import net.creeperhost.minetogethercommunity.cosmetic.wing.WingAnimation;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.renderer.texture.DynamicTexture;
 import net.minecraft.resources.ResourceLocation;
@@ -554,9 +555,14 @@ public class CosmeticDownloader {
                 .filter(f -> f.toLowerCase().endsWith(".png"))
                 .findFirst()
                 .orElseThrow(() -> new IOException("No .png file in metadata for wing '" + id + "'"));
+        String animationFile = files.stream()
+                .filter(f -> "animation.json".equalsIgnoreCase(f))
+                .findFirst()
+                .orElse(null);
 
         byte[] jsonData = Files.readAllBytes(itemDir.resolve(jsonFile));
         byte[] pngData = Files.readAllBytes(itemDir.resolve(pngFile));
+        byte[] animationData = animationFile != null ? Files.readAllBytes(itemDir.resolve(animationFile)) : null;
 
         JsonObject modelRoot = JsonParser.parseReader(new java.io.InputStreamReader(
                 new java.io.ByteArrayInputStream(jsonData), StandardCharsets.UTF_8
@@ -565,6 +571,7 @@ public class CosmeticDownloader {
         var elements = TailModelParser.parse(modelRoot);
         int texW = modelRoot.has("texture_size") ? modelRoot.getAsJsonArray("texture_size").get(0).getAsInt() : 64;
         int texH = modelRoot.has("texture_size") ? modelRoot.getAsJsonArray("texture_size").get(1).getAsInt() : 32;
+        WingAnimation animation = parseWingAnimation(animationData);
         LOGGER.info("Wing '{}' parsed: {} elements, texSize={}x{}", id, elements.size(), texW, texH);
 
         ResourceLocation location = textureLocation("wing", id);
@@ -577,7 +584,7 @@ public class CosmeticDownloader {
 
                 TailModel model = new TailModel(elements, texW, texH);
                 Wing wing = new Wing(id, item.displayName(), item.author(), item.mod(),
-                        item.locked(), item.howToUnlock(), location, texW, texH, elements, model);
+                        item.locked(), item.howToUnlock(), location, texW, texH, elements, model, animation);
                 loadedWings.put(id, wing);
                 loadingAssetIds.remove(id);
                 LOGGER.info("Wing asset ready: '{}'", id);
@@ -586,6 +593,19 @@ public class CosmeticDownloader {
                 loadingAssetIds.remove(id);
             }
         });
+    }
+
+    private WingAnimation parseWingAnimation(@Nullable byte[] animationData) {
+        if (animationData == null || animationData.length == 0) return WingAnimation.NONE;
+        try {
+            JsonObject root = JsonParser.parseReader(new java.io.InputStreamReader(
+                    new java.io.ByteArrayInputStream(animationData), StandardCharsets.UTF_8
+            )).getAsJsonObject();
+            return WingAnimation.fromJson(root);
+        } catch (Exception e) {
+            LOGGER.warn("Failed to parse wing animation config; wings will render without animation", e);
+            return WingAnimation.NONE;
+        }
     }
 
     // ── Internal: CDN helpers ──────────────────────────────────────────────────

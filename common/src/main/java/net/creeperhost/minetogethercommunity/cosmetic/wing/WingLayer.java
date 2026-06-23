@@ -38,8 +38,10 @@ public class WingLayer<T extends AbstractClientPlayer> extends RenderLayer<T, Pl
         if (wing == null) return;
 
         boolean flying = player.getAbilities().flying || player.fallDistance > 0.0F;
-        float speed = flying ? 0.52F : 0.045F;
-        float flap = Mth.sin(ageInTicks * speed) * (flying ? 60.0F : 6.0F);
+        WingAnimation animation = wing.animation();
+        float speed = flying ? animation.flyingSpeed() : animation.idleSpeed();
+        float flapDegrees = flying ? animation.flyingFlapDegrees() : animation.idleFlapDegrees();
+        float flap = Mth.sin(ageInTicks * speed) * flapDegrees;
         int renderLight = CosmeticSelections.instance().fullBrightPreview ? LightTexture.FULL_BRIGHT : packedLight;
 
         poseStack.pushPose();
@@ -47,8 +49,8 @@ public class WingLayer<T extends AbstractClientPlayer> extends RenderLayer<T, Pl
         poseStack.translate(0.0F, -7.0F / 16.0F, 4.2F / 16.0F);
         poseStack.scale(0.58F, 0.58F, 0.58F);
 
-        renderWingSide(poseStack, bufferSource, renderLight, wing, false, 18.0F + flap * 0.35F);
-        renderWingSide(poseStack, bufferSource, renderLight, wing, true, 18.0F + flap * 0.35F);
+        renderWingSide(poseStack, bufferSource, renderLight, wing, false, animation.baseSpreadDegrees() + flap * animation.flapScale());
+        renderWingSide(poseStack, bufferSource, renderLight, wing, true, animation.baseSpreadDegrees() + flap * animation.flapScale());
 
         poseStack.popPose();
     }
