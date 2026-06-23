@@ -431,6 +431,7 @@
     "minetogether:gui.cosmetics.cape.none_equipped": "No cape equipped",
     "minetogether:gui.cosmetics.tail.none": "None",
     "minetogether:gui.cosmetics.tail.none_equipped": "No tail equipped",
+    "minetogether:gui.cosmetics.wing.none_equipped": "No wings equipped",
     "minetogether:gui.settings.button.cosmetics": "Cosmetics"
 
 

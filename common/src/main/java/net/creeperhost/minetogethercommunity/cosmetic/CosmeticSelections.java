@@ -16,6 +16,7 @@ public class CosmeticSelections {
     public volatile String selectedHatId = "";
     public volatile String selectedCapeId = "";
     public volatile String selectedTailId = "";
+    public volatile String selectedWingId = "";
     public volatile boolean suppressVanillaCapeForPreview = false;
     public volatile boolean fullBrightPreview = false;
 

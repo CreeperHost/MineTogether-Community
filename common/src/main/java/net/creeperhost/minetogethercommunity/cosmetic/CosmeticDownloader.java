@@ -12,6 +12,7 @@ import net.creeperhost.minetogethercommunity.cosmetic.hat.HatModelType;
 import net.creeperhost.minetogethercommunity.cosmetic.tail.Tail;
 import net.creeperhost.minetogethercommunity.cosmetic.tail.TailModel;
 import net.creeperhost.minetogethercommunity.cosmetic.tail.TailModelParser;
+import net.creeperhost.minetogethercommunity.cosmetic.wing.Wing;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.renderer.texture.DynamicTexture;
 import net.minecraft.resources.ResourceLocation;
@@ -87,14 +88,17 @@ public class CosmeticDownloader {
     private final List<CosmeticItem> hatCatalogList  = new CopyOnWriteArrayList<>();
     private final List<CosmeticItem> capeCatalogList = new CopyOnWriteArrayList<>();
     private final List<CosmeticItem> tailCatalogList = new CopyOnWriteArrayList<>();
+    private final List<CosmeticItem> wingCatalogList = new CopyOnWriteArrayList<>();
     private final ConcurrentHashMap<String, CosmeticItem> hatCatalogById  = new ConcurrentHashMap<>();
     private final ConcurrentHashMap<String, CosmeticItem> capeCatalogById = new ConcurrentHashMap<>();
     private final ConcurrentHashMap<String, CosmeticItem> tailCatalogById = new ConcurrentHashMap<>();
+    private final ConcurrentHashMap<String, CosmeticItem> wingCatalogById = new ConcurrentHashMap<>();
 
     // Loaded assets (heavy — populated lazily by ensureAssetLoaded)
     private final ConcurrentHashMap<String, Hat>  loadedHats  = new ConcurrentHashMap<>();
     private final ConcurrentHashMap<String, Cape> loadedCapes = new ConcurrentHashMap<>();
     private final ConcurrentHashMap<String, Tail> loadedTails = new ConcurrentHashMap<>();
+    private final ConcurrentHashMap<String, Wing> loadedWings = new ConcurrentHashMap<>();
 
     /** IDs for which an asset download is currently in flight. Prevents duplicate requests. */
     private final Set<String> loadingAssetIds = Collections.newSetFromMap(new ConcurrentHashMap<>());
@@ -141,6 +145,7 @@ public class CosmeticDownloader {
         if ("hat".equals(slot)  && loadedHats.containsKey(id))  return;
         if ("cape".equals(slot) && loadedCapes.containsKey(id)) return;
         if ("tail".equals(slot) && loadedTails.containsKey(id)) return;
+        if ("wing".equals(slot) && loadedWings.containsKey(id)) return;
         // Claim the download slot — only one thread proceeds per id
         if (!loadingAssetIds.add(id)) return;
 
@@ -152,6 +157,8 @@ public class CosmeticDownloader {
                     downloadAndRegisterCape(id);
                 } else if ("tail".equals(slot)) {
                     downloadAndRegisterTail(id);
+                } else if ("wing".equals(slot)) {
+                    downloadAndRegisterWing(id);
                 }
             } catch (Exception e) {
                 LOGGER.error("Failed to download {} asset '{}'", slot, id, e);
@@ -174,6 +181,10 @@ public class CosmeticDownloader {
 
     public List<CosmeticItem> getTailCatalog() {
         return Collections.unmodifiableList(tailCatalogList);
+    }
+
+    public List<CosmeticItem> getWingCatalog() {
+        return Collections.unmodifiableList(wingCatalogList);
     }
 
     /** @return {@code true} while the catalog is being fetched from the server. */
@@ -201,6 +212,10 @@ public class CosmeticDownloader {
         return loadedTails.get(id);
     }
 
+    public @Nullable Wing getLoadedWing(String id) {
+        return loadedWings.get(id);
+    }
+
     /** @return {@code true} if an asset download for {@code id} is currently in flight. */
     public boolean isAssetLoading(String id) {
         return loadingAssetIds.contains(id);
@@ -213,19 +228,22 @@ public class CosmeticDownloader {
             Files.createDirectories(cacheBase.resolve("hats"));
             Files.createDirectories(cacheBase.resolve("capes"));
             Files.createDirectories(cacheBase.resolve("tails"));
+            Files.createDirectories(cacheBase.resolve("wings"));
 
             try {
                 fetchCatalogForSlot("hat");
                 fetchCatalogForSlot("cape");
                 fetchCatalogForSlot("tail");
+                fetchCatalogForSlot("wing");
             } catch (Exception e) {
                 LOGGER.error("Failed to fetch remote cosmetics catalog; local cosmetics will still be loaded", e);
             }
 
             loadLocalHatCatalog();
             loadLocalTailCatalog();
-            LOGGER.info("Cosmetic catalog loaded: {} hats, {} capes, {} tails",
-                    hatCatalogList.size(), capeCatalogList.size(), tailCatalogList.size());
+            loadLocalWingCatalog();
+            LOGGER.info("Cosmetic catalog loaded: {} hats, {} capes, {} tails, {} wings",
+                    hatCatalogList.size(), capeCatalogList.size(), tailCatalogList.size(), wingCatalogList.size());
         } catch (Exception e) {
             LOGGER.error("Failed to fetch cosmetics catalog", e);
         } finally {
@@ -274,9 +292,12 @@ public class CosmeticDownloader {
                 } else if ("cape".equals(slot)) {
                     capeCatalogList.add(item);
                     capeCatalogById.put(id, item);
-                } else {
+                } else if ("tail".equals(slot)) {
                     tailCatalogList.add(item);
                     tailCatalogById.put(id, item);
+                } else if ("wing".equals(slot)) {
+                    wingCatalogList.add(item);
+                    wingCatalogById.put(id, item);
                 }
                 total++;
             }
@@ -295,6 +316,10 @@ public class CosmeticDownloader {
 
     private void loadLocalTailCatalog() throws IOException {
         loadLocalCatalog("tails", tailCatalogList, tailCatalogById);
+    }
+
+    private void loadLocalWingCatalog() throws IOException {
+        loadLocalCatalog("wings", wingCatalogList, wingCatalogById);
     }
 
     private void loadLocalCatalog(String slotDir, List<CosmeticItem> catalogList, ConcurrentHashMap<String, CosmeticItem> catalogById)
@@ -506,6 +531,58 @@ public class CosmeticDownloader {
                 LOGGER.info("Tail asset ready: '{}'", id);
             } catch (Exception e) {
                 LOGGER.error("Failed to register tail texture '{}'", id, e);
+                loadingAssetIds.remove(id);
+            }
+        });
+    }
+
+    private void downloadAndRegisterWing(String id) throws Exception {
+        CosmeticItem item = catalogItemOrFallback(wingCatalogById, id);
+        if (!wingCatalogById.containsKey(id)) {
+            LOGGER.debug("Wing asset '{}' requested before catalog entry was available; using fallback metadata", id);
+        }
+
+        Path itemDir = cacheBase.resolve("wings").resolve(id);
+        List<String> files = fetchAndCacheFiles(CDN_BASE_URL + "/wing/" + id, itemDir);
+
+        String jsonFile = files.stream()
+                .filter(f -> f.toLowerCase().endsWith(".json"))
+                .findFirst()
+                .orElseThrow(() -> new IOException("No .json file in metadata for wing '" + id + "'"));
+
+        String pngFile = files.stream()
+                .filter(f -> f.toLowerCase().endsWith(".png"))
+                .findFirst()
+                .orElseThrow(() -> new IOException("No .png file in metadata for wing '" + id + "'"));
+
+        byte[] jsonData = Files.readAllBytes(itemDir.resolve(jsonFile));
+        byte[] pngData = Files.readAllBytes(itemDir.resolve(pngFile));
+
+        JsonObject modelRoot = JsonParser.parseReader(new java.io.InputStreamReader(
+                new java.io.ByteArrayInputStream(jsonData), StandardCharsets.UTF_8
+        )).getAsJsonObject();
+
+        var elements = TailModelParser.parse(modelRoot);
+        int texW = modelRoot.has("texture_size") ? modelRoot.getAsJsonArray("texture_size").get(0).getAsInt() : 64;
+        int texH = modelRoot.has("texture_size") ? modelRoot.getAsJsonArray("texture_size").get(1).getAsInt() : 32;
+        LOGGER.info("Wing '{}' parsed: {} elements, texSize={}x{}", id, elements.size(), texW, texH);
+
+        ResourceLocation location = textureLocation("wing", id);
+
+        Minecraft.getInstance().execute(() -> {
+            try {
+                NativeImage img = NativeImage.read(new java.io.ByteArrayInputStream(pngData));
+                DynamicTexture tex = new DynamicTexture(img);
+                Minecraft.getInstance().getTextureManager().register(location, tex);
+
+                TailModel model = new TailModel(elements, texW, texH);
+                Wing wing = new Wing(id, item.displayName(), item.author(), item.mod(),
+                        item.locked(), item.howToUnlock(), location, texW, texH, elements, model);
+                loadedWings.put(id, wing);
+                loadingAssetIds.remove(id);
+                LOGGER.info("Wing asset ready: '{}'", id);
+            } catch (Exception e) {
+                LOGGER.error("Failed to register wing texture '{}'", id, e);
                 loadingAssetIds.remove(id);
             }
         });

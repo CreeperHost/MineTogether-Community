@@ -6,6 +6,7 @@ import net.creeperhost.minetogethercommunity.chat.gui.MTStyle;
 import net.creeperhost.minetogethercommunity.cosmetic.cape.CapeRegistry;
 import net.creeperhost.minetogethercommunity.cosmetic.hat.HatRegistry;
 import net.creeperhost.minetogethercommunity.cosmetic.tail.TailRegistry;
+import net.creeperhost.minetogethercommunity.cosmetic.wing.WingRegistry;
 import net.creeperhost.polylib.client.modulargui.ModularGui;
 import net.creeperhost.polylib.client.modulargui.ModularGuiScreen;
 import net.creeperhost.polylib.client.modulargui.elements.*;
@@ -43,7 +44,7 @@ public class CosmeticsGui implements GuiProvider {
     private static final char[] SPINNER = {'|', '/', '-', '\\'};
 
     private static boolean isImplemented(CosmeticTypes type) {
-        return type == CosmeticTypes.HAT || type == CosmeticTypes.CAPE || type == CosmeticTypes.TAIL;
+        return type == CosmeticTypes.HAT || type == CosmeticTypes.CAPE || type == CosmeticTypes.TAIL || type == CosmeticTypes.WINGS;
     }
 
     @Override
@@ -66,11 +67,13 @@ public class CosmeticsGui implements GuiProvider {
         final String[] pendingHatId  = {CosmeticSelections.instance().selectedHatId};
         final String[] pendingCapeId = {CosmeticSelections.instance().selectedCapeId};
         final String[] pendingTailId = {CosmeticSelections.instance().selectedTailId};
+        final String[] pendingWingId = {CosmeticSelections.instance().selectedWingId};
 
         CosmeticDownloader d = CosmeticDownloader.instance();
         if (!pendingHatId[0].isEmpty())  d.ensureAssetLoaded("hat",  pendingHatId[0]);
         if (!pendingCapeId[0].isEmpty()) d.ensureAssetLoaded("cape", pendingCapeId[0]);
         if (!pendingTailId[0].isEmpty()) d.ensureAssetLoaded("tail", pendingTailId[0]);
+        if (!pendingWingId[0].isEmpty()) d.ensureAssetLoaded("wing", pendingWingId[0]);
 
         GuiElement<?> container = new GuiElement<>(root)
                 .constrain(TOP, match(root.get(TOP)))
@@ -97,9 +100,11 @@ public class CosmeticsGui implements GuiProvider {
                     String hatId  = pendingHatId[0];
                     String capeId = pendingCapeId[0];
                     String tailId = pendingTailId[0];
+                    String wingId = pendingWingId[0];
                     CosmeticApiClient.selectAsync("hat",  hatId  == null || hatId.isEmpty()  ? null : hatId);
                     CosmeticApiClient.selectAsync("cape", capeId == null || capeId.isEmpty() ? null : capeId);
                     CosmeticApiClient.selectAsync("tail", tailId == null || tailId.isEmpty() ? null : tailId);
+                    CosmeticApiClient.selectAsync("wing", wingId == null || wingId.isEmpty() ? null : wingId);
                 })
                 .constrain(TOP, relative(header.get(TOP), 8))
                 .constrain(RIGHT, relative(header.get(RIGHT), -8))
@@ -184,7 +189,7 @@ public class CosmeticsGui implements GuiProvider {
                 .constrain(BOTTOM, relative(listPanel.get(BOTTOM), -14));
 
         GuiList<CosmeticRow> catalogGrid = new GuiList<CosmeticRow>(listArea)
-                .setDisplayBuilder((parent, row) -> new CosmeticGridRow(parent, row, activeTab, pendingHatId, pendingCapeId, pendingTailId))
+                .setDisplayBuilder((parent, row) -> new CosmeticGridRow(parent, row, activeTab, pendingHatId, pendingCapeId, pendingTailId, pendingWingId))
                 .setItemSpacing(TILE_GAP);
         catalogGrid
                 .constrain(TOP, relative(listArea.get(TOP), 0))
@@ -213,7 +218,7 @@ public class CosmeticsGui implements GuiProvider {
 
         final boolean[] trackingEnabled = {true};
 
-        new GuiText(previewPanel, () -> currentEquippedName(activeTab[0], pendingHatId[0], pendingCapeId[0], pendingTailId[0]))
+        new GuiText(previewPanel, () -> currentEquippedName(activeTab[0], pendingHatId[0], pendingCapeId[0], pendingTailId[0], pendingWingId[0]))
                 .setShadow(false)
                 .setAlignment(Align.LEFT)
                 .constrain(TOP, relative(previewPanel.get(TOP), 12))
@@ -301,6 +306,21 @@ public class CosmeticsGui implements GuiProvider {
                 return Component.translatable("minetogether:gui.cosmetics.equipped",
                         Component.literal(name).withStyle(ChatFormatting.GREEN));
 
+            } else if (activeTab[0] == CosmeticTypes.WINGS) {
+                String id = pendingWingId[0];
+                if (id == null || id.isEmpty())
+                    return Component.translatable("minetogether:gui.cosmetics.wing.none_equipped")
+                            .withStyle(ChatFormatting.GRAY);
+                if (CosmeticDownloader.instance().getLoadedWing(id) == null) {
+                    int frame = (int) ((System.currentTimeMillis() / 150) % SPINNER.length);
+                    return Component.literal(SPINNER[frame] + " Loading...")
+                            .withStyle(ChatFormatting.YELLOW);
+                }
+                CosmeticItem item = WingRegistry.getCatalogEntry(id);
+                String name = item != null ? item.displayName() : id;
+                return Component.translatable("minetogether:gui.cosmetics.equipped",
+                        Component.literal(name).withStyle(ChatFormatting.GREEN));
+
             } else {
                 return Component.translatable("minetogether:gui.cosmetics.coming_soon")
                         .withStyle(ChatFormatting.GRAY);
@@ -316,7 +336,7 @@ public class CosmeticsGui implements GuiProvider {
         CosmeticDownloader.instance().startCatalogFetch();
         CosmeticApiClient.fetchProfileAsync();
 
-        final int[] lastSizes = {0, 0, 0};
+        final int[] lastSizes = {0, 0, 0, 0};
         final String[] lastQuery = {""};
         final CosmeticTypes[] lastType = {null};
         gui.onTick(() -> {
@@ -327,21 +347,25 @@ public class CosmeticsGui implements GuiProvider {
             List<CosmeticItem> availableHats = HatRegistry.catalog();
             List<CosmeticItem> availableCapes = CapeRegistry.catalog();
             List<CosmeticItem> availableTails = TailRegistry.catalog();
+            List<CosmeticItem> availableWings = WingRegistry.catalog();
             boolean sizeChanged = availableHats.size() != lastSizes[0]
                     || availableCapes.size() != lastSizes[1]
-                    || availableTails.size() != lastSizes[2];
+                    || availableTails.size() != lastSizes[2]
+                    || availableWings.size() != lastSizes[3];
             boolean typeChanged = activeTab[0] != lastType[0];
 
             if (sizeChanged || queryChanged || typeChanged) {
                 lastSizes[0] = availableHats.size();
                 lastSizes[1] = availableCapes.size();
                 lastSizes[2] = availableTails.size();
+                lastSizes[3] = availableWings.size();
                 lastType[0] = activeTab[0];
 
                 List<CosmeticItem> activeItems = switch (activeTab[0]) {
                     case HAT -> availableHats;
                     case CAPE -> availableCapes;
                     case TAIL -> availableTails;
+                    case WINGS -> availableWings;
                     default -> List.of();
                 };
                 List<CosmeticItem> filtered = activeItems.stream()
@@ -367,11 +391,12 @@ public class CosmeticsGui implements GuiProvider {
         }
     }
 
-    private static Component currentEquippedName(CosmeticTypes type, String hatId, String capeId, String tailId) {
+    private static Component currentEquippedName(CosmeticTypes type, String hatId, String capeId, String tailId, String wingId) {
         String id = switch (type) {
             case HAT -> hatId;
             case CAPE -> capeId;
             case TAIL -> tailId;
+            case WINGS -> wingId;
             default -> "";
         };
         if (id == null || id.isEmpty()) return Component.literal("Feeling Cute").withStyle(ChatFormatting.GRAY);
@@ -379,6 +404,7 @@ public class CosmeticsGui implements GuiProvider {
             case HAT -> HatRegistry.getCatalogEntry(id);
             case CAPE -> CapeRegistry.getCatalogEntry(id);
             case TAIL -> TailRegistry.getCatalogEntry(id);
+            case WINGS -> WingRegistry.getCatalogEntry(id);
             default -> null;
         };
         return Component.literal(item != null ? item.displayName() : id);
@@ -390,6 +416,7 @@ public class CosmeticsGui implements GuiProvider {
             case HAT -> CosmeticDownloader.instance().ensureAssetLoaded("hat", id);
             case CAPE -> CosmeticDownloader.instance().ensureAssetLoaded("cape", id);
             case TAIL -> CosmeticDownloader.instance().ensureAssetLoaded("tail", id);
+            case WINGS -> CosmeticDownloader.instance().ensureAssetLoaded("wing", id);
             default -> {
             }
         }
@@ -453,15 +480,17 @@ public class CosmeticsGui implements GuiProvider {
         private final String[] pendingHatId;
         private final String[] pendingCapeId;
         private final String[] pendingTailId;
+        private final String[] pendingWingId;
 
         public CosmeticGridRow(@NotNull GuiParent<?> parent, CosmeticRow row, CosmeticTypes[] activeTab,
-                               String[] pendingHatId, String[] pendingCapeId, String[] pendingTailId) {
+                               String[] pendingHatId, String[] pendingCapeId, String[] pendingTailId, String[] pendingWingId) {
             super(parent);
             this.row = row;
             this.activeTab = activeTab;
             this.pendingHatId = pendingHatId;
             this.pendingCapeId = pendingCapeId;
             this.pendingTailId = pendingTailId;
+            this.pendingWingId = pendingWingId;
             this.constrain(HEIGHT, literal(76));
         }
 
@@ -541,6 +570,7 @@ public class CosmeticsGui implements GuiProvider {
             String previousHat = selections.selectedHatId;
             String previousCape = selections.selectedCapeId;
             String previousTail = selections.selectedTailId;
+            String previousWing = selections.selectedWingId;
             boolean previousSuppressVanillaCapeForPreview = selections.suppressVanillaCapeForPreview;
             boolean previousFullBrightPreview = selections.fullBrightPreview;
 
@@ -554,12 +584,14 @@ public class CosmeticsGui implements GuiProvider {
                 selections.selectedHatId = "";
                 selections.selectedCapeId = "";
                 selections.selectedTailId = "";
+                selections.selectedWingId = "";
                 selections.suppressVanillaCapeForPreview = true;
                 selections.fullBrightPreview = true;
                 switch (activeTab[0]) {
                     case HAT -> selections.selectedHatId = item.id();
                     case CAPE -> selections.selectedCapeId = item.id();
                     case TAIL -> selections.selectedTailId = item.id();
+                    case WINGS -> selections.selectedWingId = item.id();
                     default -> {
                         return;
                     }
@@ -567,7 +599,7 @@ public class CosmeticsGui implements GuiProvider {
 
                 float cardYaw = switch (activeTab[0]) {
                     case HAT -> 155.0F;
-                    case CAPE, TAIL -> 35.0F;
+                    case CAPE, TAIL, WINGS -> 35.0F;
                     default -> 180.0F;
                 };
                 entity.yBodyRot = cardYaw;
@@ -580,7 +612,7 @@ public class CosmeticsGui implements GuiProvider {
                 float xPos = (float) (x + (width / 2D));
                 float yOffset = switch (activeTab[0]) {
                     case HAT -> 1.30F;
-                    case TAIL -> -0.05F;
+                    case TAIL, WINGS -> -0.05F;
                     default -> 0.20F;
                 };
                 float yPos = (float) (y + height + scale * yOffset);
@@ -598,6 +630,7 @@ public class CosmeticsGui implements GuiProvider {
                 selections.selectedHatId = previousHat;
                 selections.selectedCapeId = previousCape;
                 selections.selectedTailId = previousTail;
+                selections.selectedWingId = previousWing;
                 selections.suppressVanillaCapeForPreview = previousSuppressVanillaCapeForPreview;
                 selections.fullBrightPreview = previousFullBrightPreview;
                 entity.yBodyRot = prevBodyRot;
@@ -613,6 +646,7 @@ public class CosmeticsGui implements GuiProvider {
                 case HAT -> HatRegistry.getLoaded(item.id()) != null;
                 case CAPE -> CapeRegistry.getLoaded(item.id()) != null;
                 case TAIL -> TailRegistry.getLoaded(item.id()) != null;
+                case WINGS -> WingRegistry.getLoaded(item.id()) != null;
                 default -> false;
             };
         }
@@ -636,6 +670,11 @@ public class CosmeticsGui implements GuiProvider {
                     CosmeticSelections.instance().selectedTailId = id;
                     if (!id.isEmpty()) CosmeticDownloader.instance().ensureAssetLoaded("tail", id);
                 }
+                case WINGS -> {
+                    pendingWingId[0] = id;
+                    CosmeticSelections.instance().selectedWingId = id;
+                    if (!id.isEmpty()) CosmeticDownloader.instance().ensureAssetLoaded("wing", id);
+                }
                 default -> {
                 }
             }
@@ -646,6 +685,7 @@ public class CosmeticsGui implements GuiProvider {
                 case HAT -> pendingHatId[0];
                 case CAPE -> pendingCapeId[0];
                 case TAIL -> pendingTailId[0];
+                case WINGS -> pendingWingId[0];
                 default -> "";
             };
             if (item == null) return selected == null || selected.isEmpty();
@@ -658,6 +698,7 @@ public class CosmeticsGui implements GuiProvider {
                     case HAT -> "None";
                     case CAPE -> "No Cape";
                     case TAIL -> "No Tail";
+                    case WINGS -> "No Wings";
                     default -> "None";
                 };
             }

@@ -91,6 +91,7 @@ public class MineTogetherClient {
             cs.selectedHatId = "";
             cs.selectedCapeId = "";
             cs.selectedTailId = "";
+            cs.selectedWingId = "";
             // Also drop all cached remote-player profiles so they're re-fetched on next join
             PlayerCosmeticCache.clearAll();
         });

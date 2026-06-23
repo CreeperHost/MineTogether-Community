@@ -106,6 +106,7 @@ public class CosmeticApiClient {
                 cs.selectedHatId  = "";
                 cs.selectedCapeId = "";
                 cs.selectedTailId = "";
+                cs.selectedWingId = "";
 
                 for (JsonElement el : selections) {
                     JsonObject sel = el.getAsJsonObject();
@@ -119,12 +120,13 @@ public class CosmeticApiClient {
                         case "hat"  -> cs.selectedHatId  = cosmeticId;
                         case "cape" -> cs.selectedCapeId = cosmeticId;
                         case "tail" -> cs.selectedTailId = cosmeticId;
+                        case "wing" -> cs.selectedWingId = cosmeticId;
                         default     -> LOGGER.debug("Ignoring unhandled slot '{}' in profile response", slot);
                     }
                 }
 
-                LOGGER.info("Loaded cosmetic profile: hat='{}', cape='{}', tail='{}'",
-                        cs.selectedHatId, cs.selectedCapeId, cs.selectedTailId);
+                LOGGER.info("Loaded cosmetic profile: hat='{}', cape='{}', tail='{}', wing='{}'",
+                        cs.selectedHatId, cs.selectedCapeId, cs.selectedTailId, cs.selectedWingId);
 
                 if (!cs.selectedHatId.isEmpty())
                     CosmeticDownloader.instance().ensureAssetLoaded("hat",  cs.selectedHatId);
@@ -132,6 +134,8 @@ public class CosmeticApiClient {
                     CosmeticDownloader.instance().ensureAssetLoaded("cape", cs.selectedCapeId);
                 if (!cs.selectedTailId.isEmpty())
                     CosmeticDownloader.instance().ensureAssetLoaded("tail", cs.selectedTailId);
+                if (!cs.selectedWingId.isEmpty())
+                    CosmeticDownloader.instance().ensureAssetLoaded("wing", cs.selectedWingId);
 
             } catch (Exception e) {
                 LOGGER.error("Failed to fetch cosmetic profile", e);
@@ -201,6 +205,7 @@ public class CosmeticApiClient {
                                     case "hat"  -> cs.selectedHatId  = cosmeticId;
                                     case "cape" -> cs.selectedCapeId = cosmeticId;
                                     case "tail" -> cs.selectedTailId = cosmeticId;
+                                    case "wing" -> cs.selectedWingId = cosmeticId;
                                     default     -> LOGGER.debug("Ignoring unhandled slot '{}' for player {}", slot, uuid);
                                 }
                             }
@@ -221,6 +226,8 @@ public class CosmeticApiClient {
                     CosmeticDownloader.instance().ensureAssetLoaded("cape", cs.selectedCapeId);
                 if (!cs.selectedTailId.isEmpty())
                     CosmeticDownloader.instance().ensureAssetLoaded("tail", cs.selectedTailId);
+                if (!cs.selectedWingId.isEmpty())
+                    CosmeticDownloader.instance().ensureAssetLoaded("wing", cs.selectedWingId);
 
                 PlayerCosmeticCache.put(uuid, cs);
 
