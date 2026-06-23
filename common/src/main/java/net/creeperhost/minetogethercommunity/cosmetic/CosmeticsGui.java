@@ -1,6 +1,7 @@
 package net.creeperhost.minetogethercommunity.cosmetic;
 
 import com.mojang.blaze3d.platform.Lighting;
+import com.mojang.blaze3d.systems.RenderSystem;
 import net.creeperhost.minetogethercommunity.chat.gui.MTStyle;
 import net.creeperhost.minetogethercommunity.cosmetic.cape.CapeRegistry;
 import net.creeperhost.minetogethercommunity.cosmetic.hat.HatRegistry;
@@ -15,9 +16,11 @@ import net.creeperhost.polylib.client.modulargui.lib.geometry.GuiParent;
 import net.creeperhost.polylib.client.modulargui.lib.geometry.Rectangle;
 import net.minecraft.ChatFormatting;
 import net.minecraft.client.Minecraft;
+import net.minecraft.client.renderer.entity.EntityRenderDispatcher;
 import net.minecraft.network.chat.Component;
 import net.minecraft.world.entity.LivingEntity;
 import org.jetbrains.annotations.NotNull;
+import org.jetbrains.annotations.Nullable;
 import org.joml.Quaternionf;
 
 import java.util.List;
@@ -539,6 +542,7 @@ public class CosmeticsGui implements GuiProvider {
             String previousCape = selections.selectedCapeId;
             String previousTail = selections.selectedTailId;
             boolean previousSuppressVanillaCapeForPreview = selections.suppressVanillaCapeForPreview;
+            boolean previousFullBrightPreview = selections.fullBrightPreview;
 
             float prevBodyRot = entity.yBodyRot;
             float prevYRot = entity.getYRot();
@@ -551,6 +555,7 @@ public class CosmeticsGui implements GuiProvider {
                 selections.selectedCapeId = "";
                 selections.selectedTailId = "";
                 selections.suppressVanillaCapeForPreview = true;
+                selections.fullBrightPreview = true;
                 switch (activeTab[0]) {
                     case HAT -> selections.selectedHatId = item.id();
                     case CAPE -> selections.selectedCapeId = item.id();
@@ -584,8 +589,7 @@ public class CosmeticsGui implements GuiProvider {
 
                 render.pushScissorRect(x, y, width, height);
                 try {
-                    Lighting.setupForEntityInInventory();
-                    GuiEntityRenderer.renderEntityInInventory(render, xPos, yPos, scale, entityRotation, cameraRotation, entity);
+                    renderBrightEntityInInventory(render, xPos, yPos, scale, entityRotation, cameraRotation, entity);
                 } finally {
                     render.popScissor();
                 }
@@ -595,6 +599,7 @@ public class CosmeticsGui implements GuiProvider {
                 selections.selectedCapeId = previousCape;
                 selections.selectedTailId = previousTail;
                 selections.suppressVanillaCapeForPreview = previousSuppressVanillaCapeForPreview;
+                selections.fullBrightPreview = previousFullBrightPreview;
                 entity.yBodyRot = prevBodyRot;
                 entity.setYRot(prevYRot);
                 entity.setXRot(prevXRot);
@@ -969,6 +974,30 @@ public class CosmeticsGui implements GuiProvider {
 
     // ── Player preview renderer ────────────────────────────────────────────────
 
+    private static void renderBrightEntityInInventory(GuiRender render, double x, double y, double scale, Quaternionf pose, @Nullable Quaternionf cameraOrientation, LivingEntity entity) {
+        render.pose().pushPose();
+        render.pose().translate(x, y, 50.0D);
+        render.pose().scale((float) scale, (float) scale, (float) -scale);
+        render.pose().mulPose(pose);
+        RenderSystem.setShaderColor(1.0F, 1.0F, 1.0F, 1.0F);
+        RenderSystem.enableDepthTest();
+        RenderSystem.defaultBlendFunc();
+        Lighting.setupLevel();
+
+        EntityRenderDispatcher dispatcher = Minecraft.getInstance().getEntityRenderDispatcher();
+        if (cameraOrientation != null) {
+            dispatcher.overrideCameraOrientation(cameraOrientation.conjugate(new Quaternionf()));
+        }
+
+        dispatcher.setRenderShadow(false);
+        RenderSystem.runAsFancy(() -> dispatcher.render(entity, 0.0D, 0.0D, 0.0D, 0.0F, 1.0F, render.pose(), render.buffers(), 15728880));
+        render.flush();
+        RenderSystem.setShaderColor(1.0F, 1.0F, 1.0F, 1.0F);
+        dispatcher.setRenderShadow(true);
+        render.pose().popPose();
+        Lighting.setupFor3DItems();
+    }
+
     private static class OffsetFollowRenderer extends GuiElement<OffsetFollowRenderer> implements BackgroundRender {
         private final LivingEntity entity;
         private final float[] yRotOffset;
@@ -1003,6 +1032,7 @@ public class CosmeticsGui implements GuiProvider {
             float prevXRot = entity.getXRot();
             float prevHeadRotO = entity.yHeadRotO;
             float prevHeadRot = entity.yHeadRot;
+            boolean previousFullBrightPreview = CosmeticSelections.instance().fullBrightPreview;
 
             entity.yBodyRot = 180.0F + yRotOffset[0] + xAngle * 20.0F;
             entity.setYRot(180.0F + yRotOffset[0] + xAngle * 40.0F);
@@ -1011,9 +1041,10 @@ public class CosmeticsGui implements GuiProvider {
             entity.yHeadRotO = entity.getYRot();
 
             try {
-                Lighting.setupForEntityInInventory();
-                GuiEntityRenderer.renderEntityInInventory(render, xPos, yPos, scale, quaternionf, quaternionf1, entity);
+                CosmeticSelections.instance().fullBrightPreview = true;
+                renderBrightEntityInInventory(render, xPos, yPos, scale, quaternionf, quaternionf1, entity);
             } finally {
+                CosmeticSelections.instance().fullBrightPreview = previousFullBrightPreview;
                 Lighting.setupFor3DItems();
                 entity.yBodyRot = prevBodyRot;
                 entity.setYRot(prevYRot);

@@ -2,6 +2,7 @@ package net.creeperhost.minetogethercommunity.cosmetic.tail;
 
 import com.mojang.blaze3d.vertex.PoseStack;
 import com.mojang.blaze3d.vertex.VertexConsumer;
+import net.creeperhost.minetogethercommunity.cosmetic.CosmeticSelections;
 import net.minecraft.client.renderer.texture.OverlayTexture;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -60,17 +61,23 @@ public class TailModel {
             float x1 = el.to()[0], y1 = el.to()[1], z1 = el.to()[2];
 
             if (el.south() != null) emitFace(pose, consumer, packedLight, el.south(),
-                    rotate(el, new float[][]{{x0, y0, z1}, {x1, y0, z1}, {x1, y1, z1}, {x0, y1, z1}}), 0, 0, 1);
+                    rotate(el, new float[][]{{x0, y0, z1}, {x1, y0, z1}, {x1, y1, z1}, {x0, y1, z1}}),
+                    normal(el, 0, 0, 1));
             if (el.north() != null) emitFace(pose, consumer, packedLight, el.north(),
-                    rotate(el, new float[][]{{x1, y0, z0}, {x0, y0, z0}, {x0, y1, z0}, {x1, y1, z0}}), 0, 0, -1);
+                    rotate(el, new float[][]{{x1, y0, z0}, {x0, y0, z0}, {x0, y1, z0}, {x1, y1, z0}}),
+                    normal(el, 0, 0, -1));
             if (el.east() != null) emitFace(pose, consumer, packedLight, el.east(),
-                    rotate(el, new float[][]{{x1, y0, z1}, {x1, y0, z0}, {x1, y1, z0}, {x1, y1, z1}}), 1, 0, 0);
+                    rotate(el, new float[][]{{x1, y0, z1}, {x1, y0, z0}, {x1, y1, z0}, {x1, y1, z1}}),
+                    normal(el, 1, 0, 0));
             if (el.west() != null) emitFace(pose, consumer, packedLight, el.west(),
-                    rotate(el, new float[][]{{x0, y0, z0}, {x0, y0, z1}, {x0, y1, z1}, {x0, y1, z0}}), -1, 0, 0);
+                    rotate(el, new float[][]{{x0, y0, z0}, {x0, y0, z1}, {x0, y1, z1}, {x0, y1, z0}}),
+                    normal(el, -1, 0, 0));
             if (el.up() != null) emitFace(pose, consumer, packedLight, el.up(),
-                    rotate(el, new float[][]{{x0, y1, z1}, {x1, y1, z1}, {x1, y1, z0}, {x0, y1, z0}}), 0, 1, 0);
+                    rotate(el, new float[][]{{x0, y1, z1}, {x1, y1, z1}, {x1, y1, z0}, {x0, y1, z0}}),
+                    normal(el, 0, 1, 0));
             if (el.down() != null) emitFace(pose, consumer, packedLight, el.down(),
-                    rotate(el, new float[][]{{x0, y0, z0}, {x1, y0, z0}, {x1, y0, z1}, {x0, y0, z1}}), 0, -1, 0);
+                    rotate(el, new float[][]{{x0, y0, z0}, {x1, y0, z0}, {x1, y0, z1}, {x0, y0, z1}}),
+                    normal(el, 0, -1, 0));
         }
     }
 
@@ -153,6 +160,14 @@ public class TailModel {
             out[i][2] = rotated[2] + origin[2];
         }
         return out;
+    }
+
+    private float[] normal(TailElement element, float x, float y, float z) {
+        TailRotation rotation = element.rotation();
+        if (rotation == null || (rotation.x() == 0.0F && rotation.y() == 0.0F && rotation.z() == 0.0F)) {
+            return new float[]{x, y, z};
+        }
+        return rotate(x, y, z, elementAngles(element, 0.0F, 0.0F, 0.0F));
     }
 
     private float[][] chainVerts(float[][] verts, float[] staticOrigin, float[] dynamicOrigin, float[] dynamicAngles) {
@@ -273,7 +288,9 @@ public class TailModel {
         float u1 = face.u1() / texW, v1 = face.v1() / texH;
         float[][] uvs = {{u0, v0}, {u1, v0}, {u1, v1}, {u0, v1}};
 
-        Vector3f transformedNormal = pose.normal().transform(new Vector3f(normal[0], normal[1], normal[2]));
+        Vector3f transformedNormal = CosmeticSelections.instance().fullBrightPreview
+                ? new Vector3f(0.0F, 1.0F, 0.0F)
+                : pose.normal().transform(new Vector3f(normal[0], normal[1], normal[2]));
         for (int i = 0; i < 4; i++) {
             consumer.addVertex(pose.pose(), verts[i][0] / 16.0F, verts[i][1] / 16.0F, verts[i][2] / 16.0F)
                     .setColor(255, 255, 255, 255)

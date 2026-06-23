@@ -7,6 +7,7 @@ import net.minecraft.client.Minecraft;
 import net.minecraft.client.model.PlayerModel;
 import net.minecraft.client.player.AbstractClientPlayer;
 import net.minecraft.client.renderer.MultiBufferSource;
+import net.minecraft.client.renderer.LightTexture;
 import net.minecraft.client.renderer.RenderType;
 import net.minecraft.client.renderer.entity.RenderLayerParent;
 import net.minecraft.client.renderer.entity.layers.RenderLayer;
@@ -55,7 +56,8 @@ public class TailLayer<T extends AbstractClientPlayer> extends RenderLayer<T, Pl
         poseStack.translate(-8.0F / 16.0F, 2.0F / 16.0F, 2.0F / 16.0F);
 
         TailPose tailPose = createTailPose(player, partialTicks, ageInTicks);
-        tail.model().render(poseStack, bufferSource.getBuffer(RenderType.entityCutoutNoCull(tail.texture())), packedLight, tailPose);
+        int renderLight = CosmeticSelections.instance().fullBrightPreview ? LightTexture.FULL_BRIGHT : packedLight;
+        tail.model().render(poseStack, bufferSource.getBuffer(RenderType.entityCutoutNoCull(tail.texture())), renderLight, tailPose);
 
         poseStack.popPose();
     }
