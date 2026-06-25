@@ -15,6 +15,7 @@ import net.creeperhost.minetogethercommunity.chat.gui.PublicChatGui;
 import net.creeperhost.minetogethercommunity.chat.ingame.MTChatComponent;
 import net.creeperhost.minetogethercommunity.config.Config;
 import net.creeperhost.minetogethercommunity.config.LocalConfig;
+import net.creeperhost.minetogethercommunity.cosmetic.CosmeticApiClient;
 import net.creeperhost.minetogethercommunity.gui.SettingGui;
 import net.creeperhost.minetogethercommunity.polylib.gui.IconButton;
 import net.creeperhost.minetogethercommunity.util.ModPackInfo;
@@ -123,8 +124,13 @@ public class MineTogetherChat {
                 if (getTarget() == ChatTarget.GROUP) {
                     setTarget(ChatTarget.VANILLA);//Switch to vanilla rather than public to avoid situations where a user starts sending private messages without realizing they have left the group.
                 }
-                simpleToast(Component.translatable("minetogether:toast.left_group"),
-                        Component.translatable("minetogether:toast.left_group." + e.data));
+                simpleToast(Component.translatable("minetogether:toast.left_group"), Component.translatable("minetogether:toast.left_group." + e.data));
+            } else if (e.type == ProfileManager.EventType.PROFILE_EXPIRE) {
+                if (Minecraft.getInstance().player != null && e.data instanceof Profile pr) {
+                    if (pr.hasFullHash()) {
+                        CosmeticApiClient.fetchProfileForHashAsync(pr.getFullHash());
+                    }
+                }
             }
         }));
 

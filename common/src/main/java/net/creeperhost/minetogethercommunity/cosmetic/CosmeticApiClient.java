@@ -162,6 +162,18 @@ public class CosmeticApiClient {
                 .toString()
                 .toUpperCase(Locale.ROOT);
 
+        fetchProfileForTargetAsync(fullHash, uuid);
+    }
+
+    /**
+     * Asynchronously fetches cosmetic selections by MineTogether full hash and stores them in
+     * {@link PlayerCosmeticCache}'s hash index. Used when profile events do not expose a Minecraft UUID.
+     */
+    public static void fetchProfileForHashAsync(String fullHash) {
+        fetchProfileForTargetAsync(fullHash.toUpperCase(Locale.ROOT), null);
+    }
+
+    private static void fetchProfileForTargetAsync(String fullHash, @Nullable UUID uuid) {
         Thread t = new Thread(() -> {
             try {
                 String token = MineTogetherSession.getDefault().getTokenAsync().get().toString();
@@ -206,17 +218,17 @@ public class CosmeticApiClient {
                                     case "cape" -> cs.selectedCapeId = cosmeticId;
                                     case "tail" -> cs.selectedTailId = cosmeticId;
                                     case "wing" -> cs.selectedWingId = cosmeticId;
-                                    default     -> LOGGER.debug("Ignoring unhandled slot '{}' for player {}", slot, uuid);
+                                    default     -> LOGGER.debug("Ignoring unhandled slot '{}' for profile {}", slot, profileLogName(uuid, fullHash));
                                 }
                             }
                         }
                     }
                     LOGGER.debug("Loaded cosmetic profile for {}: hat='{}', cape='{}'",
-                            uuid, cs.selectedHatId, cs.selectedCapeId);
+                            profileLogName(uuid, fullHash), cs.selectedHatId, cs.selectedCapeId);
                 } else {
                     // 404 = no MT account / no cosmetics — treat as "no cosmetics" silently
                     LOGGER.debug("Cosmetic profile for {} returned HTTP {} — no cosmetics equipped",
-                            uuid, response.statusCode());
+                            profileLogName(uuid, fullHash), response.statusCode());
                 }
 
                 // Trigger lazy asset downloads for whatever this remote player is wearing
@@ -229,16 +241,26 @@ public class CosmeticApiClient {
                 if (!cs.selectedWingId.isEmpty())
                     CosmeticDownloader.instance().ensureAssetLoaded("wing", cs.selectedWingId);
 
-                PlayerCosmeticCache.put(uuid, cs);
+                if (uuid != null) {
+                    PlayerCosmeticCache.put(uuid, cs);
+                } else {
+                    PlayerCosmeticCache.putHash(fullHash, cs);
+                }
 
             } catch (Exception e) {
-                LOGGER.error("Failed to fetch cosmetic profile for player {}", uuid, e);
+                LOGGER.error("Failed to fetch cosmetic profile for {}", profileLogName(uuid, fullHash), e);
                 // Cancel the fetching mark so the next entry into range triggers a retry
-                PlayerCosmeticCache.cancelFetching(uuid);
+                if (uuid != null) {
+                    PlayerCosmeticCache.cancelFetching(uuid);
+                }
             }
-        }, "CosmeticProfileFetch-" + uuid);
+        }, "CosmeticProfileFetch-" + profileLogName(uuid, fullHash));
         t.setDaemon(true);
         t.start();
+    }
+
+    private static String profileLogName(@Nullable UUID uuid, String fullHash) {
+        return uuid != null ? uuid.toString() : fullHash;
     }
 
     /**

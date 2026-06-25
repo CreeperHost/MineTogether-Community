@@ -42,8 +42,14 @@ dependencies {
     testRuntimeOnly 'org.junit.jupiter:junit-jupiter-engine:5.8.2'
 
     modApi "dev.ftb.mods:ftb-pack-companion:${ftb_companion_version}"
+    modCompileOnly("dev.ftb.mods:ftb-quests-fabric:${ftb_quests_version}") {
+        transitive = false
+    }
+    modCompileOnly("dev.ftb.mods:ftb-library-fabric:${ftb_quests_version}") {
+        transitive = false
+    }
     //TODO we should start putting this on maven so we don't need to keep the jar around
-    compileOnly('minetogetherpartners-neoforge:minetogetherpartners-neoforge:1.21-6.3.4')
+//    compileOnly('minetogetherpartners-neoforge:minetogetherpartners-neoforge:1.21-6.3.4')
 }
 
 test {
