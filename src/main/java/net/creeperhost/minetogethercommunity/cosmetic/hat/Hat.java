@@ -1,0 +1,67 @@
+package net.creeperhost.minetogethercommunity.cosmetic.hat;
+
+import net.minecraft.util.ResourceLocation;
+import net.creeperhost.minetogethercommunity.cosmetic.tail.TailElement;
+import net.creeperhost.minetogethercommunity.cosmetic.tail.TailModel;
+
+import java.util.Collections;
+import java.util.List;
+
+public class Hat {
+
+    private final String id;
+    private final String displayName;
+    private final String author;
+    private final String mod;
+    private final boolean locked;
+    private final String howToUnlock;
+    private final ResourceLocation texture;
+    private final int texWidth;
+    private final int texHeight;
+    private final HatModelType type;
+    private final List<HatCuboid> cuboids;
+    private final List<TailElement> jsonElements;
+    private final TailModel jsonModel;
+
+    public Hat(String id, String displayName, String author, String mod, boolean locked, String howToUnlock,
+               ResourceLocation texture, int texWidth, int texHeight, HatModelType type, List<HatCuboid> cuboids) {
+        this(id, displayName, author, mod, locked, howToUnlock, texture, texWidth, texHeight, type, cuboids,
+                Collections.<TailElement>emptyList(), null);
+    }
+
+    public Hat(String id, String displayName, String author, String mod, boolean locked, String howToUnlock,
+               ResourceLocation texture, int texWidth, int texHeight, HatModelType type, List<HatCuboid> cuboids,
+               List<TailElement> jsonElements, TailModel jsonModel) {
+        this.id = id;
+        this.displayName = displayName;
+        this.author = author;
+        this.mod = mod;
+        this.locked = locked;
+        this.howToUnlock = howToUnlock;
+        this.texture = texture;
+        this.texWidth = texWidth;
+        this.texHeight = texHeight;
+        this.type = type;
+        this.cuboids = cuboids == null ? Collections.<HatCuboid>emptyList() : cuboids;
+        this.jsonElements = jsonElements == null ? Collections.<TailElement>emptyList() : jsonElements;
+        this.jsonModel = jsonModel;
+    }
+
+    public String id() { return id; }
+    public String displayName() { return displayName; }
+    public String author() { return author; }
+    public String mod() { return mod; }
+    public boolean locked() { return locked; }
+    public String howToUnlock() { return howToUnlock; }
+    public ResourceLocation texture() { return texture; }
+    public int texWidth() { return texWidth; }
+    public int texHeight() { return texHeight; }
+    public HatModelType type() { return type; }
+    public List<HatCuboid> cuboids() { return cuboids; }
+    public List<TailElement> jsonElements() { return jsonElements; }
+    public TailModel jsonModel() { return jsonModel; }
+
+    public boolean isJsonModel() {
+        return type == HatModelType.JSON;
+    }
+}

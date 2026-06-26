@@ -1,0 +1,41 @@
+package net.creeperhost.minetogethercommunity.orderform.requests;
+
+import com.google.gson.annotations.SerializedName;
+import net.creeperhost.minetogether.lib.web.ApiRequest;
+
+import static net.creeperhost.minetogether.lib.web.WebConstants.CH;
+
+public class GetSummaryRequest extends ApiRequest<GetSummaryRequest.Response> {
+
+    public GetSummaryRequest(String country, String product) {
+        super("GET", CH + "json/order/" + country + "/" + product + "/summary", Response.class);
+        requiredAuthHeaders.add("Fingerprint");
+        requiredAuthHeaders.add("Identifier");
+    }
+
+    public static class Response {
+        @SerializedName("0")
+        public Option option0;
+    }
+
+    public static class Option {
+        @SerializedName("Name")
+        public String name;
+        @SerializedName("Total")
+        public double total;
+        @SerializedName("Subtotal")
+        public double subtotal;
+        @SerializedName("Currency")
+        public String currency;
+        @SerializedName("Tax")
+        public double tax;
+        @SerializedName("hasTax")
+        public boolean hasTax;
+        @SerializedName("Discount")
+        public Double discount;
+        @SerializedName("PreTax")
+        public double preTax;
+        @SerializedName("PreDiscount")
+        public double preDiscount;
+    }
+}

@@ -2,10 +2,7 @@
 /*
 
 # Include important folders.
-!common/
-!fabric/
-!forge/
-!neoforge/
+!src/
 
 # Git files
 !.github/
@@ -20,5 +17,5 @@
 !settings.gradle
 
 # Other files
-!LICENSE
-!README.mc
+!LICENSE.md
+!README.md

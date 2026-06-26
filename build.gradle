@@ -1,71 +1,362 @@
-import org.jetbrains.gradle.ext.ActionDelegationConfig.TestRunner
-
-plugins {
-    id "architectury-plugin" version "3.4-SNAPSHOT"
-    id "dev.architectury.loom" version "1.7-SNAPSHOT" apply false
-    id "org.jetbrains.gradle.plugin.idea-ext" version "1.1.5"
-}
-
-architectury {
-    minecraft = rootProject.minecraft_version
-}
-
-subprojects {
-    apply plugin: "dev.architectury.loom"
-
-    loom {
-        silentMojangMappingsLicense()
-
-        // Enable Java assertions on all run configs
-        runConfigs.each {
-            it.vmArg '-ea'
-        }
-    }
-
-    dependencies {
-        minecraft "com.mojang:minecraft:${rootProject.minecraft_version}"
-
-        mappings loom.officialMojangMappings()
-
-        localRuntime 'net.covers1624:DevLogin:0.1.0.5'
-    }
-}
-
-allprojects {
-    apply plugin: "java"
-    apply plugin: "architectury-plugin"
-    apply plugin: "maven-publish"
-
-    archivesBaseName = rootProject.archives_base_name
-    version = rootProject.mod_version
-    group = rootProject.maven_group
-
+buildscript {
     repositories {
-        mavenLocal()
-        maven {
-            name "CreeperHost"
-            url 'https://maven.creeperhost.net'
-        }
-        maven { url "https://maven.ftb.dev/releases" }
+        maven { url = "https://maven.minecraftforge.net/" }
+        maven { url = "https://plugins.gradle.org/m2/" }
+        mavenCentral()
     }
-
-    tasks.withType(JavaCompile) {
-        options.encoding = "UTF-8"
-        options.release = 21
-    }
-
-    java {
-        withSourcesJar()
+    dependencies {
+        classpath "net.minecraftforge.gradle:ForgeGradle:2.3-SNAPSHOT"
+        classpath "com.github.jengelman.gradle.plugins:shadow:2.0.4"
     }
 }
 
-// Why in gods name is Architectry forcing both these to Gradle.
-// That is the most retarded thing I have ever seen, this framework needs to die in a hole.
-afterEvaluate {
-    idea.project.settings {
-        delegateActions {
-            // Give us non retarded unit testing and proper IDE integration.
-            testRunner = TestRunner.PLATFORM
+apply plugin: "net.minecraftforge.gradle.forge"
+apply plugin: "com.github.johnrengelman.shadow"
+apply plugin: "maven-publish"
+
+archivesBaseName = archives_base_name
+version = mod_version
+group = maven_group
+
+sourceCompatibility = targetCompatibility = JavaVersion.VERSION_1_8
+
+minecraft {
+    version = "${minecraft_version}-${forge_version}"
+    runDir = "run"
+    mappings = "${mappings_channel}_${mappings_version}"
+}
+
+repositories {
+    mavenLocal()
+    maven { url = "https://maven.creeperhost.net" }
+    mavenCentral()
+}
+
+configurations {
+    shade
+    compile.extendsFrom shade
+    all {
+        resolutionStrategy.force "net.covers1624:Quack:0.4.10.128"
+    }
+}
+
+dependencies {
+    shade("net.creeperhost:MineTogetherLib:${mtlib_version}") {
+        exclude group: "net.creeperhost", module: "MineTogetherSessions"
+    }
+    shade("net.creeperhost:MineTogetherSessions:${mtsession_version}") {
+        transitive = false
+    }
+    shade("net.creeperhost:MTConnectProxyCommon:${mtproxy_version}") {
+        exclude group: "net.creeperhost", module: "MineTogetherLib"
+        exclude group: "net.creeperhost", module: "MineTogetherSessions"
+    }
+    shade "net.covers1624:Quack:0.4.10.128"
+    shade "net.covers1624:pircbotx:2.3.11"
+    shade "org.nanohttpd:nanohttpd:2.3.1"
+    shade "org.apache.httpcomponents:httpclient:4.5.14"
+    shade "org.apache.httpcomponents:httpcore:4.4.16"
+    shade "org.apache.httpcomponents:httpmime:4.5.14"
+    shade "commons-codec:commons-codec:1.15"
+    shade "commons-logging:commons-logging:1.2"
+    shade "org.apache.commons:commons-lang3:3.12.0"
+    testCompile "junit:junit:4.13.2"
+}
+
+sourceSets {
+    main {
+        java.srcDir "src/main/java"
+        resources {
+            srcDir "src/main/resources"
+        }
+    }
+    test {
+        java.srcDir "src/test/java"
+    }
+}
+
+processResources {
+    inputs.property "version", project.version
+    filesMatching("mcmod.info") {
+        expand "version": project.version
+    }
+}
+
+tasks.withType(JavaCompile) {
+    options.encoding = "UTF-8"
+    options.compilerArgs += ["-Xlint:deprecation", "-Xlint:unchecked"]
+}
+
+shadowJar {
+    configurations = [project.configurations.shade]
+    classifier = ""
+    exclude "module-info.class"
+    exclude "META-INF/versions/**"
+    exclude "net/covers1624/quack/net/httpapi/java11/**"
+    relocate "net.covers1624", "net.creeperhost.minetogethercommunity.repack.net.covers1624"
+    relocate "org.pircbotx", "net.creeperhost.minetogethercommunity.repack.org.pircbotx"
+    relocate "fi.iki.elonen", "net.creeperhost.minetogethercommunity.repack.fi.iki.elonen"
+    relocate "net.creeperhost.minetogether.lib", "net.creeperhost.minetogethercommunity.repack.minetogether.lib"
+    relocate "net.creeperhost.minetogether.session", "net.creeperhost.minetogethercommunity.repack.minetogether.session"
+    relocate "net.creeperhost.minetogether.connect", "net.creeperhost.minetogethercommunity.repack.minetogether.connect"
+    relocate "org.apache.http", "net.creeperhost.minetogethercommunity.repack.org.apache.http"
+    relocate "org.apache.commons.codec", "net.creeperhost.minetogethercommunity.repack.org.apache.commons.codec"
+    relocate "org.apache.commons.logging", "net.creeperhost.minetogethercommunity.repack.org.apache.commons.logging"
+    relocate "org.apache.commons.lang3", "net.creeperhost.minetogethercommunity.repack.org.apache.commons.lang3"
+}
+
+reobf {
+    shadowJar {}
+}
+
+jar {
+    classifier = "thin"
+}
+
+build.dependsOn reobfShadowJar
+
+task checkClassfileVersion {
+    dependsOn reobfShadowJar
+    doLast {
+        new java.util.zip.ZipFile(shadowJar.archivePath).withCloseable { zip ->
+            zip.entries().each { entry ->
+                if (!entry.name.endsWith(".class")) {
+                    return
+                }
+                zip.getInputStream(entry).withCloseable { stream ->
+                byte[] header = new byte[8]
+                stream.read(header)
+                int major = ((header[6] & 0xFF) << 8) | (header[7] & 0xFF)
+                if (major > 52) {
+                        throw new GradleException("Class ${entry.name} has classfile major ${major}; expected Java 8 (52) or lower")
+                    }
+                }
+            }
         }
     }
 }
+
+task checkJarHygiene {
+    dependsOn reobfShadowJar
+    doLast {
+        def forbidden = [
+                ~/^META-INF\/versions\//,
+                ~/(^|\/)module-info\.class$/,
+                ~/fabric\.mod\.json$/,
+                ~/neoforge\.mods\.toml$/,
+                ~/accesswidener$/,
+                ~/mixins\.json$/,
+                ~/(^|\/)mixin\//,
+                ~/^org\/apache\/http\//,
+                ~/^org\/apache\/commons\/codec\//,
+                ~/^org\/apache\/commons\/logging\//,
+                ~/^org\/apache\/commons\/lang3\//,
+                ~/(^|\/)com\/fasterxml\//,
+                ~/(^|\/)org\/codehaus\/jackson\//,
+                ~/(^|\/)com\/github\/scribejava\//
+        ]
+        def offenders = []
+        new java.util.zip.ZipFile(shadowJar.archivePath).withCloseable { zip ->
+            zip.entries().each { entry ->
+                String name = entry.name
+                if (forbidden.any { pattern -> (name =~ pattern).find() }) {
+                    offenders << name
+                }
+            }
+        }
+        if (!offenders.isEmpty()) {
+            throw new GradleException("Forbidden modern-loader or incompatible dependency entries found in shaded jar:\n" + offenders.sort().join("\n"))
+        }
+    }
+}
+
+task checkRuntimeDependencyCompleteness {
+    dependsOn reobfShadowJar
+    doLast {
+        def required = [
+                "net/creeperhost/minetogethercommunity/repack/net/covers1624/quack/net/httpapi/apache/ApacheEngine.class",
+                "net/creeperhost/minetogethercommunity/repack/org/apache/http/client/HttpClient.class",
+                "net/creeperhost/minetogethercommunity/repack/org/apache/http/entity/mime/content/ContentBody.class",
+                "net/creeperhost/minetogethercommunity/repack/org/apache/commons/codec/binary/Base64.class",
+                "net/creeperhost/minetogethercommunity/repack/org/apache/commons/logging/Log.class",
+                "net/creeperhost/minetogethercommunity/repack/org/apache/commons/lang3/StringUtils.class",
+                "net/creeperhost/minetogethercommunity/repack/org/pircbotx/PircBotX.class"
+        ] as Set
+        def present = [] as Set
+        new java.util.zip.ZipFile(shadowJar.archivePath).withCloseable { zip ->
+            zip.entries().each { entry ->
+                if (required.contains(entry.name)) {
+                    present << entry.name
+                }
+            }
+        }
+        def missing = required - present
+        if (!missing.isEmpty()) {
+            throw new GradleException("Missing shaded runtime dependency classes needed for MineTogether HTTP/IRC startup:\n" + missing.sort().join("\n"))
+        }
+    }
+}
+
+task checkResourceReferences {
+    doLast {
+        File assetRoot = file("src/main/resources/assets/minetogethercommunity")
+        def missing = []
+        def locationPattern = ~/new\s+ResourceLocation\s*\(\s*MineTogether\.MOD_ID\s*,\s*"([^"]+)"\s*\)/
+        fileTree("src/main/java") { include "**/*.java" }.each { source ->
+            def matcher = locationPattern.matcher(source.getText("UTF-8"))
+            while (matcher.find()) {
+                String path = matcher.group(1)
+                if (!path.startsWith("dynamic/")) {
+                    File resource = new File(assetRoot, path)
+                    if (!resource.isFile()) {
+                        missing << "${project.relativePath(source)} -> assets/minetogethercommunity/${path}"
+                    }
+                }
+            }
+        }
+        if (!missing.isEmpty()) {
+            throw new GradleException("Missing MineTogether asset references:\n" + missing.sort().join("\n"))
+        }
+    }
+}
+
+task checkLanguageKeys {
+    doLast {
+        File langFile = file("src/main/resources/assets/minetogethercommunity/lang/en_us.lang")
+        def langKeys = new LinkedHashSet<String>()
+        langFile.eachLine("UTF-8") { line ->
+            def matcher = (line =~ /^\s*([^#=\s][^=]*)=/)
+            if (matcher.find()) {
+                langKeys.add(matcher.group(1).trim())
+            }
+        }
+
+        def missing = []
+        def keyPattern = ~/(?:I18n\.format|TextComponentTranslation|GuiButton\.translated)\(\s*"([^"]+)"/
+        fileTree("src/main/java") { include "**/*.java" }.each { source ->
+            def matcher = keyPattern.matcher(source.getText("UTF-8"))
+            while (matcher.find()) {
+                String key = matcher.group(1)
+                boolean mineTogetherKey = key.startsWith("minetogether") || key.startsWith("key.minetogethercommunity")
+                if (mineTogetherKey && !key.endsWith(".") && !langKeys.contains(key)) {
+                    missing << "${project.relativePath(source)} -> ${key}"
+                }
+            }
+        }
+        if (!missing.isEmpty()) {
+            throw new GradleException("Missing MineTogether language keys:\n" + missing.sort().join("\n"))
+        }
+    }
+}
+
+task checkServerEntrypoints {
+    doLast {
+        def serverLoadedSources = [
+                file("src/main/java/net/creeperhost/minetogethercommunity/MineTogether.java"),
+                file("src/main/java/net/creeperhost/minetogethercommunity/proxy/CommonProxy.java")
+        ]
+        def forbidden = [
+                "net.minecraft.client",
+                "net.minecraftforge.client",
+                "net.creeperhost.minetogethercommunity.client.",
+                "net.creeperhost.minetogethercommunity.gui.",
+                "net.creeperhost.minetogethercommunity.cosmetic.render.",
+                "Minecraft.getMinecraft",
+                "GuiScreen",
+                "ClientCommandHandler",
+                "KeyBinding"
+        ]
+        def offenders = []
+        serverLoadedSources.each { source ->
+            String text = source.getText("UTF-8")
+            forbidden.each { token ->
+                if (text.contains(token)) {
+                    offenders << "${project.relativePath(source)} -> ${token}"
+                }
+            }
+        }
+        if (!offenders.isEmpty()) {
+            throw new GradleException("Client-only references found in server-loaded entrypoints:\n" + offenders.sort().join("\n"))
+        }
+    }
+}
+
+task checkBackportSourceHygiene {
+    doLast {
+        def forbidden = [
+                ~/net\.fabricmc/,
+                ~/fabric\.mod\.json/,
+                ~/(?i)architectury/,
+                ~/net\.neoforged/,
+                ~/neoforge\.mods\.toml/,
+                ~/java\.net\.http/,
+                ~/com\.fasterxml/,
+                ~/org\.codehaus\.jackson/,
+                ~/com\.github\.scribejava/
+        ]
+        def offenders = []
+        fileTree("src/main") {
+            include "**/*.java"
+            include "**/*.json"
+            include "**/*.info"
+            include "**/*.mcmeta"
+            include "**/*.lang"
+        }.each { source ->
+            String text = source.getText("UTF-8")
+            forbidden.each { pattern ->
+                if ((text =~ pattern).find()) {
+                    offenders << "${project.relativePath(source)} -> ${pattern}"
+                }
+            }
+        }
+        if (!offenders.isEmpty()) {
+            throw new GradleException("Forbidden modern-loader or incompatible source references found:\n" + offenders.sort().join("\n"))
+        }
+    }
+}
+
+task checkLegacyResourceMetadata {
+    doLast {
+        File resourcesRoot = file("src/main/resources")
+        File mcmod = new File(resourcesRoot, "mcmod.info")
+        File pack = new File(resourcesRoot, "pack.mcmeta")
+        File lang = new File(resourcesRoot, "assets/minetogethercommunity/lang/en_us.lang")
+        File modernLang = new File(resourcesRoot, "assets/minetogethercommunity/lang/en_us.json")
+
+        if (!mcmod.isFile()) {
+            throw new GradleException("Forge 1.12.2 metadata is missing mcmod.info")
+        }
+        if (!pack.isFile()) {
+            throw new GradleException("Forge 1.12.2 resources are missing pack.mcmeta")
+        }
+        if (!lang.isFile()) {
+            throw new GradleException("Forge 1.12.2 resources are missing en_us.lang")
+        }
+        if (modernLang.exists()) {
+            throw new GradleException("Forge 1.12.2 resources must use en_us.lang, not en_us.json")
+        }
+
+        def parser = new groovy.json.JsonSlurper()
+        def mods = parser.parse(mcmod)
+        if (!(mods instanceof List) || mods.isEmpty()) {
+            throw new GradleException("mcmod.info must contain a Forge 1.12.2 mod info array")
+        }
+        if (mods[0].modid != "minetogethercommunity" || mods[0].mcversion != "1.12.2") {
+            throw new GradleException("mcmod.info must target minetogethercommunity on Minecraft 1.12.2")
+        }
+
+        def packMeta = parser.parse(pack)
+        if (packMeta.pack == null || packMeta.pack.pack_format != 3) {
+            throw new GradleException("pack.mcmeta must use pack_format 3 for Minecraft 1.12.2")
+        }
+    }
+}
+
+check.dependsOn checkClassfileVersion
+check.dependsOn checkJarHygiene
+check.dependsOn checkRuntimeDependencyCompleteness
+check.dependsOn checkResourceReferences
+check.dependsOn checkLanguageKeys
+check.dependsOn checkServerEntrypoints
+check.dependsOn checkBackportSourceHygiene
+check.dependsOn checkLegacyResourceMetadata

@@ -1,0 +1,33 @@
+package net.creeperhost.minetogethercommunity.orderform.requests;
+
+import com.google.gson.annotations.SerializedName;
+import net.creeperhost.minetogether.lib.web.ApiRequest;
+import net.creeperhost.minetogether.lib.web.ApiResponse;
+
+import java.util.ArrayList;
+import java.util.List;
+
+import static net.creeperhost.minetogether.lib.web.WebConstants.CH_API;
+
+public class GetDataCentresRequest extends ApiRequest<GetDataCentresRequest.Response> {
+
+    public GetDataCentresRequest(int ram) {
+        super("GET", CH_API + "api/datacentres?ram=" + ram, Response.class);
+        requiredAuthHeaders.add("Fingerprint");
+        requiredAuthHeaders.add("Identifier");
+    }
+
+    public static class Response extends ApiResponse {
+        @SerializedName("datacentres")
+        public List<DC> dataCentres = new ArrayList<>();
+    }
+
+    public static class DC {
+        public String name;
+        public String country;
+        public String slug;
+        public boolean available;
+        public String latencyUrl;
+        public String countryName;
+    }
+}

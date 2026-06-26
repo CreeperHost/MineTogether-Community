@@ -1,0 +1,619 @@
+package net.creeperhost.minetogethercommunity.cosmetic;
+
+import com.google.common.io.ByteStreams;
+import com.google.gson.JsonArray;
+import com.google.gson.JsonElement;
+import com.google.gson.JsonObject;
+import com.google.gson.JsonParser;
+import net.creeperhost.minetogethercommunity.MineTogether;
+import net.creeperhost.minetogethercommunity.cosmetic.cape.Cape;
+import net.creeperhost.minetogethercommunity.cosmetic.hat.Hat;
+import net.creeperhost.minetogethercommunity.cosmetic.hat.HatRegistry;
+import net.creeperhost.minetogethercommunity.cosmetic.hat.HatModelType;
+import net.creeperhost.minetogethercommunity.cosmetic.tail.Tail;
+import net.creeperhost.minetogethercommunity.cosmetic.tail.TailElement;
+import net.creeperhost.minetogethercommunity.cosmetic.tail.TailModel;
+import net.creeperhost.minetogethercommunity.cosmetic.tail.TailModelParser;
+import net.creeperhost.minetogethercommunity.cosmetic.wing.Wing;
+import net.creeperhost.minetogethercommunity.cosmetic.wing.WingAnimation;
+import net.minecraft.client.Minecraft;
+import net.minecraft.client.renderer.texture.DynamicTexture;
+import net.minecraft.util.ResourceLocation;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+
+import javax.imageio.ImageIO;
+import java.awt.image.BufferedImage;
+import java.io.ByteArrayInputStream;
+import java.io.File;
+import java.io.FileOutputStream;
+import java.io.IOException;
+import java.io.InputStream;
+import java.io.InputStreamReader;
+import java.net.HttpURLConnection;
+import java.net.URL;
+import java.net.URLEncoder;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.List;
+import java.util.Locale;
+import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.CopyOnWriteArrayList;
+
+public class CosmeticDownloader {
+
+    private static final Logger LOGGER = LogManager.getLogger();
+    private static final String CATALOG_BASE_URL = "https://api.creeper.host";
+    private static final String CDN_BASE_URL = "https://cosmetic.cdn.minetogether.io";
+    private static final int PAGE_LIMIT = 100;
+
+    private static volatile CosmeticDownloader instance;
+
+    private final File cacheBase;
+    private final List<CosmeticItem> hatCatalogList = new CopyOnWriteArrayList<CosmeticItem>();
+    private final List<CosmeticItem> capeCatalogList = new CopyOnWriteArrayList<CosmeticItem>();
+    private final List<CosmeticItem> tailCatalogList = new CopyOnWriteArrayList<CosmeticItem>();
+    private final List<CosmeticItem> wingCatalogList = new CopyOnWriteArrayList<CosmeticItem>();
+    private final ConcurrentHashMap<String, CosmeticItem> hatCatalogById = new ConcurrentHashMap<String, CosmeticItem>();
+    private final ConcurrentHashMap<String, CosmeticItem> capeCatalogById = new ConcurrentHashMap<String, CosmeticItem>();
+    private final ConcurrentHashMap<String, CosmeticItem> tailCatalogById = new ConcurrentHashMap<String, CosmeticItem>();
+    private final ConcurrentHashMap<String, CosmeticItem> wingCatalogById = new ConcurrentHashMap<String, CosmeticItem>();
+    private final ConcurrentHashMap<String, Hat> loadedHats = new ConcurrentHashMap<String, Hat>();
+    private final ConcurrentHashMap<String, Cape> loadedCapes = new ConcurrentHashMap<String, Cape>();
+    private final ConcurrentHashMap<String, Tail> loadedTails = new ConcurrentHashMap<String, Tail>();
+    private final ConcurrentHashMap<String, Wing> loadedWings = new ConcurrentHashMap<String, Wing>();
+    private final Set<String> loadingAssetIds = Collections.newSetFromMap(new ConcurrentHashMap<String, Boolean>());
+    private volatile boolean catalogLoading;
+    private volatile boolean catalogLoaded;
+
+    public static CosmeticDownloader instance() {
+        if (instance == null) {
+            synchronized (CosmeticDownloader.class) {
+                if (instance == null) {
+                    instance = new CosmeticDownloader(new File(MineTogether.getGameDir(), "local/minetogether/cosmetics"));
+                }
+            }
+        }
+        return instance;
+    }
+
+    private CosmeticDownloader(File cacheBase) {
+        this.cacheBase = cacheBase;
+    }
+
+    public void startCatalogFetch() {
+        startCatalogFetch(false);
+    }
+
+    public void refreshCatalog() {
+        startCatalogFetch(true);
+    }
+
+    private void startCatalogFetch(boolean force) {
+        synchronized (this) {
+            if (catalogLoading || (!force && catalogLoaded)) return;
+            catalogLoading = true;
+            catalogLoaded = false;
+            if (force) {
+                clearCatalog();
+            }
+        }
+        Thread thread = new Thread(new Runnable() {
+            @Override
+            public void run() {
+                fetchCatalog();
+            }
+        }, "CosmeticsCatalogFetch");
+        thread.setDaemon(true);
+        thread.start();
+    }
+
+    private void clearCatalog() {
+        hatCatalogList.clear();
+        capeCatalogList.clear();
+        tailCatalogList.clear();
+        wingCatalogList.clear();
+        hatCatalogById.clear();
+        capeCatalogById.clear();
+        tailCatalogById.clear();
+        wingCatalogById.clear();
+    }
+
+    public void ensureAssetLoaded(final String slot, final String id) {
+        if (id == null || id.isEmpty()) return;
+        if ("hat".equals(slot) && loadedHats.containsKey(id)) return;
+        if ("cape".equals(slot) && loadedCapes.containsKey(id)) return;
+        if ("tail".equals(slot) && loadedTails.containsKey(id)) return;
+        if ("wing".equals(slot) && loadedWings.containsKey(id)) return;
+        if (!loadingAssetIds.add(slot + ":" + id)) return;
+
+        Thread thread = new Thread(new Runnable() {
+            @Override
+            public void run() {
+                try {
+                    if ("hat".equals(slot)) {
+                        downloadAndRegisterHat(id);
+                    } else if ("cape".equals(slot)) {
+                        downloadAndRegisterCape(id);
+                    } else if ("tail".equals(slot)) {
+                        downloadAndRegisterTail(id);
+                    } else if ("wing".equals(slot)) {
+                        downloadAndRegisterWing(id);
+                    } else {
+                        loadingAssetIds.remove(slot + ":" + id);
+                    }
+                } catch (Exception e) {
+                    LOGGER.error("Failed to download {} asset '{}'", slot, id, e);
+                    loadingAssetIds.remove(slot + ":" + id);
+                }
+            }
+        }, "CosmeticAssetLoad-" + slot + "-" + id);
+        thread.setDaemon(true);
+        thread.start();
+    }
+
+    public List<CosmeticItem> getHatCatalog() {
+        return Collections.unmodifiableList(hatCatalogList);
+    }
+
+    public List<CosmeticItem> getCapeCatalog() {
+        return Collections.unmodifiableList(capeCatalogList);
+    }
+
+    public List<CosmeticItem> getTailCatalog() {
+        return Collections.unmodifiableList(tailCatalogList);
+    }
+
+    public List<CosmeticItem> getWingCatalog() {
+        return Collections.unmodifiableList(wingCatalogList);
+    }
+
+    public boolean isCatalogLoading() {
+        return catalogLoading;
+    }
+
+    public boolean isCatalogLoaded() {
+        return catalogLoaded;
+    }
+
+    public Hat getLoadedHat(String id) {
+        return loadedHats.get(id);
+    }
+
+    public Cape getLoadedCape(String id) {
+        return loadedCapes.get(id);
+    }
+
+    public Tail getLoadedTail(String id) {
+        return loadedTails.get(id);
+    }
+
+    public Wing getLoadedWing(String id) {
+        return loadedWings.get(id);
+    }
+
+    public boolean isAssetLoading(String slot, String id) {
+        return loadingAssetIds.contains(slot + ":" + id);
+    }
+
+    public void invalidateAndRefetch() {
+        synchronized (this) {
+            clearCatalog();
+            loadedHats.clear();
+            loadedCapes.clear();
+            loadedTails.clear();
+            loadedWings.clear();
+            loadingAssetIds.clear();
+            catalogLoaded = false;
+            catalogLoading = false;
+        }
+        HatRegistry.clearModelCache();
+        try {
+            deleteChildren(cacheBase);
+        } catch (IOException e) {
+            LOGGER.warn("Failed to clear cosmetics cache at {}; cached files may be reused.", cacheBase, e);
+        }
+        refreshCatalog();
+    }
+
+    private void fetchCatalog() {
+        try {
+            mkdirs(new File(cacheBase, "hats"));
+            mkdirs(new File(cacheBase, "capes"));
+            mkdirs(new File(cacheBase, "tails"));
+            mkdirs(new File(cacheBase, "wings"));
+
+            for (String slot : new String[]{"hat", "cape", "tail", "wing"}) {
+                try {
+                    fetchCatalogForSlot(slot);
+                } catch (Exception e) {
+                    LOGGER.error("Failed to fetch remote {} cosmetics catalog; cached cosmetics will still be listed for that slot", slot, e);
+                }
+            }
+
+            loadLocalCatalog("hats", hatCatalogList, hatCatalogById);
+            loadLocalCatalog("capes", capeCatalogList, capeCatalogById);
+            loadLocalCatalog("tails", tailCatalogList, tailCatalogById);
+            loadLocalCatalog("wings", wingCatalogList, wingCatalogById);
+            LOGGER.info("Cosmetic catalog loaded: {} hats, {} capes, {} tails, {} wings",
+                    hatCatalogList.size(), capeCatalogList.size(), tailCatalogList.size(), wingCatalogList.size());
+        } catch (Exception e) {
+            LOGGER.error("Failed to load cosmetics catalog", e);
+        } finally {
+            catalogLoading = false;
+            catalogLoaded = true;
+        }
+    }
+
+    private void fetchCatalogForSlot(String slot) throws IOException {
+        String cursor = null;
+        int total = 0;
+        do {
+            StringBuilder url = new StringBuilder(CATALOG_BASE_URL)
+                    .append("/minetogether/cosmetics/catalog")
+                    .append("?slot=").append(slot)
+                    .append("&limit=").append(PAGE_LIMIT);
+            if (cursor != null) url.append("&cursor=").append(URLEncoder.encode(cursor, "UTF-8"));
+
+            byte[] body = fetchBytes(url.toString());
+            JsonObject root = new JsonParser().parse(new InputStreamReader(
+                    new ByteArrayInputStream(body), StandardCharsets.UTF_8)).getAsJsonObject();
+            JsonArray items = root.has("cosmetics") && root.get("cosmetics").isJsonArray()
+                    ? root.getAsJsonArray("cosmetics") : null;
+            if (items == null) break;
+
+            for (JsonElement element : items) {
+                if (!element.isJsonObject()) continue;
+                JsonObject object = element.getAsJsonObject();
+                String id = stringValue(object, "id", "");
+                if (id.isEmpty()) continue;
+                CosmeticItem item = new CosmeticItem(
+                        id,
+                        stringValue(object, "name", id),
+                        stringValue(object, "author", ""),
+                        stringValue(object, "mod", ""),
+                        booleanValue(object, "locked", false),
+                        nullableString(object, "howToUnlock"));
+                addCatalogItem(slot, item);
+                total++;
+            }
+
+            cursor = nullableString(root, "nextCursor");
+        } while (cursor != null && !cursor.isEmpty());
+        LOGGER.info("Fetched {} {} catalog entries", total, slot);
+    }
+
+    private void loadLocalCatalog(String slotDir, List<CosmeticItem> list, ConcurrentHashMap<String, CosmeticItem> byId) throws IOException {
+        File dir = new File(cacheBase, slotDir);
+        File[] children = dir.listFiles();
+        if (children == null) return;
+        for (File child : children) {
+            File metadata = new File(child, "metadata.json");
+            if (!metadata.isFile()) continue;
+            InputStream inputStream = Files.newInputStream(metadata.toPath());
+            try {
+                JsonObject root = new JsonParser().parse(new InputStreamReader(inputStream, StandardCharsets.UTF_8)).getAsJsonObject();
+                String id = stringValue(root, "id", child.getName());
+                if (byId.containsKey(id)) continue;
+                CosmeticItem item = new CosmeticItem(
+                        id,
+                        stringValue(root, "name", id),
+                        stringValue(root, "author", "Local"),
+                        stringValue(root, "mod", "local"),
+                        booleanValue(root, "locked", false),
+                        nullableString(root, "howToUnlock"));
+                list.add(item);
+                byId.put(id, item);
+            } finally {
+                inputStream.close();
+            }
+        }
+    }
+
+    private void addCatalogItem(String slot, CosmeticItem item) {
+        if ("hat".equals(slot)) {
+            hatCatalogList.add(item);
+            hatCatalogById.put(item.id(), item);
+        } else if ("cape".equals(slot)) {
+            capeCatalogList.add(item);
+            capeCatalogById.put(item.id(), item);
+        } else if ("tail".equals(slot)) {
+            tailCatalogList.add(item);
+            tailCatalogById.put(item.id(), item);
+        } else if ("wing".equals(slot)) {
+            wingCatalogList.add(item);
+            wingCatalogById.put(item.id(), item);
+        }
+    }
+
+    private void downloadAndRegisterHat(final String id) throws Exception {
+        CosmeticItem item = catalogItemOrFallback(hatCatalogById, id);
+        final File itemDir = new File(new File(cacheBase, "hats"), id);
+        List<String> files = fetchAndCacheFiles(CDN_BASE_URL + "/hat/" + id, itemDir);
+        JsonObject metadata = readMetadata(itemDir);
+        HatModelType type = HatModelType.fromMetadata(stringValue(metadata, "type", HatModelType.TC2.metadataValue()));
+        if (type == HatModelType.JSON) {
+            downloadAndRegisterJsonHat(id, item, itemDir, files);
+            return;
+        }
+
+        String tc2File = findByExtension(files, ".tc2");
+        if (tc2File == null) throw new IOException("No .tc2 file in metadata for hat '" + id + "'");
+        final Hat hat = TechneLoader.load(id, item.displayName(), item.author(), item.mod(),
+                item.locked(), item.howToUnlock(), Files.readAllBytes(new File(itemDir, tc2File).toPath()));
+        Minecraft.getMinecraft().addScheduledTask(new Runnable() {
+            @Override
+            public void run() {
+                loadedHats.put(id, hat);
+                loadingAssetIds.remove("hat:" + id);
+                LOGGER.info("Hat asset ready: '{}'", id);
+            }
+        });
+    }
+
+    private void downloadAndRegisterJsonHat(final String id, CosmeticItem item, File itemDir, List<String> files) throws Exception {
+        String jsonFile = findModelJson(files);
+        String pngFile = findByExtension(files, ".png");
+        if (jsonFile == null) throw new IOException("No model .json file in metadata for JSON hat '" + id + "'");
+        if (pngFile == null) throw new IOException("No .png file in metadata for JSON hat '" + id + "'");
+
+        JsonObject root = parseJson(new File(itemDir, jsonFile));
+        List<TailElement> elements = TailModelParser.parse(root);
+        int texW = textureSize(root, 0, 64);
+        int texH = textureSize(root, 1, 32);
+        final BufferedImage image = ImageIO.read(new File(itemDir, pngFile));
+        if (image == null) throw new IOException("Invalid JSON hat texture for '" + id + "'");
+        final ResourceLocation location = textureLocation("hat", id);
+        final Hat hat = new Hat(id, item.displayName(), item.author(), item.mod(), item.locked(), item.howToUnlock(),
+                location, texW, texH, HatModelType.JSON, Collections.<net.creeperhost.minetogethercommunity.cosmetic.hat.HatCuboid>emptyList(),
+                elements, new TailModel(elements, texW, texH));
+        Minecraft.getMinecraft().addScheduledTask(new Runnable() {
+            @Override
+            public void run() {
+                Minecraft.getMinecraft().getTextureManager().loadTexture(location, new DynamicTexture(image));
+                loadedHats.put(id, hat);
+                loadingAssetIds.remove("hat:" + id);
+                LOGGER.info("JSON hat asset ready: '{}'", id);
+            }
+        });
+    }
+
+    private void downloadAndRegisterCape(final String id) throws Exception {
+        CosmeticItem item = catalogItemOrFallback(capeCatalogById, id);
+        File itemDir = new File(new File(cacheBase, "capes"), id);
+        List<String> files = fetchAndCacheFiles(CDN_BASE_URL + "/cape/" + id, itemDir);
+        String pngFile = findByExtension(files, ".png");
+        if (pngFile == null) throw new IOException("No .png file in metadata for cape '" + id + "'");
+
+        final BufferedImage image = ImageIO.read(new File(itemDir, pngFile));
+        if (image == null) throw new IOException("Invalid cape texture for '" + id + "'");
+        final ResourceLocation location = textureLocation("cape", id);
+        final Cape cape = new Cape(id, item.displayName(), item.author(), item.mod(), item.locked(), item.howToUnlock(),
+                location, image.getWidth(), image.getHeight());
+        Minecraft.getMinecraft().addScheduledTask(new Runnable() {
+            @Override
+            public void run() {
+                Minecraft.getMinecraft().getTextureManager().loadTexture(location, new DynamicTexture(image));
+                loadedCapes.put(id, cape);
+                loadingAssetIds.remove("cape:" + id);
+                LOGGER.info("Cape asset ready: '{}' ({}x{})", id, image.getWidth(), image.getHeight());
+            }
+        });
+    }
+
+    private void downloadAndRegisterTail(final String id) throws Exception {
+        CosmeticItem item = catalogItemOrFallback(tailCatalogById, id);
+        File itemDir = new File(new File(cacheBase, "tails"), id);
+        List<String> files = fetchAndCacheFiles(CDN_BASE_URL + "/tail/" + id, itemDir);
+        String jsonFile = findByExtension(files, ".json");
+        String pngFile = findByExtension(files, ".png");
+        if (jsonFile == null) throw new IOException("No .json file in metadata for tail '" + id + "'");
+        if (pngFile == null) throw new IOException("No .png file in metadata for tail '" + id + "'");
+
+        JsonObject root = parseJson(new File(itemDir, jsonFile));
+        List<TailElement> elements = TailModelParser.parse(root);
+        int texW = textureSize(root, 0, 64);
+        int texH = textureSize(root, 1, 32);
+        final BufferedImage image = ImageIO.read(new File(itemDir, pngFile));
+        if (image == null) throw new IOException("Invalid tail texture for '" + id + "'");
+        final ResourceLocation location = textureLocation("tail", id);
+        final Tail tail = new Tail(id, item.displayName(), item.author(), item.mod(), item.locked(), item.howToUnlock(),
+                location, texW, texH, elements, new TailModel(elements, texW, texH));
+        Minecraft.getMinecraft().addScheduledTask(new Runnable() {
+            @Override
+            public void run() {
+                Minecraft.getMinecraft().getTextureManager().loadTexture(location, new DynamicTexture(image));
+                loadedTails.put(id, tail);
+                loadingAssetIds.remove("tail:" + id);
+                LOGGER.info("Tail asset ready: '{}'", id);
+            }
+        });
+    }
+
+    private void downloadAndRegisterWing(final String id) throws Exception {
+        CosmeticItem item = catalogItemOrFallback(wingCatalogById, id);
+        File itemDir = new File(new File(cacheBase, "wings"), id);
+        List<String> files = fetchAndCacheFiles(CDN_BASE_URL + "/wing/" + id, itemDir);
+        String jsonFile = findModelJson(files);
+        String pngFile = findByExtension(files, ".png");
+        String animationFile = findExact(files, "animation.json");
+        if (jsonFile == null) throw new IOException("No model .json file in metadata for wing '" + id + "'");
+        if (pngFile == null) throw new IOException("No .png file in metadata for wing '" + id + "'");
+
+        JsonObject root = parseJson(new File(itemDir, jsonFile));
+        List<TailElement> elements = TailModelParser.parse(root);
+        int texW = textureSize(root, 0, 64);
+        int texH = textureSize(root, 1, 32);
+        WingAnimation animation = animationFile == null ? WingAnimation.NONE : WingAnimation.fromJson(parseJson(new File(itemDir, animationFile)));
+        final BufferedImage image = ImageIO.read(new File(itemDir, pngFile));
+        if (image == null) throw new IOException("Invalid wing texture for '" + id + "'");
+        final ResourceLocation location = textureLocation("wing", id);
+        final Wing wing = new Wing(id, item.displayName(), item.author(), item.mod(), item.locked(), item.howToUnlock(),
+                location, texW, texH, elements, new TailModel(elements, texW, texH), animation);
+        Minecraft.getMinecraft().addScheduledTask(new Runnable() {
+            @Override
+            public void run() {
+                Minecraft.getMinecraft().getTextureManager().loadTexture(location, new DynamicTexture(image));
+                loadedWings.put(id, wing);
+                loadingAssetIds.remove("wing:" + id);
+                LOGGER.info("Wing asset ready: '{}'", id);
+            }
+        });
+    }
+
+    private List<String> fetchAndCacheFiles(String cdnBase, File itemDir) throws IOException {
+        mkdirs(itemDir);
+        File metadataFile = new File(itemDir, "metadata.json");
+        byte[] metadataBytes;
+        if (metadataFile.isFile()) {
+            metadataBytes = Files.readAllBytes(metadataFile.toPath());
+        } else {
+            metadataBytes = fetchBytes(cdnBase + "/metadata.json");
+            writeBytes(metadataFile, metadataBytes);
+        }
+
+        JsonObject metadata = new JsonParser().parse(new InputStreamReader(
+                new ByteArrayInputStream(metadataBytes), StandardCharsets.UTF_8)).getAsJsonObject();
+        JsonArray files = metadata.has("files") && metadata.get("files").isJsonArray() ? metadata.getAsJsonArray("files") : null;
+        if (files == null || files.size() == 0) throw new IOException("No files array in metadata for " + cdnBase);
+
+        List<String> names = new ArrayList<String>();
+        for (JsonElement element : files) {
+            String name = element.getAsString();
+            names.add(name);
+            File dest = new File(itemDir, name);
+            if (!dest.isFile()) {
+                writeBytes(dest, fetchBytes(cdnBase + "/" + name));
+            }
+        }
+        return names;
+    }
+
+    private JsonObject readMetadata(File itemDir) throws IOException {
+        File metadata = new File(itemDir, "metadata.json");
+        if (!metadata.isFile()) return new JsonObject();
+        InputStream inputStream = Files.newInputStream(metadata.toPath());
+        try {
+            return new JsonParser().parse(new InputStreamReader(inputStream, StandardCharsets.UTF_8)).getAsJsonObject();
+        } finally {
+            inputStream.close();
+        }
+    }
+
+    private static byte[] fetchBytes(String url) throws IOException {
+        HttpURLConnection connection = (HttpURLConnection) new URL(url).openConnection();
+        connection.setInstanceFollowRedirects(true);
+        connection.setConnectTimeout(15000);
+        connection.setReadTimeout(30000);
+        connection.setRequestProperty("Accept", "application/json, image/png, */*");
+        int status = connection.getResponseCode();
+        InputStream inputStream = status >= 400 ? connection.getErrorStream() : connection.getInputStream();
+        byte[] body = inputStream == null ? new byte[0] : ByteStreams.toByteArray(inputStream);
+        if (status != 200) throw new IOException("HTTP " + status + " for " + url + ": " + new String(body, StandardCharsets.UTF_8));
+        return body;
+    }
+
+    private static void writeBytes(File file, byte[] data) throws IOException {
+        File parent = file.getParentFile();
+        if (parent != null) mkdirs(parent);
+        FileOutputStream outputStream = new FileOutputStream(file);
+        try {
+            outputStream.write(data);
+        } finally {
+            outputStream.close();
+        }
+    }
+
+    private static void mkdirs(File dir) throws IOException {
+        if (!dir.isDirectory() && !dir.mkdirs() && !dir.isDirectory()) {
+            throw new IOException("Could not create directory " + dir);
+        }
+    }
+
+    private static void deleteChildren(File dir) throws IOException {
+        if (dir == null || !dir.isDirectory()) return;
+        File[] children = dir.listFiles();
+        if (children == null) return;
+        for (File child : children) {
+            deleteRecursively(child);
+        }
+    }
+
+    private static void deleteRecursively(File file) throws IOException {
+        if (file == null || !file.exists()) return;
+        if (file.isDirectory() && !Files.isSymbolicLink(file.toPath())) {
+            File[] children = file.listFiles();
+            if (children != null) {
+                for (File child : children) {
+                    deleteRecursively(child);
+                }
+            }
+        }
+        if (!file.delete() && file.exists()) {
+            throw new IOException("Could not delete " + file);
+        }
+    }
+
+    private static String findByExtension(List<String> files, String extension) {
+        for (String file : files) {
+            if (file.toLowerCase(Locale.ROOT).endsWith(extension)) return file;
+        }
+        return null;
+    }
+
+    private static String findModelJson(List<String> files) {
+        for (String file : files) {
+            String lower = file.toLowerCase(Locale.ROOT);
+            if (lower.endsWith(".json") && !"metadata.json".equals(lower) && !"animation.json".equals(lower)) return file;
+        }
+        return null;
+    }
+
+    private static String findExact(List<String> files, String name) {
+        for (String file : files) {
+            if (name.equalsIgnoreCase(file)) return file;
+        }
+        return null;
+    }
+
+    private static JsonObject parseJson(File file) throws IOException {
+        InputStream inputStream = Files.newInputStream(file.toPath());
+        try {
+            return new JsonParser().parse(new InputStreamReader(inputStream, StandardCharsets.UTF_8)).getAsJsonObject();
+        } finally {
+            inputStream.close();
+        }
+    }
+
+    private static int textureSize(JsonObject root, int index, int fallback) {
+        if (!root.has("texture_size") || !root.get("texture_size").isJsonArray()) return fallback;
+        if (root.getAsJsonArray("texture_size").size() <= index) return fallback;
+        return root.getAsJsonArray("texture_size").get(index).getAsInt();
+    }
+
+    private static ResourceLocation textureLocation(String slot, String id) {
+        String safeId = id.toLowerCase(Locale.ROOT).replaceAll("[^a-z0-9/._-]", "_");
+        return new ResourceLocation(MineTogether.MOD_ID, "dynamic/" + slot + "/" + safeId);
+    }
+
+    private static CosmeticItem catalogItemOrFallback(ConcurrentHashMap<String, CosmeticItem> catalog, String id) {
+        CosmeticItem item = catalog.get(id);
+        return item == null ? new CosmeticItem(id, id, "", "", false, null) : item;
+    }
+
+    private static String stringValue(JsonObject object, String key, String fallback) {
+        String value = nullableString(object, key);
+        return value == null || value.isEmpty() ? fallback : value;
+    }
+
+    private static String nullableString(JsonObject object, String key) {
+        return object.has(key) && !object.get(key).isJsonNull() ? object.get(key).getAsString() : null;
+    }
+
+    private static boolean booleanValue(JsonObject object, String key, boolean fallback) {
+        return object.has(key) && !object.get(key).isJsonNull() ? object.get(key).getAsBoolean() : fallback;
+    }
+}

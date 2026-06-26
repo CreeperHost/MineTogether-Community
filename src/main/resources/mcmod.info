@@ -1,0 +1,16 @@
+[
+  {
+    "modid": "minetogethercommunity",
+    "name": "MineTogether Community",
+    "description": "MineTogether chat, friends, connect, and cosmetics for Minecraft 1.12.2.",
+    "version": "${version}",
+    "mcversion": "1.12.2",
+    "url": "https://minetogether.io/",
+    "updateUrl": "",
+    "authorList": ["covers1624", "Gigabit101", "Cloudhunter", "CreeperHost"],
+    "credits": "",
+    "logoFile": "assets/minetogethercommunity/textures/minetogether.png",
+    "screenshots": [],
+    "dependencies": []
+  }
+]
