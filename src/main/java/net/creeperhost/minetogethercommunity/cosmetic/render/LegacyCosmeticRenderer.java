@@ -78,7 +78,7 @@ public class LegacyCosmeticRenderer {
         if (hat == null) return;
 
         GlStateManager.pushMatrix();
-        if (player.isSneaking()) {
+        if (playerSneaking(player)) {
             GlStateManager.translate(0.0F, 0.2F, 0.0F);
         }
         renderer.modelBipedMain.bipedHead.postRender(SCALE);
@@ -159,10 +159,10 @@ public class LegacyCosmeticRenderer {
         float forward = (float) (cloakX * sin + cloakZ * cos) * 100.0F;
         forward = Math.max(forward, 0.0F);
         float side = (float) (cloakX * cos - cloakZ * sin) * 100.0F;
-        float camera = cameraYaw(player, partialTicks);
+        float camera = playerCameraBob(player, partialTicks);
         vertical += MathHelper.sin(distanceWalked(player, partialTicks) * 6.0F) * 32.0F * camera;
 
-        if (player.isSneaking()) {
+        if (playerSneaking(player)) {
             vertical += 25.0F;
         }
 
@@ -177,14 +177,14 @@ public class LegacyCosmeticRenderer {
     private TailPose createTailPose(AbstractClientPlayer player, float partialTicks, float ageInTicks) {
         float idleSeed = ageInTicks * (float) (Math.PI * 2.0D) / 140.0F;
         float walk = distanceWalked(player, partialTicks);
-        float bob = cameraYaw(player, partialTicks);
+        float bob = playerCameraBob(player, partialTicks);
         float walkPhase = walk * 6.0F;
         float walkWave = MathHelper.sin(walkPhase) * bob;
         float walkCounterWave = MathHelper.cos(walkPhase) * bob;
 
         float lift;
         float sideLag = 0.0F;
-        if (player.isRiding()) {
+        if (playerRiding(player)) {
             lift = (float) Math.toRadians(8.0F);
         } else {
             double cloakX = cloakOffsetX(player, partialTicks);
@@ -297,18 +297,28 @@ public class LegacyCosmeticRenderer {
         return entity.fallDistance > 0.0F;
     }
 
+    private static boolean playerSneaking(AbstractClientPlayer player) {
+        Entity entity = player;
+        return entity.isSneaking();
+    }
+
+    private static boolean playerRiding(AbstractClientPlayer player) {
+        Entity entity = player;
+        return entity.isRiding();
+    }
+
     private static boolean isFlying(AbstractClientPlayer player) {
         EntityPlayer entityPlayer = player;
         return entityPlayer.capabilities.isFlying;
     }
 
     private static float distanceWalked(AbstractClientPlayer player, float partialTicks) {
-        EntityLivingBase living = player;
-        return living.prevDistanceWalkedModified
-                + (living.distanceWalkedModified - living.prevDistanceWalkedModified) * partialTicks;
+        Entity entity = player;
+        return entity.prevDistanceWalkedModified
+                + (entity.distanceWalkedModified - entity.prevDistanceWalkedModified) * partialTicks;
     }
 
-    private static float cameraYaw(AbstractClientPlayer player, float partialTicks) {
+    private static float playerCameraBob(AbstractClientPlayer player, float partialTicks) {
         EntityPlayer entityPlayer = player;
         return entityPlayer.prevCameraYaw + (entityPlayer.cameraYaw - entityPlayer.prevCameraYaw) * partialTicks;
     }

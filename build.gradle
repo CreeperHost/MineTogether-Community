@@ -44,6 +44,7 @@ repositories {
 }
 
 configurations {
+    devLogin
     shade
     compile.extendsFrom shade
     all {
@@ -52,6 +53,7 @@ configurations {
 }
 
 dependencies {
+    devLogin "net.covers1624:DevLogin:0.1.0.5"
     shade("net.creeperhost:MineTogetherLib:${mtlib_version}") {
         exclude group: "net.creeperhost", module: "MineTogetherSessions"
     }
@@ -104,6 +106,17 @@ processResources {
 tasks.withType(JavaCompile) {
     options.encoding = "UTF-8"
     options.compilerArgs += ["-Xlint:deprecation", "-Xlint:unchecked"]
+}
+
+tasks.matching { it.name == "runClient" }.all { JavaExec task ->
+    task.classpath += configurations.devLogin
+    task.doFirst {
+        String originalMain = task.main
+        if (originalMain != "net.covers1624.devlogin.DevLogin") {
+            task.args("--launch_target", originalMain)
+            task.main = "net.covers1624.devlogin.DevLogin"
+        }
+    }
 }
 
 shadowJar {
@@ -271,8 +284,8 @@ task checkReobfuscatedJar {
                 ],
                 [
                         entry: "net/creeperhost/minetogethercommunity/cosmetic/render/LegacyCosmeticRenderer.class",
-                        forbidden: ["getMinecraft", "modelBipedMain", "renderCloak"],
-                        required: ["func_71410_x", "field_77109_a", "func_78111_c"]
+                        forbidden: ["getMinecraft", "modelBipedMain", "renderCloak", "isSneaking", "isRiding", "prevDistanceWalkedModified", "distanceWalkedModified", "prevCameraYaw", "cameraYaw"],
+                        required: ["func_71410_x", "field_77109_a", "func_78111_c", "func_70093_af", "func_70115_ae", "field_70141_P", "field_70140_Q", "field_71107_bF", "field_71109_bG"]
                 ],
                 [
                         entry: "net/creeperhost/minetogethercommunity/client/MineTogetherSettingsCommand.class",

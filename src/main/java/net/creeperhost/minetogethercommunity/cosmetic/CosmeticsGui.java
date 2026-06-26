@@ -34,6 +34,7 @@ public class CosmeticsGui implements GuiProvider {
     private static final int TAB_HEIGHT = 18;
     private static final int TILE_GAP = 6;
     private static final int GRID_COLUMNS = 3;
+    private static final int PREVIEW_MAX_SCALE = 58;
     private static final char[] SPINNER = new char[] {'|', '/', '-', '\\'};
 
     private CosmeticTypes activeTab = CosmeticTypes.HAT;
@@ -738,11 +739,16 @@ public class CosmeticsGui implements GuiProvider {
                 return;
             }
 
-            int renderBottom = y + height - 8;
+            int renderBottom = y + Math.round(height * 0.78F);
             int availableHeight = Math.max(40, height - 24);
-            int scale = Math.max(28, Math.min(58, Math.min(width / 2, availableHeight / 2)));
+            int scale = Math.max(28, Math.min(PREVIEW_MAX_SCALE, Math.min(width / 2, availableHeight / 2)));
             try {
-                drawEntityPreview(x + width / 2, renderBottom, scale, entity, mouseX, mouseY);
+                pushScissor(x, y, width, height);
+                try {
+                    drawEntityPreview(x + width / 2, renderBottom, scale, entity, mouseX, mouseY);
+                } finally {
+                    popScissor();
+                }
             } catch (Throwable ignored) {
                 resetGuiGlState();
                 drawCenteredString(font(), I18n.format("minetogether.gui.cosmetics.preview.unavailable"),
@@ -834,7 +840,7 @@ public class CosmeticsGui implements GuiProvider {
     private float cardPreviewYOffset() {
         switch (activeTab) {
             case HAT:
-                return 1.30F;
+                return 0.25F;
             case TAIL:
             case WINGS:
                 return -0.05F;
