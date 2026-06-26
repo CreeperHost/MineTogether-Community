@@ -152,8 +152,8 @@ public class GuiShareToFriends implements GuiProvider {
     private void initFromServer(IntegratedServer server) {
         if (server == null) return;
         gameMode = server.getGameType() == GameType.NOT_SET ? GameType.SURVIVAL : server.getGameType();
-        if (server.getEntityWorld() != null) {
-            commands = server.getEntityWorld().getWorldInfo().areCommandsAllowed();
+        if (Minecraft.getMinecraft().theWorld != null) {
+            commands = Minecraft.getMinecraft().theWorld.getWorldInfo().areCommandsAllowed();
         }
     }
 
