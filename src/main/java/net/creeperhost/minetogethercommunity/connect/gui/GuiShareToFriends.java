@@ -62,9 +62,12 @@ public class GuiShareToFriends implements GuiProvider {
         boolean shortScreen = screenHeight < 260;
         int logoWidth = shortScreen ? 192 : 256;
         int logoHeight = logoWidth / 4;
-        int bodyHeight = 168;
-        int bodyTop = Math.max(logoHeight + 18, (screenHeight - bodyHeight) / 2 + (shortScreen ? 18 : 30));
-        int logoTop = Math.max(0, bodyTop - logoHeight - 16);
+        int bodyHeight = 178;
+        int desiredBodyTop = (screenHeight - bodyHeight) / 2 + (shortScreen ? 8 : 30);
+        int minBodyTop = shortScreen ? logoHeight + 6 : logoHeight + 18;
+        int maxBodyTop = Math.max(4, screenHeight - bodyHeight - 6);
+        int bodyTop = maxBodyTop < minBodyTop ? maxBodyTop : Math.max(minBodyTop, Math.min(desiredBodyTop, maxBodyTop));
+        int logoTop = Math.max(0, bodyTop - logoHeight - (shortScreen ? 6 : 16));
         int buttonGap = 10;
         int buttonWidth = (w - buttonGap) / 2;
 
