@@ -133,8 +133,8 @@ public final class MessageFormatter {
         TextComponentString component = new TextComponentString(name);
         Style style = new Style().setColor(userColor(message));
         if (message.sender != null && message.sender != MineTogetherChat.getOurProfile()) {
-            style.setClickEvent(new ClickEvent(ClickEvent.Action.SUGGEST_COMMAND,
-                    messageId >= 0 ? CLICK_NAME + ":" + messageId : CLICK_NAME));
+            style.setClickEvent(new ClickEvent(ClickEvent.Action.SUGGEST_COMMAND, name));
+            style.setInsertion(messageId >= 0 ? CLICK_NAME + ":" + messageId : CLICK_NAME);
             style.setHoverEvent(new HoverEvent(HoverEvent.Action.SHOW_TEXT, new TextComponentString(name)));
         }
         component.setStyle(style);
@@ -167,7 +167,7 @@ public final class MessageFormatter {
         TextComponentString component = new TextComponentString(text);
         Style style = new Style().setColor(color);
         if (messageId >= 0) {
-            style.setClickEvent(new ClickEvent(ClickEvent.Action.SUGGEST_COMMAND, CLICK_MESSAGE + ":" + messageId));
+            style.setInsertion(CLICK_MESSAGE + ":" + messageId);
         }
         component.setStyle(style);
         return component;

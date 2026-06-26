@@ -109,8 +109,11 @@ public class InGameChatBridge {
         ITextComponent component = mc.ingameGUI.getChatGUI().getChatComponent(mouseX, mouseY);
         if (component == null || component.getStyle() == null) return null;
         ClickEvent event = component.getStyle().getClickEvent();
-        if (event == null || event.getValue() == null) return null;
-        String value = event.getValue();
+        String value = component.getStyle().getInsertion();
+        if (value == null && event != null) {
+            value = event.getValue();
+        }
+        if (value == null) return null;
         String prefix = clickPrefix(value, allowMessageMarker);
         if (prefix == null) return null;
         try {

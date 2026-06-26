@@ -219,6 +219,10 @@ public class ClientEvents {
             }
             return;
         }
+        if (isActionableMessage(message) && button == 0 && !GuiScreen.isShiftKeyDown()) {
+            mentionInChat((GuiChat) gui, message.sender);
+            return;
+        }
         if (isActionableMessage(message) && LocalConfig.instance().shiftClickMention && button == 0 && GuiScreen.isShiftKeyDown()) {
             mentionInChat((GuiChat) gui, message.sender);
             return;
