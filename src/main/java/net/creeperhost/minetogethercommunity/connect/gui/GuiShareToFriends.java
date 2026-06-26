@@ -90,7 +90,7 @@ public class GuiShareToFriends implements GuiProvider {
                 .setBounds(left, bodyTop + 59, buttonWidth, 16)
                 .onPress(() -> gameMode = nextGameMode(gameMode));
 
-        new GuiButton(root, () -> I18n.format("selectWorld.allowCommands") + ": " + I18n.format(commands ? "options.on" : "options.off"))
+        new GuiButton(root, () -> I18n.format("selectWorld.allowCommands") + " " + I18n.format(commands ? "options.on" : "options.off"))
                 .setBounds(left + buttonWidth + buttonGap, bodyTop + 59, buttonWidth, 16)
                 .onPress(() -> commands = !commands);
 
