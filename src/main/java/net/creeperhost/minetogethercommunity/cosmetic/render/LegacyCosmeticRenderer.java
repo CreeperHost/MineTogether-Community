@@ -17,6 +17,9 @@ import net.minecraft.client.entity.AbstractClientPlayer;
 import net.minecraft.client.renderer.GlStateManager;
 import net.minecraft.client.renderer.OpenGlHelper;
 import net.minecraft.client.renderer.entity.RenderPlayer;
+import net.minecraft.entity.Entity;
+import net.minecraft.entity.EntityLivingBase;
+import net.minecraft.entity.player.EntityPlayer;
 import net.minecraft.util.ResourceLocation;
 import net.minecraft.util.math.MathHelper;
 import net.minecraftforge.client.event.RenderPlayerEvent;
@@ -31,7 +34,7 @@ public class LegacyCosmeticRenderer {
         if (!(event.entityPlayer instanceof AbstractClientPlayer)) return;
         AbstractClientPlayer player = (AbstractClientPlayer) event.entityPlayer;
         RenderPlayer renderer = event.renderer;
-        float ageInTicks = player.ticksExisted + event.partialRenderTick;
+        float ageInTicks = ageInTicks(player, event.partialRenderTick);
 
         boolean fullBrightPreview = CosmeticSelections.instance().fullBrightPreview;
         float previousLightX = OpenGlHelper.lastBrightnessX;
@@ -112,7 +115,7 @@ public class LegacyCosmeticRenderer {
         Wing wing = WingRegistry.getLoaded(id);
         if (wing == null) return;
 
-        boolean flying = player.capabilities.isFlying || player.fallDistance > 0.0F;
+        boolean flying = isFlying(player) || isFalling(player);
         WingAnimation animation = wing.animation();
         float speed = flying ? animation.flyingSpeed() : animation.idleSpeed();
         float flapDegrees = flying ? animation.flyingFlapDegrees() : animation.idleFlapDegrees();
@@ -146,18 +149,18 @@ public class LegacyCosmeticRenderer {
         GlStateManager.pushMatrix();
         GlStateManager.translate(0.0F, 0.0F, 0.125F);
 
-        double cloakX = interpolate(player.field_71091_bM, player.field_71094_bP, partialTicks) - interpolate(player.prevPosX, player.posX, partialTicks);
-        double cloakY = interpolate(player.field_71096_bN, player.field_71095_bQ, partialTicks) - interpolate(player.prevPosY, player.posY, partialTicks);
-        double cloakZ = interpolate(player.field_71097_bO, player.field_71085_bR, partialTicks) - interpolate(player.prevPosZ, player.posZ, partialTicks);
-        float bodyYaw = player.prevRenderYawOffset + (player.renderYawOffset - player.prevRenderYawOffset) * partialTicks;
+        double cloakX = cloakOffsetX(player, partialTicks);
+        double cloakY = cloakOffsetY(player, partialTicks);
+        double cloakZ = cloakOffsetZ(player, partialTicks);
+        float bodyYaw = bodyYaw(player, partialTicks);
         double sin = MathHelper.sin(bodyYaw * 0.017453292F);
         double cos = -MathHelper.cos(bodyYaw * 0.017453292F);
         float vertical = MathHelper.clamp((float) cloakY * 10.0F, -6.0F, 32.0F);
         float forward = (float) (cloakX * sin + cloakZ * cos) * 100.0F;
         forward = Math.max(forward, 0.0F);
         float side = (float) (cloakX * cos - cloakZ * sin) * 100.0F;
-        float camera = player.prevCameraYaw + (player.cameraYaw - player.prevCameraYaw) * partialTicks;
-        vertical += MathHelper.sin((player.prevDistanceWalkedModified + (player.distanceWalkedModified - player.prevDistanceWalkedModified) * partialTicks) * 6.0F) * 32.0F * camera;
+        float camera = cameraYaw(player, partialTicks);
+        vertical += MathHelper.sin(distanceWalked(player, partialTicks) * 6.0F) * 32.0F * camera;
 
         if (player.isSneaking()) {
             vertical += 25.0F;
@@ -173,8 +176,8 @@ public class LegacyCosmeticRenderer {
 
     private TailPose createTailPose(AbstractClientPlayer player, float partialTicks, float ageInTicks) {
         float idleSeed = ageInTicks * (float) (Math.PI * 2.0D) / 140.0F;
-        float walk = player.prevDistanceWalkedModified + (player.distanceWalkedModified - player.prevDistanceWalkedModified) * partialTicks;
-        float bob = player.prevCameraYaw + (player.cameraYaw - player.prevCameraYaw) * partialTicks;
+        float walk = distanceWalked(player, partialTicks);
+        float bob = cameraYaw(player, partialTicks);
         float walkPhase = walk * 6.0F;
         float walkWave = MathHelper.sin(walkPhase) * bob;
         float walkCounterWave = MathHelper.cos(walkPhase) * bob;
@@ -184,10 +187,10 @@ public class LegacyCosmeticRenderer {
         if (player.isRiding()) {
             lift = (float) Math.toRadians(8.0F);
         } else {
-            double cloakX = interpolate(player.field_71091_bM, player.field_71094_bP, partialTicks) - interpolate(player.prevPosX, player.posX, partialTicks);
-            double cloakY = interpolate(player.field_71096_bN, player.field_71095_bQ, partialTicks) - interpolate(player.prevPosY, player.posY, partialTicks);
-            double cloakZ = interpolate(player.field_71097_bO, player.field_71085_bR, partialTicks) - interpolate(player.prevPosZ, player.posZ, partialTicks);
-            float bodyYaw = player.prevRenderYawOffset + (player.renderYawOffset - player.prevRenderYawOffset) * partialTicks;
+            double cloakX = cloakOffsetX(player, partialTicks);
+            double cloakY = cloakOffsetY(player, partialTicks);
+            double cloakZ = cloakOffsetZ(player, partialTicks);
+            float bodyYaw = bodyYaw(player, partialTicks);
             float sin = MathHelper.sin(bodyYaw * 0.017453292F);
             float back = -MathHelper.cos(bodyYaw * 0.017453292F);
             float verticalLag = MathHelper.clamp((float) cloakY * 10.0F, -6.0F, 20.0F);
@@ -259,5 +262,54 @@ public class LegacyCosmeticRenderer {
 
     private static double interpolate(double previous, double current, float partialTicks) {
         return previous + (current - previous) * partialTicks;
+    }
+
+    private static double cloakOffsetX(AbstractClientPlayer player, float partialTicks) {
+        Entity entity = player;
+        return interpolate(player.field_71091_bM, player.field_71094_bP, partialTicks)
+                - interpolate(entity.prevPosX, entity.posX, partialTicks);
+    }
+
+    private static double cloakOffsetY(AbstractClientPlayer player, float partialTicks) {
+        Entity entity = player;
+        return interpolate(player.field_71096_bN, player.field_71095_bQ, partialTicks)
+                - interpolate(entity.prevPosY, entity.posY, partialTicks);
+    }
+
+    private static double cloakOffsetZ(AbstractClientPlayer player, float partialTicks) {
+        Entity entity = player;
+        return interpolate(player.field_71097_bO, player.field_71085_bR, partialTicks)
+                - interpolate(entity.prevPosZ, entity.posZ, partialTicks);
+    }
+
+    private static float bodyYaw(AbstractClientPlayer player, float partialTicks) {
+        EntityLivingBase living = player;
+        return living.prevRenderYawOffset + (living.renderYawOffset - living.prevRenderYawOffset) * partialTicks;
+    }
+
+    private static float ageInTicks(AbstractClientPlayer player, float partialTicks) {
+        Entity entity = player;
+        return entity.ticksExisted + partialTicks;
+    }
+
+    private static boolean isFalling(AbstractClientPlayer player) {
+        Entity entity = player;
+        return entity.fallDistance > 0.0F;
+    }
+
+    private static boolean isFlying(AbstractClientPlayer player) {
+        EntityPlayer entityPlayer = player;
+        return entityPlayer.capabilities.isFlying;
+    }
+
+    private static float distanceWalked(AbstractClientPlayer player, float partialTicks) {
+        EntityLivingBase living = player;
+        return living.prevDistanceWalkedModified
+                + (living.distanceWalkedModified - living.prevDistanceWalkedModified) * partialTicks;
+    }
+
+    private static float cameraYaw(AbstractClientPlayer player, float partialTicks) {
+        EntityPlayer entityPlayer = player;
+        return entityPlayer.prevCameraYaw + (entityPlayer.cameraYaw - entityPlayer.prevCameraYaw) * partialTicks;
     }
 }
