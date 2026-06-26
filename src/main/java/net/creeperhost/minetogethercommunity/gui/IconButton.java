@@ -50,7 +50,7 @@ public class IconButton extends GuiButton {
         GlStateManager.enableBlend();
         GlStateManager.color(1F, 1F, 1F, enabled ? 1F : 0.45F);
         if (single) {
-            drawRect(xPosition, yPosition, xPosition + width, yPosition + height, hovered ? 0x64202020 : 0x80000000);
+            Gui.drawRect(xPosition, yPosition, xPosition + width, yPosition + height, hovered ? 0x64202020 : 0x80000000);
             Gui.drawModalRectWithCustomSizedTexture(xPosition, yPosition, 0, 0, width, height, width, height);
         } else {
             int u = index * ICON_SIZE;

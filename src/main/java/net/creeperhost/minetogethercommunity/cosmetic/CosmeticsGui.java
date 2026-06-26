@@ -740,7 +740,13 @@ public class CosmeticsGui implements GuiProvider {
             int renderBottom = y + height - 8;
             int availableHeight = Math.max(40, height - 24);
             int scale = Math.max(28, Math.min(58, Math.min(width / 2, availableHeight / 2)));
-            drawEntityPreview(x + width / 2, renderBottom, scale, entity, mouseX, mouseY);
+            try {
+                drawEntityPreview(x + width / 2, renderBottom, scale, entity, mouseX, mouseY);
+            } catch (Throwable ignored) {
+                resetGuiGlState();
+                drawCenteredString(font(), I18n.format("minetogether.gui.cosmetics.preview.unavailable"),
+                        x + width / 2, y + height / 2, 0xAAAAAA);
+            }
         }
     }
 
@@ -784,7 +790,15 @@ public class CosmeticsGui implements GuiProvider {
                 float entityHeight = Math.max(0.1F, entity.height);
                 int scale = Math.max(18, Math.round(Math.min((height / entityHeight) * 1.45F, 46.0F)));
                 int yPos = Math.round(y + height + scale * cardPreviewYOffset());
-                drawStaticEntityPreview(x + width / 2, yPos, scale, entity, cardPreviewYaw());
+                try {
+                    drawStaticEntityPreview(x + width / 2, yPos, scale, entity, cardPreviewYaw());
+                } catch (Throwable ignored) {
+                    resetGuiGlState();
+                    String label = trimToWidth(I18n.format("minetogether.gui.cosmetics.preview.card_unavailable"), width - 8);
+                    Minecraft.getMinecraft().fontRendererObj.drawString(label,
+                            x + (width - Minecraft.getMinecraft().fontRendererObj.getStringWidth(label)) / 2,
+                            y + height / 2 - 4, MTStyle.Flat.TEXT_MUTED);
+                }
             } finally {
                 popScissor();
             }
