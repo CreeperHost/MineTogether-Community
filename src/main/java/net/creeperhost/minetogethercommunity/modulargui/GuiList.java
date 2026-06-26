@@ -111,7 +111,9 @@ public class GuiList<E> extends GuiElement<GuiList<E>> {
             draggingScrollBar = false;
             return true;
         }
-        for (GuiElement<?> child : children) {
+        List<GuiElement<?>> copy = new ArrayList<GuiElement<?>>(children);
+        Collections.reverse(copy);
+        for (GuiElement<?> child : copy) {
             if (child.mouseReleased(mouseX, mouseY, state)) return true;
         }
         return isMouseOver(mouseX, mouseY);

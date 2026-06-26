@@ -122,7 +122,9 @@ public class GuiElement<T extends GuiElement<T>> extends Gui {
 
     public boolean mouseReleased(int mouseX, int mouseY, int state) {
         if (!isVisible()) return false;
-        for (GuiElement<?> child : children) {
+        List<GuiElement<?>> copy = new ArrayList<>(children);
+        Collections.reverse(copy);
+        for (GuiElement<?> child : copy) {
             if (child.mouseReleased(mouseX, mouseY, state)) return true;
         }
         return false;

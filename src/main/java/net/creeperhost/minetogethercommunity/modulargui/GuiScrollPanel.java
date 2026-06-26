@@ -81,7 +81,9 @@ public class GuiScrollPanel extends GuiElement<GuiScrollPanel> {
             draggingScrollBar = false;
             return true;
         }
-        for (GuiElement<?> child : children) {
+        java.util.List<GuiElement<?>> copy = new ArrayList<>(children);
+        Collections.reverse(copy);
+        for (GuiElement<?> child : copy) {
             if (child.mouseReleased(mouseX, mouseY + scroll, state)) return true;
         }
         return isMouseOver(mouseX, mouseY);
