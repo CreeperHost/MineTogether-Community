@@ -96,7 +96,7 @@ public class SettingGui implements GuiProvider {
             LocalConfig.save();
             ActivityTelemetry.setTelemetryPreference(value);
         });
-        profileVisibilityButton = new GuiButton(root, () -> I18n.format("minetogether.gui.settings.button.profile_visibility") + visibilityLabel())
+        profileVisibilityButton = new GuiButton(root, () -> I18n.format("minetogether.gui.settings.button.profile_visibility") + " " + visibilityLabel())
                 .setBounds(rightLeft, y, halfWidth, BUTTON_HEIGHT)
                 .setEnabled(hasAccount() && !ActivityTelemetry.isProfileVisibilityBusy())
                 .onPress(() -> ActivityTelemetry.setProfileVisibility(nextVisibility(ActivityTelemetry.getProfileVisibility())));
@@ -157,7 +157,7 @@ public class SettingGui implements GuiProvider {
     }
 
     private void addToggle(GuiElement<?> root, int left, int top, int width, String labelKey, BoolSupplier getter, BoolConsumer setter) {
-        new GuiButton(root, () -> I18n.format(labelKey) + state(getter.get()))
+        new GuiButton(root, () -> I18n.format(labelKey) + " " + state(getter.get()))
                 .setBounds(left, top, width, BUTTON_HEIGHT)
                 .onPress(() -> setter.accept(!getter.get()));
     }
