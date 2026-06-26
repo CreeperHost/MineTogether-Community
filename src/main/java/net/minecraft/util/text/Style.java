@@ -7,6 +7,7 @@ import net.minecraft.util.text.event.HoverEvent;
 public class Style extends ChatStyle {
     private ClickEvent clickEvent;
     private HoverEvent hoverEvent;
+    private String insertion;
 
     public Style setColor(TextFormatting color) {
         super.setColor(color == null ? null : color.unwrap());
@@ -30,6 +31,11 @@ public class Style extends ChatStyle {
         return this;
     }
 
+    public Style setInsertion(String insertion) {
+        this.insertion = insertion;
+        return this;
+    }
+
     public ClickEvent getClickEvent() {
         if (clickEvent == null && super.getChatClickEvent() != null) {
             clickEvent = ClickEvent.wrap(super.getChatClickEvent());
@@ -42,5 +48,9 @@ public class Style extends ChatStyle {
             hoverEvent = HoverEvent.wrap(super.getChatHoverEvent());
         }
         return hoverEvent;
+    }
+
+    public String getInsertion() {
+        return insertion;
     }
 }

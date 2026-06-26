@@ -7,6 +7,7 @@ import java.util.function.Supplier;
 public class GuiTextField extends GuiElement<GuiTextField> {
 
     private static final int HORIZONTAL_PADDING = 3;
+    private static GuiTextField focusedField;
 
     private net.minecraft.client.gui.GuiTextField field;
     private Consumer<String> changed = value -> {};
@@ -16,6 +17,7 @@ public class GuiTextField extends GuiElement<GuiTextField> {
     private int maxLength = 256;
     private boolean focused;
     private boolean canLoseFocus = true;
+    private boolean passwordMode;
 
     public GuiTextField(GuiElement<?> parent) {
         super(parent);
@@ -34,6 +36,7 @@ public class GuiTextField extends GuiElement<GuiTextField> {
         field.setCanLoseFocus(canLoseFocus);
         field.setTextColor(0xE0E0E0);
         field.setDisabledTextColour(0x707070);
+        if (focused) claimFocus();
         super.init();
     }
 
@@ -60,7 +63,11 @@ public class GuiTextField extends GuiElement<GuiTextField> {
 
     public GuiTextField setFocused(boolean focused) {
         this.focused = focused;
-        if (field != null) field.setFocused(focused);
+        if (focused) {
+            claimFocus();
+        } else {
+            clearFocus();
+        }
         return this;
     }
 
@@ -84,11 +91,19 @@ public class GuiTextField extends GuiElement<GuiTextField> {
         return this;
     }
 
+    public GuiTextField setPasswordMode(boolean passwordMode) {
+        this.passwordMode = passwordMode;
+        return this;
+    }
+
     @Override
     public void tick() {
         if (field != null) {
             field.updateCursorCounter();
             focused = field.isFocused();
+            if (focused && focusedField != this) {
+                clearFocus();
+            }
             text = field.getText();
         }
         super.tick();
@@ -97,7 +112,11 @@ public class GuiTextField extends GuiElement<GuiTextField> {
     @Override
     protected void renderBackground(int mouseX, int mouseY, float partialTicks) {
         if (field != null) {
-            field.drawTextBox();
+            if (passwordMode && !field.getText().isEmpty()) {
+                drawPasswordTextBox();
+            } else {
+                field.drawTextBox();
+            }
             String hint = suggestion.get();
             if (field.getText().isEmpty() && hint != null && !hint.isEmpty()) {
                 font().drawStringWithShadow(hint, x + HORIZONTAL_PADDING, y + Math.max(0, (height - font().FONT_HEIGHT) / 2), suggestionColor);
@@ -105,11 +124,36 @@ public class GuiTextField extends GuiElement<GuiTextField> {
         }
     }
 
+    private void drawPasswordTextBox() {
+        String actualText = field.getText();
+        int cursorPosition = field.getCursorPosition();
+        int selectionEnd = field.getSelectionEnd();
+        field.setText(mask(actualText.length()));
+        field.setCursorPosition(cursorPosition);
+        field.setSelectionPos(selectionEnd);
+        field.drawTextBox();
+        field.setText(actualText);
+        field.setCursorPosition(cursorPosition);
+        field.setSelectionPos(selectionEnd);
+    }
+
+    private String mask(int length) {
+        StringBuilder masked = new StringBuilder(length);
+        for (int i = 0; i < length; i++) masked.append('*');
+        return masked.toString();
+    }
+
     @Override
     public boolean mouseClicked(int mouseX, int mouseY, int mouseButton) throws IOException {
         if (!isVisible() || !isEnabled() || field == null) return false;
+        boolean wasFocused = field.isFocused();
         field.mouseClicked(mouseX, mouseY, mouseButton);
         focused = field.isFocused();
+        if (focused) {
+            claimFocus();
+        } else if (wasFocused && focusedField == this) {
+            focusedField = null;
+        }
         return isMouseOver(mouseX, mouseY);
     }
 
@@ -122,5 +166,20 @@ public class GuiTextField extends GuiElement<GuiTextField> {
             return true;
         }
         return false;
+    }
+
+    private void claimFocus() {
+        if (focusedField != null && focusedField != this) {
+            focusedField.clearFocus();
+        }
+        focusedField = this;
+        focused = true;
+        if (field != null) field.setFocused(true);
+    }
+
+    private void clearFocus() {
+        if (focusedField == this) focusedField = null;
+        focused = false;
+        if (field != null) field.setFocused(false);
     }
 }

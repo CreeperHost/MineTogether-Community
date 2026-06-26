@@ -164,6 +164,7 @@ public class ClientEvents {
     public void onGuiInit(GuiScreenEvent.InitGuiEvent.Post event) {
         GuiScreen gui = event.gui;
         if (gui instanceof GuiChat && LocalConfig.instance().chatEnabled) {
+            selectVanillaTargetForCommandInput(gui);
             clampFocusedChatHeight(Minecraft.getMinecraft());
             addChatTargetButtons(event, gui);
             if (LocalConfig.instance().chatSettingsSliders) {
@@ -185,6 +186,17 @@ public class ClientEvents {
             }
         } else if (gui instanceof GuiMultiplayer && ConnectHandler.isEnabled()) {
             ServerListAppender.INSTANCE.init((GuiMultiplayer) gui);
+        }
+    }
+
+    private void selectVanillaTargetForCommandInput(GuiScreen gui) {
+        try {
+            GuiTextField input = (GuiTextField) CHAT_INPUT_FIELD.get(gui);
+            if (input != null && input.getText() != null && input.getText().startsWith("/")
+                    && MineTogetherChat.getTarget() != ChatTarget.VANILLA) {
+                MineTogetherChat.setTarget(ChatTarget.VANILLA);
+            }
+        } catch (IllegalAccessException ignored) {
         }
     }
 
@@ -468,6 +480,10 @@ public class ClientEvents {
             if (!KeycloakOAuth.openURL(url)) {
                 MineTogetherChat.localStatus("minetogether.gui.chat.action.open_failed");
             }
+            return true;
+        }
+        if (mouseButton == 0 && !GuiScreen.isShiftKeyDown() && isActionableMessage(message)) {
+            mentionInChat(gui, message.sender);
             return true;
         }
         if (mouseButton == 0 && LocalConfig.instance().shiftClickMention && GuiScreen.isShiftKeyDown() && isActionableMessage(message)) {

@@ -18,6 +18,7 @@ import net.creeperhost.minetogethercommunity.modulargui.ModularGui;
 import net.creeperhost.minetogethercommunity.modulargui.ModularGuiScreen;
 import net.creeperhost.minetogethercommunity.modulargui.ItemSelectDialog;
 import net.creeperhost.minetogethercommunity.modulargui.OptionDialog;
+import net.creeperhost.minetogethercommunity.oauth.KeycloakOAuth;
 import net.creeperhost.minetogethercommunity.orderform.data.Order;
 import net.creeperhost.minetogethercommunity.orderform.data.OrderSummary;
 import net.creeperhost.minetogethercommunity.orderform.requests.GetDataCentresRequest;
@@ -28,10 +29,10 @@ import net.minecraft.client.gui.GuiScreen;
 import net.minecraft.client.resources.I18n;
 import org.apache.commons.lang3.StringUtils;
 
-import java.awt.Desktop;
 import java.io.File;
 import java.io.IOException;
-import java.net.URI;
+import java.net.MalformedURLException;
+import java.net.URL;
 import java.text.DecimalFormat;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -286,14 +287,15 @@ public class OrderGui implements GuiProvider {
             addPlaceholderField(root, left, y, width - 58, "minetogether.info.password", order.password, value -> {
                 order.password = value;
                 resetLoginState(false);
-            });
+            }).setPasswordMode(true);
             loginButton = new GuiButton(root, this::loginButtonText)
                     .setBounds(left + width - 54, y, 54, DETAIL_FIELD_HEIGHT)
                     .primary()
                     .setVisible(false)
                     .onPress(this::doLogin);
             y += DETAIL_FIELD_HEIGHT + DETAIL_FIELD_GAP;
-            addPlaceholderField(newAccountFields, left, y, width, "minetogether.info.password_confirm", confirmPassword, value -> confirmPassword = value);
+            addPlaceholderField(newAccountFields, left, y, width, "minetogether.info.password_confirm", confirmPassword, value -> confirmPassword = value)
+                    .setPasswordMode(true);
             y += DETAIL_FIELD_HEIGHT + DETAIL_FIELD_GAP;
             addPlaceholderField(newAccountFields, left, y, width, "minetogether.info.first_name", order.firstName, value -> order.firstName = value);
             y += DETAIL_FIELD_HEIGHT + DETAIL_FIELD_GAP;
@@ -321,13 +323,14 @@ public class OrderGui implements GuiProvider {
             addPlaceholderField(root, left, y, half, "minetogether.info.password", order.password, value -> {
                 order.password = value;
                 resetLoginState(false);
-            });
+            }).setPasswordMode(true);
             loginButton = new GuiButton(root, this::loginButtonText)
                     .setBounds(left + half + halfGap, y, half, DETAIL_FIELD_HEIGHT)
                     .primary()
                     .setVisible(false)
                     .onPress(this::doLogin);
-            addPlaceholderField(newAccountFields, left + half + halfGap, y, half, "minetogether.info.password_confirm", confirmPassword, value -> confirmPassword = value);
+            addPlaceholderField(newAccountFields, left + half + halfGap, y, half, "minetogether.info.password_confirm", confirmPassword, value -> confirmPassword = value)
+                    .setPasswordMode(true);
             y += DETAIL_FIELD_HEIGHT + DETAIL_FIELD_GAP;
             addPlaceholderField(newAccountFields, left, y, half, "minetogether.info.first_name", order.firstName, value -> order.firstName = value);
             addPlaceholderField(newAccountFields, left + half + halfGap, y, half, "minetogether.info.last_name", order.lastName, value -> order.lastName = value);
@@ -447,6 +450,10 @@ public class OrderGui implements GuiProvider {
             loginButton.setVisible(loginMode);
             loginButton.setEnabled(loginMode && !loggingIn && !loggedIn && StringUtils.isNotBlank(order.password));
         }
+        updateProcessingControls();
+    }
+
+    private void updateProcessingControls() {
         if (processingButton != null) {
             processingButton.setVisible(processing && StringUtils.isNotBlank(processingButtonText));
             processingButton.setEnabled(processing && processingButtonEnabled);
@@ -1289,6 +1296,7 @@ public class OrderGui implements GuiProvider {
         public void tick() {
             setVisible(processing);
             setEnabled(processing);
+            updateProcessingControls();
             super.tick();
         }
 
@@ -1296,12 +1304,14 @@ public class OrderGui implements GuiProvider {
         public void render(int mouseX, int mouseY, float partialTicks) {
             setVisible(processing);
             setEnabled(processing);
+            updateProcessingControls();
             super.render(mouseX, mouseY, partialTicks);
         }
 
         @Override
         public boolean mouseClicked(int mouseX, int mouseY, int mouseButton) throws IOException {
             if (!processing) return false;
+            updateProcessingControls();
             super.mouseClicked(mouseX, mouseY, mouseButton);
             return true;
         }
@@ -1309,6 +1319,7 @@ public class OrderGui implements GuiProvider {
         @Override
         public boolean mouseReleased(int mouseX, int mouseY, int state) {
             if (!processing) return false;
+            updateProcessingControls();
             super.mouseReleased(mouseX, mouseY, state);
             return true;
         }
@@ -1316,6 +1327,7 @@ public class OrderGui implements GuiProvider {
         @Override
         public boolean mouseInput(int mouseX, int mouseY, int dWheel) throws IOException {
             if (!processing) return false;
+            updateProcessingControls();
             super.mouseInput(mouseX, mouseY, dWheel);
             return true;
         }
@@ -1323,6 +1335,7 @@ public class OrderGui implements GuiProvider {
         @Override
         public boolean keyTyped(char typedChar, int keyCode) throws IOException {
             if (!processing) return false;
+            updateProcessingControls();
             super.keyTyped(typedChar, keyCode);
             return true;
         }
@@ -1330,10 +1343,8 @@ public class OrderGui implements GuiProvider {
 
     private static void openUri(String uri) {
         try {
-            if (Desktop.isDesktopSupported()) {
-                Desktop.getDesktop().browse(new URI(uri));
-            }
-        } catch (Exception ignored) {
+            KeycloakOAuth.openURL(new URL(uri));
+        } catch (MalformedURLException ignored) {
         }
     }
 

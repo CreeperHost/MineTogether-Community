@@ -9,6 +9,7 @@ import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiNewChat;
 import net.minecraft.util.IChatComponent;
 import net.minecraft.util.text.ITextComponent;
+import net.minecraft.util.text.Style;
 import net.minecraft.util.text.event.ClickEvent;
 
 import java.util.ArrayList;
@@ -109,9 +110,12 @@ public class InGameChatBridge {
         if (mc.ingameGUI == null) return null;
         IChatComponent component = mc.ingameGUI.getChatGUI().getChatComponent(mouseX, mouseY);
         if (component == null || component.getChatStyle() == null) return null;
+        String value = component.getChatStyle() instanceof Style ? ((Style) component.getChatStyle()).getInsertion() : null;
         ClickEvent event = ClickEvent.wrap(component.getChatStyle().getChatClickEvent());
-        if (event == null || event.getValue() == null) return null;
-        String value = event.getValue();
+        if (value == null && event != null) {
+            value = event.getValue();
+        }
+        if (value == null) return null;
         String prefix = clickPrefix(value, allowMessageMarker);
         if (prefix == null) return null;
         try {

@@ -11,6 +11,7 @@ import org.apache.commons.lang3.math.NumberUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
+import java.io.BufferedReader;
 import java.io.File;
 import java.io.FileReader;
 import java.io.IOException;
@@ -78,12 +79,65 @@ public class ModPackInfo {
             File versionJson = new File(MineTogether.getGameDir(), "version.json");
             if (versionJson.isFile() && readFTBVersion(versionJson)) return;
 
-            File instanceJson = new File(MineTogether.getGameDir(), "instance.json");
+            File instanceJson = new File(MineTogether.getGameDir(), "minecraftinstance.json");
             if (instanceJson.isFile() && readCurseInstance(instanceJson)) return;
+
+            if (readMultiMc()) return;
 
             if (NumberUtils.isParsable(curseID)) {
                 fetchWebsiteIDCurse();
             }
+        }
+
+        private boolean readMultiMc() {
+            File manifest =  new File(MineTogether.getGameDir().getParentFile(), "instance.cfg");
+            if (!manifest.exists()) return false;
+
+            try (BufferedReader reader = new BufferedReader(new FileReader(manifest))) {
+                Map<String, String> values = new HashMap<>();
+                String line;
+                while ((line = reader.readLine()) != null) {
+                    int equals = line.indexOf('=');
+                    if (equals <= 0) continue;
+                    String key = line.substring(0, equals).trim();
+                    String value = StringUtils.stripToEmpty(line.substring(equals + 1));
+                    values.put(key, value);
+                }
+                return readMultiMc(values);
+            } catch (Exception ex) {
+                LOGGER.warn("Failed to read MultiMC instance config {}", manifest, ex);
+                return false;
+            }
+        }
+
+        private boolean readMultiMc(Map<String, String> values) {
+            String packType = StringUtils.lowerCase(StringUtils.stripToEmpty(values.get("ManagedPackType")));
+            String packId = StringUtils.stripToEmpty(values.get("ManagedPackID"));
+            String versionId = StringUtils.stripToEmpty(values.get("ManagedPackVersionID"));
+
+            if (packType.isEmpty() || packId.isEmpty()) {
+                String iconKey = StringUtils.stripToEmpty(values.get("iconKey"));
+                String[] split = StringUtils.split(iconKey, '_');
+                if (split != null && split.length >= 2) {
+                    packType = StringUtils.lowerCase(StringUtils.stripToEmpty(split[0]));
+                    packId = StringUtils.stripToEmpty(split[1]);
+                }
+            }
+
+            if (packType.isEmpty() || packId.isEmpty()) return false;
+            if ("flame".equals(packType) || "curseforge".equals(packType) || "curse".equals(packType)) {
+                if (!NumberUtils.isParsable(packId)) return false;
+                curseID = packId;
+                return fetchWebsiteIDCurse();
+            }
+            if ("ftb".equals(packType)) {
+                if (!NumberUtils.isParsable(packId)) return false;
+                ftbPackID = "m" + packId;
+                if (!NumberUtils.isParsable(versionId)) return true;
+                base64FTBID = Base64.getEncoder().encodeToString((packId + versionId).getBytes(StandardCharsets.UTF_8));
+                return fetchWebsiteIDFTB();
+            }
+            return false;
         }
 
         private boolean readFTBVersion(File file) {
@@ -92,10 +146,7 @@ public class ModPackInfo {
                 if (manifest == null || manifest.parent <= 0 || manifest.id <= 0) return false;
                 ftbPackID = "m" + manifest.parent;
                 base64FTBID = Base64.getEncoder().encodeToString((String.valueOf(manifest.parent) + manifest.id).getBytes(StandardCharsets.UTF_8));
-                GetModpacksCHVersionRequest.Response response = MineTogether.API.execute(new GetModpacksCHVersionRequest(base64FTBID)).apiResponse();
-                if (response.getStatus().equals("error") || response.id.isEmpty()) return false;
-                websiteID = response.id;
-                return true;
+                return fetchWebsiteIDFTB();
             } catch (Exception ex) {
                 LOGGER.warn("Failed to read FTB version manifest {}", file, ex);
                 return false;
@@ -123,6 +174,19 @@ public class ModPackInfo {
                 return true;
             } catch (IOException ex) {
                 LOGGER.warn("Failed to resolve CurseForge pack id {}", curseID, ex);
+                return false;
+            }
+        }
+
+        private boolean fetchWebsiteIDFTB() {
+            try {
+                if (base64FTBID.isEmpty()) return false;
+                GetModpacksCHVersionRequest.Response response = MineTogether.API.execute(new GetModpacksCHVersionRequest(base64FTBID)).apiResponse();
+                if (response.getStatus().equals("error") || response.id.isEmpty()) return false;
+                websiteID = response.id;
+                return true;
+            } catch (IOException ex) {
+                LOGGER.warn("Failed to resolve FTB pack id {}", base64FTBID, ex);
                 return false;
             }
         }
