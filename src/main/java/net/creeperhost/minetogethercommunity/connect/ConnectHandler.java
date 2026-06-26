@@ -57,6 +57,7 @@ public class ConnectHandler {
     private static NettyClient.ProxyConnection publishedServer;
     private static boolean publishing;
     private static boolean didWeShareFirst;
+    private static int publishGeneration;
     private static int defaultMaxPlayers = 8;
     private static String statusMessage = "minetogether.connect.status.closed";
 
@@ -157,6 +158,10 @@ public class ConnectHandler {
         publishing = true;
         didWeShareFirst = false;
         statusMessage = "minetogether.connect.status.opening";
+        final int generation;
+        synchronized (ConnectHandler.class) {
+            generation = ++publishGeneration;
+        }
         try {
             defaultMaxPlayers = server.getPlayerList().getMaxPlayers();
             setServerMaxPlayers(server, Math.max(2, maxPlayers));
@@ -186,21 +191,40 @@ public class ConnectHandler {
             public void run() {
                 try {
                     JWebToken token = requireSessionToken();
-                    publishedServer = NettyClient.publishServer(server, getEndpoint(), token, getModpackKey(), Math.max(2, maxPlayers));
-                    statusMessage = "minetogether.connect.status.open";
+                    NettyClient.ProxyConnection connection = NettyClient.publishServer(server, getEndpoint(), token, getModpackKey(), Math.max(2, maxPlayers));
+                    synchronized (ConnectHandler.class) {
+                        if (generation != publishGeneration || !publishing) {
+                            connection.disconnect();
+                            return;
+                        }
+                        publishedServer = connection;
+                        statusMessage = "minetogether.connect.status.open";
+                    }
                 } catch (Throwable ex) {
+                    synchronized (ConnectHandler.class) {
+                        if (generation != publishGeneration) {
+                            return;
+                        }
+                    }
                     LOGGER.error("Failed to open world to MineTogether friends", ex);
                     sendChat("minetogether.connect.open.failed", ex.getMessage());
                     statusMessage = "minetogether.connect.status.failed";
                     unPublish();
                 } finally {
-                    publishing = false;
+                    synchronized (ConnectHandler.class) {
+                        if (generation == publishGeneration) {
+                            publishing = false;
+                        }
+                    }
                 }
             }
         }, SHARE_EXECUTOR);
     }
 
     public static void unPublish() {
+        synchronized (ConnectHandler.class) {
+            publishGeneration++;
+        }
         NettyClient.ProxyConnection published = publishedServer;
         publishedServer = null;
         publishing = false;

@@ -115,7 +115,7 @@ public class GuiShareToFriends implements GuiProvider {
                 .setBounds(left, bodyTop + 142, w, 10);
 
         new GuiButton(root, () -> ConnectHandler.isPublished()
-                ? I18n.format("minetogether.connect.close")
+                ? I18n.format("minetogether.connect.close_server")
                 : ConnectHandler.isPublishing()
                 ? I18n.format("minetogether.connect.open.opening")
                 : I18n.format("minetogether.connect.open.start"))
@@ -123,7 +123,7 @@ public class GuiShareToFriends implements GuiProvider {
                 .setBounds(left, bodyTop + 162, buttonWidth, 16)
                 .onPress(() -> {
                     if (ConnectHandler.isPublished() || ConnectHandler.isPublishing()) {
-                        ConnectHandler.unPublish();
+                        ConnectHandler.closeSharing();
                     } else {
                         openWorld(gui);
                     }
