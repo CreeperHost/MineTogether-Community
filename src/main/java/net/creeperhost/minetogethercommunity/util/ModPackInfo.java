@@ -78,7 +78,7 @@ public class ModPackInfo {
             File versionJson = new File(MineTogether.getGameDir(), "version.json");
             if (versionJson.isFile() && readFTBVersion(versionJson)) return;
 
-            File instanceJson = new File(MineTogether.getGameDir(), "instance.json");
+            File instanceJson = new File(MineTogether.getGameDir(), "minecraftinstance.json");
             if (instanceJson.isFile() && readCurseInstance(instanceJson)) return;
 
             if (NumberUtils.isParsable(curseID)) {
@@ -103,10 +103,12 @@ public class ModPackInfo {
         }
 
         private boolean readCurseInstance(File file) {
+            System.out.println("readCurseInstance");
             try (FileReader reader = new FileReader(file)) {
                 CurseInstance instance = GSON.fromJson(reader, CurseInstance.class);
                 if (instance == null || instance.projectID <= 0) return false;
                 curseID = String.valueOf(instance.projectID);
+                System.out.println("readCurseInstance " +  curseID);
                 return fetchWebsiteIDCurse();
             } catch (Exception ex) {
                 LOGGER.warn("Failed to read Curse instance {}", file, ex);
