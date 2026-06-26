@@ -22,7 +22,7 @@ import net.minecraft.client.resources.I18n;
 import net.minecraft.util.ResourceLocation;
 import net.minecraft.server.integrated.IntegratedServer;
 import net.minecraft.util.text.TextComponentTranslation;
-import net.minecraft.world.GameType;
+import net.minecraft.world.WorldSettings.GameType;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
@@ -157,7 +157,6 @@ public class GuiShareToFriends implements GuiProvider {
     private GameType nextGameMode(GameType current) {
         if (current == GameType.SURVIVAL) return GameType.CREATIVE;
         if (current == GameType.CREATIVE) return GameType.ADVENTURE;
-        if (current == GameType.ADVENTURE) return GameType.SPECTATOR;
         return GameType.SURVIVAL;
     }
 

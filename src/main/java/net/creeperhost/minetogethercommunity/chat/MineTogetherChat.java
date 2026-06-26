@@ -134,8 +134,8 @@ public class MineTogetherChat {
 
     public static void localStatus(String key, Object... args) {
         Minecraft mc = Minecraft.getMinecraft();
-        if (mc.player != null) {
-            mc.player.sendMessage(new net.minecraft.util.text.TextComponentTranslation(key, args));
+        if (mc.thePlayer != null) {
+            mc.thePlayer.addChatMessage(new net.minecraft.util.text.TextComponentTranslation(key, args));
         } else if (mc.ingameGUI != null) {
             mc.ingameGUI.getChatGUI().printChatMessage(new net.minecraft.util.text.TextComponentTranslation(key, args));
         }

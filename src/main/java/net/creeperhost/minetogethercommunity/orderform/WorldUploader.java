@@ -31,7 +31,7 @@ public class WorldUploader {
     private static final Logger LOGGER = LogManager.getLogger("MineTogether World Upload");
     private static final ExecutorService UPLOAD_EXECUTOR = Executors.newSingleThreadExecutor(
             new ThreadFactoryBuilder().setDaemon(true).setNameFormat("MT World Upload").build());
-    private static final String USER_AGENT = "MineTogether/1.0.0 Minecraft/1.12.2";
+    private static final String USER_AGENT = "MineTogether/1.0.0 Minecraft/1.7.10";
 
     private final Path worldFolder;
     private volatile int stage;

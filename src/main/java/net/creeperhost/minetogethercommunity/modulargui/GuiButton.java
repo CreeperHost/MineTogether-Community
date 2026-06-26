@@ -57,7 +57,7 @@ public class GuiButton extends GuiElement<GuiButton> {
     protected void renderBackground(int mouseX, int mouseY, float partialTicks) {
         boolean hover = isMouseOver(mouseX, mouseY);
         drawRect(x, y, x + width, y + height, background(hover));
-        drawCenteredString(Minecraft.getMinecraft().fontRenderer, fittedLabel(), x + width / 2, y + (height - 8) / 2, isEnabled() ? MTStyle.Flat.TEXT : MTStyle.Flat.TEXT_DISABLED);
+        drawCenteredString(Minecraft.getMinecraft().fontRendererObj, fittedLabel(), x + width / 2, y + (height - 8) / 2, isEnabled() ? MTStyle.Flat.TEXT : MTStyle.Flat.TEXT_DISABLED);
     }
 
     private String fittedLabel() {

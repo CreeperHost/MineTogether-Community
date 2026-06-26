@@ -7,6 +7,7 @@ import net.creeperhost.minetogethercommunity.MineTogether;
 import net.creeperhost.minetogethercommunity.modulargui.GuiElement;
 import net.creeperhost.minetogethercommunity.util.ProfileUpdater;
 import net.minecraft.client.Minecraft;
+import net.minecraft.client.gui.Gui;
 import net.minecraft.client.renderer.GlStateManager;
 import net.minecraft.client.renderer.texture.DynamicTexture;
 import net.minecraft.client.resources.SkinManager;
@@ -109,13 +110,13 @@ public class PlayerIconElement extends GuiElement<PlayerIconElement> {
         int drawHeight = Math.max(1, Math.round(textureHeight * scale));
         int drawX = x + (width - drawWidth) / 2;
         int drawY = y + (height - drawHeight) / 2;
-        drawScaledCustomSizeModalRect(drawX, drawY, 0, 0, textureWidth, textureHeight,
+        Gui.drawScaledCustomSizeModalRect(drawX, drawY, 0, 0, textureWidth, textureHeight,
                 drawWidth, drawHeight, textureWidth, textureHeight);
     }
 
     private void drawSkinHead() {
         if (width <= 0 || height <= 0) return;
-        drawScaledCustomSizeModalRect(x, y, 8, 8, 8, 8, width, height, 64, 64);
+        Gui.drawScaledCustomSizeModalRect(x, y, 8, 8, 8, 8, width, height, 64, 64);
     }
 
     private SkinLoader loadSkin() {
@@ -163,9 +164,9 @@ public class PlayerIconElement extends GuiElement<PlayerIconElement> {
                     }
                     Minecraft mc = Minecraft.getMinecraft();
                     SkinManager skinManager = mc.getSkinManager();
-                    skinManager.loadProfileTextures(gameProfile, new SkinManager.SkinAvailableCallback() {
+                    skinManager.func_152790_a(gameProfile, new SkinManager.SkinAvailableCallback() {
                         @Override
-                        public void skinAvailable(MinecraftProfileTexture.Type type, ResourceLocation location, MinecraftProfileTexture texture) {
+                        public void onSkinAvailable(MinecraftProfileTexture.Type type, ResourceLocation location) {
                             if (type == MinecraftProfileTexture.Type.SKIN) {
                                 SkinLoader.this.texture = location;
                                 failedAt = 0L;
@@ -225,7 +226,7 @@ public class PlayerIconElement extends GuiElement<PlayerIconElement> {
                     connection.setConnectTimeout(3000);
                     connection.setReadTimeout(5000);
                     connection.setRequestProperty("Accept", "image/png,image/*");
-                    connection.setRequestProperty("User-Agent", "MineTogetherCommunity/1.12.2");
+                    connection.setRequestProperty("User-Agent", "MineTogetherCommunity/1.7.10");
                     int code = connection.getResponseCode();
                     if (code < 200 || code >= 300) continue;
                     InputStream input = connection.getInputStream();

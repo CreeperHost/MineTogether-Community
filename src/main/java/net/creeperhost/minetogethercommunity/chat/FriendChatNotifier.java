@@ -5,7 +5,6 @@ import net.creeperhost.minetogether.lib.chat.profile.ProfileManager;
 import net.creeperhost.minetogether.lib.chat.irc.IrcUser;
 import net.creeperhost.minetogethercommunity.config.LocalConfig;
 import net.minecraft.client.Minecraft;
-import net.minecraft.client.gui.toasts.SystemToast;
 import net.minecraft.util.text.ITextComponent;
 import net.minecraft.util.text.Style;
 import net.minecraft.util.text.TextComponentString;
@@ -155,10 +154,6 @@ public class FriendChatNotifier {
 
     private static void notifyComponent(ITextComponent component) {
         Minecraft mc = Minecraft.getMinecraft();
-        try {
-            SystemToast.addOrUpdate(mc.getToastGui(), SystemToast.Type.TUTORIAL_HINT, new TextComponentString("MineTogether"), component);
-        } catch (Throwable ignored) {
-        }
         if (mc.ingameGUI != null) {
             mc.ingameGUI.getChatGUI().printChatMessage(component);
         } else {

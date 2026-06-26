@@ -65,7 +65,7 @@ public class PublicChatGui implements GuiProvider {
         new GuiRectangle(root, MTStyle.Flat.BACKGROUND).setBounds(0, 0, screenWidth, screenHeight);
         new GuiText(root, () -> I18n.format("minetogether.gui.chat.title")).centered()
                 .setBounds(0, 5, screenWidth, 8);
-        int titleWidth = gui.mc().fontRenderer.getStringWidth(I18n.format("minetogether.gui.chat.title"));
+        int titleWidth = gui.mc().fontRendererObj.getStringWidth(I18n.format("minetogether.gui.chat.title"));
         new GuiText(root, this::stateIndicator)
                 .setBounds(screenWidth / 2 + titleWidth / 2 + 4, 5, 10, 8);
 

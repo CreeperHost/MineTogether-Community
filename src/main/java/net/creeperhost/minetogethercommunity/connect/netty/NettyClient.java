@@ -9,8 +9,6 @@ import io.netty.channel.ChannelInitializer;
 import io.netty.channel.ChannelOption;
 import io.netty.channel.ChannelPipeline;
 import io.netty.channel.EventLoopGroup;
-import io.netty.channel.epoll.Epoll;
-import io.netty.channel.epoll.EpollSocketChannel;
 import io.netty.channel.socket.nio.NioSocketChannel;
 import io.netty.handler.timeout.ReadTimeoutHandler;
 import net.creeperhost.minetogether.connect.lib.netty.AbstractChannelHandler;
@@ -45,19 +43,17 @@ import net.creeperhost.minetogethercommunity.config.Config;
 import net.creeperhost.minetogethercommunity.connect.ConnectHandler;
 import net.creeperhost.minetogethercommunity.connect.ConnectHost;
 import net.minecraft.client.Minecraft;
-import net.minecraft.network.EnumPacketDirection;
-import net.minecraft.network.LegacyPingHandler;
-import net.minecraft.network.NettyPacketDecoder;
-import net.minecraft.network.NettyPacketEncoder;
-import net.minecraft.network.NettyVarint21FrameDecoder;
-import net.minecraft.network.NettyVarint21FrameEncoder;
 import net.minecraft.network.NetworkManager;
 import net.minecraft.network.NetworkSystem;
 import net.minecraft.server.integrated.IntegratedServer;
 import net.minecraft.server.network.NetHandlerHandshakeTCP;
+import net.minecraft.util.MessageDeserializer;
+import net.minecraft.util.MessageDeserializer2;
+import net.minecraft.util.MessageSerializer;
+import net.minecraft.util.MessageSerializer2;
 import net.minecraft.util.text.TextComponentString;
 import net.minecraft.util.text.TextComponentTranslation;
-import net.minecraftforge.fml.common.network.internal.FMLNetworkHandler;
+import cpw.mods.fml.common.network.internal.FMLNetworkHandler;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
@@ -68,7 +64,6 @@ import java.lang.reflect.Field;
 import java.security.SecureRandom;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
-import java.util.function.Supplier;
 
 public class NettyClient {
 
@@ -135,7 +130,7 @@ public class NettyClient {
             }
         };
 
-        openConnection(endpoint, connection, NettyClient::serverEventLoop, NettyClient::serverEventLoop);
+        openConnection(endpoint, connection);
         synchronized (error) {
             try {
                 error.wait(TimeUnit.MINUTES.toMillis(1));
@@ -179,7 +174,7 @@ public class NettyClient {
             }
         };
 
-        ChannelFuture future = openConnection(endpoint, connection, NettyClient::clientEventLoop, NettyClient::clientEventLoop);
+        ChannelFuture future = openConnection(endpoint, connection);
         synchronized (error) {
             try {
                 error.wait(TimeUnit.MINUTES.toMillis(1));
@@ -225,7 +220,7 @@ public class NettyClient {
             }
         };
 
-        ChannelFuture future = openConnection(endpoint, connection, NettyClient::clientEventLoop, NettyClient::clientEventLoop);
+        ChannelFuture future = openConnection(endpoint, connection);
         synchronized (error) {
             try {
                 error.wait(TimeUnit.MINUTES.toMillis(1));
@@ -245,16 +240,16 @@ public class NettyClient {
     public static NetworkManager connect(final ConnectHost endpoint, final JWebToken session, final String serverToken, final boolean isQuery) throws IOException {
         final boolean[] connecting = new boolean[] { true };
         final Throwable[] error = new Throwable[1];
-        final NetworkManager networkManager = new NetworkManager(EnumPacketDirection.CLIENTBOUND);
+        final NetworkManager networkManager = new NetworkManager(true);
 
         ProxyConnection proxyConnection = new ProxyConnection(endpoint) {
             @Override
             protected void buildPipeline(ChannelPipeline pipeline) {
                 pipeline.addLast("mt:raw", new RawCodec());
-                pipeline.addLast("splitter", new NettyVarint21FrameDecoder());
-                pipeline.addLast("decoder", new NettyPacketDecoder(EnumPacketDirection.CLIENTBOUND));
-                pipeline.addLast("prepender", new NettyVarint21FrameEncoder());
-                pipeline.addLast("encoder", new NettyPacketEncoder(EnumPacketDirection.SERVERBOUND));
+                pipeline.addLast("splitter", new MessageDeserializer2());
+                pipeline.addLast("decoder", new MessageDeserializer(NetworkManager.STATISTICS));
+                pipeline.addLast("prepender", new MessageSerializer2());
+                pipeline.addLast("encoder", new MessageSerializer(NetworkManager.STATISTICS));
                 pipeline.addLast("packet_handler", networkManager);
             }
 
@@ -284,7 +279,7 @@ public class NettyClient {
             }
         };
 
-        ChannelFuture future = openConnection(endpoint, proxyConnection, NettyClient::clientEventLoop, NettyClient::clientEventLoop);
+        ChannelFuture future = openConnection(endpoint, proxyConnection);
         synchronized (error) {
             try {
                 error.wait(TimeUnit.MINUTES.toMillis(1));
@@ -303,16 +298,15 @@ public class NettyClient {
     }
 
     private static void link(final IntegratedServer server, final ConnectHost endpoint, final JWebToken session, final String linkToken) {
-        final NetworkManager networkManager = new NetworkManager(EnumPacketDirection.SERVERBOUND);
+        final NetworkManager networkManager = new NetworkManager(false);
         ProxyConnection connection = new ProxyConnection(endpoint) {
             @Override
             protected void buildPipeline(ChannelPipeline pipeline) {
                 pipeline.addLast("mt:raw", new RawCodec());
-                pipeline.addLast("legacy_query", new LegacyPingHandler(server.getNetworkSystem()));
-                pipeline.addLast("splitter", new NettyVarint21FrameDecoder());
-                pipeline.addLast("decoder", new NettyPacketDecoder(EnumPacketDirection.SERVERBOUND));
-                pipeline.addLast("prepender", new NettyVarint21FrameEncoder());
-                pipeline.addLast("encoder", new NettyPacketEncoder(EnumPacketDirection.CLIENTBOUND));
+                pipeline.addLast("splitter", new MessageDeserializer2());
+                pipeline.addLast("decoder", new MessageDeserializer(NetworkManager.STATISTICS));
+                pipeline.addLast("prepender", new MessageSerializer2());
+                pipeline.addLast("encoder", new MessageSerializer(NetworkManager.STATISTICS));
                 pipeline.addLast("packet_handler", networkManager);
             }
 
@@ -329,24 +323,14 @@ public class NettyClient {
             }
         };
 
-        openConnection(endpoint, connection, NettyClient::serverEventLoop, NettyClient::serverEventLoop);
+        openConnection(endpoint, connection);
         addNetworkManager(server.getNetworkSystem(), networkManager);
     }
 
-    private static ChannelFuture openConnection(final ConnectHost endpoint, final ProxyConnection connection, Supplier<EventLoopGroup> epollGroup, Supplier<EventLoopGroup> nioGroup) {
-        EventLoopGroup eventGroup;
-        Class<? extends Channel> channelClass;
-        if (Epoll.isAvailable()) {
-            eventGroup = epollGroup.get();
-            channelClass = EpollSocketChannel.class;
-        } else {
-            eventGroup = nioGroup.get();
-            channelClass = NioSocketChannel.class;
-        }
-
+    private static ChannelFuture openConnection(final ConnectHost endpoint, final ProxyConnection connection) {
         return new Bootstrap()
-                .group(eventGroup)
-                .channel(channelClass)
+                .group(clientEventLoop())
+                .channel(NioSocketChannel.class)
                 .handler(new ChannelInitializer<Channel>() {
                     @Override
                     protected void initChannel(Channel ch) {
@@ -369,18 +353,8 @@ public class NettyClient {
                 .syncUninterruptibly();
     }
 
-    private static EventLoopGroup serverEventLoop() {
-        if (Epoll.isAvailable()) {
-            return NetworkSystem.SERVER_EPOLL_EVENTLOOP.getValue();
-        }
-        return NetworkSystem.SERVER_NIO_EVENTLOOP.getValue();
-    }
-
     private static EventLoopGroup clientEventLoop() {
-        if (Epoll.isAvailable()) {
-            return NetworkManager.CLIENT_EPOLL_EVENTLOOP.getValue();
-        }
-        return NetworkManager.CLIENT_NIO_EVENTLOOP.getValue();
+        return NetworkManager.eventLoops;
     }
 
     @SuppressWarnings("unchecked")
@@ -515,11 +489,11 @@ public class NettyClient {
 
         @Override
         public void handleMessage(ChannelHandlerContext ctx, CMessage packet) {
-            if (Minecraft.getMinecraft().player != null) {
+            if (Minecraft.getMinecraft().thePlayer != null) {
                 Minecraft.getMinecraft().addScheduledTask(new Runnable() {
                     @Override
                     public void run() {
-                        Minecraft.getMinecraft().player.sendMessage(new TextComponentString("[MTConnect Broadcast] " + packet.message));
+                        Minecraft.getMinecraft().thePlayer.addChatMessage(new TextComponentString("[MTConnect Broadcast] " + packet.message));
                     }
                 });
             }

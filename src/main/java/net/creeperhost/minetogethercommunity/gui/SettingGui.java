@@ -120,7 +120,7 @@ public class SettingGui implements GuiProvider {
                 .onPress(() -> gui.mc().displayGuiScreen(new ProfileGui.Screen(gui.getScreen())));
         new GuiButton(root, () -> I18n.format("minetogether.gui.settings.button.cosmetics"))
                 .setBounds(rightLeft, y, halfWidth, BUTTON_HEIGHT)
-                .setEnabled(() -> gui.mc().player != null)
+                .setEnabled(() -> gui.mc().thePlayer != null)
                 .onPress(() -> gui.mc().displayGuiScreen(new CosmeticsGui.Screen(gui.getScreen())));
 
         y += BUTTON_HEIGHT + 16;

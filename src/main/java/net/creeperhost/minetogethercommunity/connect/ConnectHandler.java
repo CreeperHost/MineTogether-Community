@@ -16,8 +16,8 @@ import net.creeperhost.minetogethercommunity.connect.netty.NettyClient;
 import net.creeperhost.minetogethercommunity.util.ModPackInfo;
 import net.minecraft.client.Minecraft;
 import net.minecraft.server.integrated.IntegratedServer;
-import net.minecraft.server.management.PlayerList;
-import net.minecraft.world.GameType;
+import net.minecraft.server.management.ServerConfigurationManager;
+import net.minecraft.world.WorldSettings.GameType;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -43,7 +43,7 @@ public class ConnectHandler {
     private static final ExecutorService SEARCH_EXECUTOR = Executors.newSingleThreadExecutor(new ThreadFactoryBuilder().setDaemon(true).setNameFormat("MT Connect Friend Search").build());
     private static final ExecutorService SHARE_EXECUTOR = Executors.newSingleThreadExecutor(new ThreadFactoryBuilder().setDaemon(true).setNameFormat("MT Connect Share").build());
     private static final Gson GSON = new Gson();
-    private static final Field PLAYER_LIST_MAX_PLAYERS = findField(PlayerList.class, "maxPlayers", "field_72405_c");
+    private static final Field PLAYER_LIST_MAX_PLAYERS = findField(ServerConfigurationManager.class, "maxPlayers", "field_72405_c");
     private static final Field INTEGRATED_SERVER_IS_PUBLIC = findField(IntegratedServer.class, "isPublic", "field_71346_p");
     private static final Field INTEGRATED_SERVER_LAN_SERVER_PING = findField(IntegratedServer.class, "lanServerPing", "field_71345_q");
 
@@ -163,7 +163,7 @@ public class ConnectHandler {
             generation = ++publishGeneration;
         }
         try {
-            defaultMaxPlayers = server.getPlayerList().getMaxPlayers();
+            defaultMaxPlayers = server.getConfigurationManager().getMaxPlayers();
             setServerMaxPlayers(server, Math.max(2, maxPlayers));
             if (!server.getPublic()) {
                 String port = server.shareToLAN(gameType, cheats);
@@ -173,10 +173,7 @@ public class ConnectHandler {
                 didWeShareFirst = true;
             } else {
                 server.setGameType(gameType);
-                server.getPlayerList().setCommandsAllowedForAll(cheats);
-                if (mc.player != null) {
-                    mc.player.setPermissionLevel(cheats ? 4 : 0);
-                }
+                server.getConfigurationManager().setCommandsAllowedForAll(cheats);
             }
         } catch (Throwable ex) {
             publishing = false;
@@ -334,7 +331,7 @@ public class ConnectHandler {
 
     public static void setServerMaxPlayers(IntegratedServer server, int maxPlayers) {
         try {
-            PLAYER_LIST_MAX_PLAYERS.setInt(server.getPlayerList(), maxPlayers);
+            PLAYER_LIST_MAX_PLAYERS.setInt(server.getConfigurationManager(), maxPlayers);
         } catch (IllegalAccessException ex) {
             throw new RuntimeException("Unable to update integrated server max players", ex);
         }

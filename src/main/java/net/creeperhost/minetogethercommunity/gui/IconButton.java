@@ -3,6 +3,7 @@ package net.creeperhost.minetogethercommunity.gui;
 import net.creeperhost.minetogethercommunity.gui.chat.MTStyle;
 import net.creeperhost.minetogethercommunity.modulargui.TooltipRenderer;
 import net.minecraft.client.Minecraft;
+import net.minecraft.client.gui.Gui;
 import net.minecraft.client.gui.GuiButton;
 import net.minecraft.client.renderer.GlStateManager;
 import net.minecraft.util.ResourceLocation;
@@ -35,30 +36,30 @@ public class IconButton extends GuiButton {
     }
 
     public void updateBounds(int x, int y, int width, int height) {
-        this.x = x;
-        this.y = y;
+        this.xPosition = x;
+        this.yPosition = y;
         this.width = width;
         this.height = height;
     }
 
     @Override
-    public void drawButton(Minecraft mc, int mouseX, int mouseY, float partialTicks) {
+    public void drawButton(Minecraft mc, int mouseX, int mouseY) {
         if (!visible) return;
-        hovered = mouseX >= x && mouseY >= y && mouseX < x + width && mouseY < y + height;
+        hovered = mouseX >= xPosition && mouseY >= yPosition && mouseX < xPosition + width && mouseY < yPosition + height;
         mc.getTextureManager().bindTexture(sheet);
         GlStateManager.enableBlend();
         GlStateManager.color(1F, 1F, 1F, enabled ? 1F : 0.45F);
         if (single) {
-            drawRect(x, y, x + width, y + height, hovered ? 0x64202020 : 0x80000000);
-            drawModalRectWithCustomSizedTexture(x, y, 0, 0, width, height, width, height);
+            drawRect(xPosition, yPosition, xPosition + width, yPosition + height, hovered ? 0x64202020 : 0x80000000);
+            Gui.drawModalRectWithCustomSizedTexture(xPosition, yPosition, 0, 0, width, height, width, height);
         } else {
             int u = index * ICON_SIZE;
             int v = !enabled ? ICON_SIZE * 2 : hovered ? ICON_SIZE : 0;
-            drawModalRectWithCustomSizedTexture(x, y, u, v, width, height, SHEET_SIZE, SHEET_SIZE);
+            Gui.drawModalRectWithCustomSizedTexture(xPosition, yPosition, u, v, width, height, SHEET_SIZE, SHEET_SIZE);
         }
         GlStateManager.color(1F, 1F, 1F, 1F);
         if (hovered && tooltip != null && !tooltip.isEmpty()) {
-            TooltipRenderer.draw(this, mc.fontRenderer, tooltip, mouseX, mouseY, mc.currentScreen.width, mc.currentScreen.height);
+            TooltipRenderer.draw(this, mc.fontRendererObj, tooltip, mouseX, mouseY, mc.currentScreen.width, mc.currentScreen.height);
         }
     }
 }

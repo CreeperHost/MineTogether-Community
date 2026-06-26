@@ -7,6 +7,7 @@ import net.creeperhost.minetogethercommunity.gui.PreviewElement;
 import net.creeperhost.minetogethercommunity.util.MessageFormatter;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiNewChat;
+import net.minecraft.util.IChatComponent;
 import net.minecraft.util.text.ITextComponent;
 import net.minecraft.util.text.event.ClickEvent;
 
@@ -22,7 +23,7 @@ public class InGameChatBridge {
     private static final int MAX_HISTORY_PER_TARGET = 150;
     private static final Map<ChatTarget, List<PendingMessage>> PENDING = new EnumMap<ChatTarget, List<PendingMessage>>(ChatTarget.class);
     private static final Map<ChatTarget, List<HistoryEntry>> MT_HISTORY = new EnumMap<ChatTarget, List<HistoryEntry>>(ChatTarget.class);
-    private static final List<ITextComponent> VANILLA_HISTORY = new ArrayList<ITextComponent>();
+    private static final List<IChatComponent> VANILLA_HISTORY = new ArrayList<IChatComponent>();
 
     private static IrcChannel publicChannel;
     private static IrcChannel groupChannel;
@@ -83,7 +84,7 @@ public class InGameChatBridge {
         renderedTarget = ChatTarget.VANILLA;
     }
 
-    public static void captureVanillaMessage(ITextComponent message) {
+    public static void captureVanillaMessage(IChatComponent message) {
         if (message == null || replaying) return;
         synchronized (VANILLA_HISTORY) {
             VANILLA_HISTORY.add(message.createCopy());
@@ -106,9 +107,9 @@ public class InGameChatBridge {
     private static Message getMessageFromComponent(int mouseX, int mouseY, boolean allowMessageMarker) {
         Minecraft mc = Minecraft.getMinecraft();
         if (mc.ingameGUI == null) return null;
-        ITextComponent component = mc.ingameGUI.getChatGUI().getChatComponent(mouseX, mouseY);
-        if (component == null || component.getStyle() == null) return null;
-        ClickEvent event = component.getStyle().getClickEvent();
+        IChatComponent component = mc.ingameGUI.getChatGUI().getChatComponent(mouseX, mouseY);
+        if (component == null || component.getChatStyle() == null) return null;
+        ClickEvent event = ClickEvent.wrap(component.getChatStyle().getChatClickEvent());
         if (event == null || event.getValue() == null) return null;
         String value = event.getValue();
         String prefix = clickPrefix(value, allowMessageMarker);
@@ -136,9 +137,9 @@ public class InGameChatBridge {
     public static PreviewElement.URLInfo getUrlUnderMouse(int mouseX, int mouseY) {
         Minecraft mc = Minecraft.getMinecraft();
         if (mc.ingameGUI == null) return null;
-        ITextComponent component = mc.ingameGUI.getChatGUI().getChatComponent(mouseX, mouseY);
-        if (component == null || component.getStyle() == null) return null;
-        ClickEvent event = component.getStyle().getClickEvent();
+        IChatComponent component = mc.ingameGUI.getChatGUI().getChatComponent(mouseX, mouseY);
+        if (component == null || component.getChatStyle() == null) return null;
+        ClickEvent event = ClickEvent.wrap(component.getChatStyle().getChatClickEvent());
         if (event == null || event.getAction() != ClickEvent.Action.OPEN_URL) return null;
         try {
             return new PreviewElement.URLInfo(new URL(event.getValue()), false);
@@ -236,9 +237,9 @@ public class InGameChatBridge {
         GuiNewChat chat = mc.ingameGUI.getChatGUI();
         replaying = true;
         try {
-            chat.clearChatMessages(false);
+            chat.clearChatMessages();
             if (target == ChatTarget.VANILLA) {
-                for (ITextComponent component : vanillaHistorySnapshot()) {
+                for (IChatComponent component : vanillaHistorySnapshot()) {
                     chat.printChatMessage(component.createCopy());
                 }
             } else {
@@ -253,9 +254,9 @@ public class InGameChatBridge {
         }
     }
 
-    private static List<ITextComponent> vanillaHistorySnapshot() {
+    private static List<IChatComponent> vanillaHistorySnapshot() {
         synchronized (VANILLA_HISTORY) {
-            return new ArrayList<ITextComponent>(VANILLA_HISTORY);
+            return new ArrayList<IChatComponent>(VANILLA_HISTORY);
         }
     }
 

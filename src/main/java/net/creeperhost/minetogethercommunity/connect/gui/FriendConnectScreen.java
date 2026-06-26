@@ -15,7 +15,8 @@ import net.minecraft.client.resources.I18n;
 import net.minecraft.network.EnumConnectionState;
 import net.minecraft.network.NetworkManager;
 import net.minecraft.network.handshake.client.C00Handshake;
-import net.minecraft.network.login.client.CPacketLoginStart;
+import net.minecraft.network.login.client.C00PacketLoginStart;
+import net.minecraft.realms.RealmsSharedConstants;
 import net.minecraft.util.text.TextComponentString;
 import net.minecraft.util.text.TextComponentTranslation;
 import org.apache.logging.log4j.LogManager;
@@ -68,8 +69,8 @@ public class FriendConnectScreen extends GuiScreen {
                         return;
                     }
                     networkManager.setNetHandler(new NetHandlerLoginClient(networkManager, minecraft, previousGuiScreen));
-                    networkManager.sendPacket(new C00Handshake(endpoint.getAddress(), endpoint.getProxyPort(), EnumConnectionState.LOGIN, true));
-                    networkManager.sendPacket(new CPacketLoginStart(minecraft.getSession().getProfile()));
+                    networkManager.scheduleOutboundPacket(new C00Handshake(RealmsSharedConstants.NETWORK_PROTOCOL_VERSION, endpoint.getAddress(), endpoint.getProxyPort(), EnumConnectionState.LOGIN));
+                    networkManager.scheduleOutboundPacket(new C00PacketLoginStart(minecraft.getSession().getProfile()));
                 } catch (Exception ex) {
                     if (cancel) return;
                     LOGGER.error("Couldn't connect to MineTogether friend server", ex);
@@ -97,7 +98,6 @@ public class FriendConnectScreen extends GuiScreen {
             if (networkManager.isChannelOpen()) {
                 networkManager.processReceivedPackets();
             } else {
-                networkManager.handleDisconnection();
             }
         }
     }
@@ -120,7 +120,7 @@ public class FriendConnectScreen extends GuiScreen {
     @Override
     public void drawScreen(int mouseX, int mouseY, float partialTicks) {
         drawDefaultBackground();
-        drawCenteredString(fontRenderer, I18n.format(networkManager == null ? "connect.connecting" : "connect.authorizing"), width / 2, height / 2 - 50, 0xFFFFFF);
+        drawCenteredString(fontRendererObj, I18n.format(networkManager == null ? "connect.connecting" : "connect.authorizing"), width / 2, height / 2 - 50, 0xFFFFFF);
         super.drawScreen(mouseX, mouseY, partialTicks);
     }
 }

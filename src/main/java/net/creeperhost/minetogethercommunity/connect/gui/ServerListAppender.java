@@ -18,11 +18,12 @@ import net.minecraft.network.NetworkManager;
 import net.minecraft.network.ServerStatusResponse;
 import net.minecraft.network.handshake.client.C00Handshake;
 import net.minecraft.network.status.INetHandlerStatusClient;
-import net.minecraft.network.status.client.CPacketPing;
-import net.minecraft.network.status.client.CPacketServerQuery;
-import net.minecraft.network.status.server.SPacketPong;
-import net.minecraft.network.status.server.SPacketServerInfo;
-import net.minecraft.util.text.ITextComponent;
+import net.minecraft.network.status.client.C00PacketServerQuery;
+import net.minecraft.network.status.client.C01PacketPing;
+import net.minecraft.network.status.server.S00PacketServerInfo;
+import net.minecraft.network.status.server.S01PacketPong;
+import net.minecraft.realms.RealmsSharedConstants;
+import net.minecraft.util.IChatComponent;
 import net.minecraft.util.text.TextComponentTranslation;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -163,7 +164,7 @@ public class ServerListAppender {
 
     private FriendServerEntry getSelectedFriendEntry(GuiMultiplayer screen) {
         if (screen != multiplayerScreen || serverList == null) return null;
-        int selected = serverList.getSelected();
+        int selected = serverList.func_148193_k();
         if (selected < 0) return null;
         GuiListExtended.IGuiListEntry entry;
         try {
@@ -185,8 +186,8 @@ public class ServerListAppender {
                     networkManager = NettyClient.connect(endpoint, token, server.getServerToken(), true);
                     pingConnections.add(networkManager);
                     networkManager.setNetHandler(new StatusHandler(networkManager, server, profile));
-                    networkManager.sendPacket(new C00Handshake(endpoint.getAddress(), endpoint.getProxyPort(), EnumConnectionState.STATUS, true));
-                    networkManager.sendPacket(new CPacketServerQuery());
+                    networkManager.scheduleOutboundPacket(new C00Handshake(RealmsSharedConstants.NETWORK_PROTOCOL_VERSION, endpoint.getAddress(), endpoint.getProxyPort(), EnumConnectionState.STATUS));
+                    networkManager.scheduleOutboundPacket(new C00PacketServerQuery());
                 } catch (Exception ex) {
                     LOGGER.warn("Failed to ping MineTogether friend server {}", server.getFriendHash(), ex);
                     markPingFailed(server, ex.getMessage());
@@ -204,7 +205,6 @@ public class ServerListAppender {
                     manager.processReceivedPackets();
                 } else {
                     iterator.remove();
-                    manager.handleDisconnection();
                 }
             }
         }
@@ -237,7 +237,7 @@ public class ServerListAppender {
         return online + "/" + (max == Integer.MAX_VALUE ? "\u221E" : Integer.toString(max));
     }
 
-    private static String componentText(ITextComponent component) {
+    private static String componentText(IChatComponent component) {
         return component == null ? "" : component.getFormattedText();
     }
 
@@ -256,13 +256,13 @@ public class ServerListAppender {
         }
 
         @Override
-        public void handleServerInfo(SPacketServerInfo packetIn) {
+        public void handleServerInfo(S00PacketServerInfo packetIn) {
             if (receivedInfo) {
                 networkManager.closeChannel(new TextComponentTranslation("multiplayer.status.unrequested"));
                 return;
             }
             receivedInfo = true;
-            ServerStatusResponse response = packetIn.getResponse();
+            ServerStatusResponse response = packetIn.func_149294_c();
             if (response == null) {
                 markPingFailed(server, "empty response");
                 networkManager.closeChannel(new TextComponentTranslation("multiplayer.status.cannot_connect"));
@@ -270,7 +270,7 @@ public class ServerListAppender {
             }
 
             server.setMotd(componentText(response.getServerDescription()));
-            ServerStatusResponse.Version version = response.getVersion();
+            ServerStatusResponse.MinecraftProtocolVersionIdentifier version = response.getProtocolVersionInfo();
             if (version != null) {
                 server.setVersion(version.getName());
                 server.setProtocol(version.getProtocol());
@@ -279,7 +279,7 @@ public class ServerListAppender {
                 server.setProtocol(0);
             }
 
-            ServerStatusResponse.Players players = response.getPlayers();
+            ServerStatusResponse.PlayerCountData players = response.getPlayerCountData();
             if (players != null) {
                 server.setStatus(formatPlayerCount(players.getOnlinePlayerCount(), players.getMaxPlayers()));
                 List<String> playerList = new ArrayList<String>();
@@ -302,23 +302,31 @@ public class ServerListAppender {
             }
 
             pingStart = Minecraft.getSystemTime();
-            networkManager.sendPacket(new CPacketPing(pingStart));
+            networkManager.scheduleOutboundPacket(new C01PacketPing(pingStart));
         }
 
         @Override
-        public void handlePong(SPacketPong packetIn) {
+        public void handlePong(S01PacketPong packetIn) {
             server.setPing(Minecraft.getSystemTime() - pingStart);
             completed = true;
             networkManager.closeChannel(new TextComponentTranslation("multiplayer.status.finished"));
         }
 
         @Override
-        public void onDisconnect(ITextComponent reason) {
+        public void onDisconnect(IChatComponent reason) {
             if (!completed) {
                 String name = profile == null ? server.getFriendHash() : profile.getDisplayName();
                 LOGGER.warn("Could not ping MineTogether friend server for {}: {}", name, reason == null ? "unknown" : reason.getUnformattedText());
                 markPingFailed(server, reason == null ? null : reason.getUnformattedText());
             }
+        }
+
+        @Override
+        public void onNetworkTick() {
+        }
+
+        @Override
+        public void onConnectionStateTransition(EnumConnectionState oldState, EnumConnectionState newState) {
         }
     }
 

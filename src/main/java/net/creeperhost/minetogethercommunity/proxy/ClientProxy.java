@@ -9,42 +9,27 @@ import net.creeperhost.minetogethercommunity.client.ClientEvents;
 import net.creeperhost.minetogethercommunity.client.Keybindings;
 import net.creeperhost.minetogethercommunity.client.MineTogetherSettingsCommand;
 import net.creeperhost.minetogethercommunity.client.OpenFriendChatCommand;
-import net.creeperhost.minetogethercommunity.compat.Integration;
-import net.creeperhost.minetogethercommunity.compat.ftbquests.FTBQuestsCompat;
 import net.creeperhost.minetogethercommunity.connect.ConnectHandler;
 import net.creeperhost.minetogethercommunity.cosmetic.CosmeticApiClient;
 import net.creeperhost.minetogethercommunity.cosmetic.CosmeticDownloader;
 import net.creeperhost.minetogethercommunity.cosmetic.CosmeticSelections;
 import net.creeperhost.minetogethercommunity.cosmetic.PlayerCosmeticCache;
-import net.creeperhost.minetogethercommunity.cosmetic.render.CosmeticLayer;
-import net.creeperhost.minetogethercommunity.cosmetic.render.MineTogetherCapeLayer;
-import net.creeperhost.minetogethercommunity.cosmetic.render.MineTogetherElytraLayer;
+import net.creeperhost.minetogethercommunity.cosmetic.render.LegacyCosmeticRenderer;
 import net.creeperhost.minetogethercommunity.util.MTSessionProvider;
-import net.minecraft.client.Minecraft;
-import net.minecraft.client.entity.AbstractClientPlayer;
-import net.minecraft.client.renderer.entity.RenderLivingBase;
-import net.minecraft.client.renderer.entity.RenderPlayer;
-import net.minecraft.client.renderer.entity.layers.LayerCape;
-import net.minecraft.client.renderer.entity.layers.LayerElytra;
-import net.minecraft.client.renderer.entity.layers.LayerRenderer;
 import net.minecraftforge.common.MinecraftForge;
 import net.minecraftforge.client.ClientCommandHandler;
-import net.minecraftforge.fml.common.event.FMLInitializationEvent;
-import net.minecraftforge.fml.common.event.FMLPreInitializationEvent;
+import cpw.mods.fml.common.event.FMLInitializationEvent;
+import cpw.mods.fml.common.event.FMLPreInitializationEvent;
 
-import java.lang.reflect.Field;
-import java.util.Iterator;
-import java.util.List;
+import java.lang.reflect.Method;
 
 public class ClientProxy extends CommonProxy {
-
-    private static final Field LAYER_RENDERERS = findField(RenderLivingBase.class, "layerRenderers", "field_177097_h", "h");
 
     @Override
     public void preInit(FMLPreInitializationEvent event) {
         Keybindings.init();
-        ClientCommandHandler.instance.registerCommand(new MineTogetherSettingsCommand());
-        ClientCommandHandler.instance.registerCommand(new OpenFriendChatCommand());
+        registerClientCommand(new MineTogetherSettingsCommand());
+        registerClientCommand(new OpenFriendChatCommand());
     }
 
     @Override
@@ -69,37 +54,7 @@ public class ClientProxy extends CommonProxy {
         MineTogetherChat.init();
         ConnectHandler.init();
         MinecraftForge.EVENT_BUS.register(new ClientEvents());
-        Integration.runOptional("ftbquests", () -> () -> MinecraftForge.EVENT_BUS.register(new FTBQuestsCompat()));
-        registerCosmeticLayers();
-    }
-
-    private void registerCosmeticLayers() {
-        for (RenderPlayer renderer : Minecraft.getMinecraft().getRenderManager().getSkinMap().values()) {
-            removeConflictingLayers(renderer);
-            renderer.addLayer(new MineTogetherCapeLayer(renderer));
-            renderer.addLayer(new MineTogetherElytraLayer(renderer));
-            renderer.addLayer(new CosmeticLayer<AbstractClientPlayer>(renderer));
-        }
-    }
-
-    @SuppressWarnings("unchecked")
-    private void removeConflictingLayers(RenderPlayer renderer) {
-        try {
-            List<LayerRenderer<AbstractClientPlayer>> layers = (List<LayerRenderer<AbstractClientPlayer>>) LAYER_RENDERERS.get(renderer);
-            Iterator<LayerRenderer<AbstractClientPlayer>> iterator = layers.iterator();
-            while (iterator.hasNext()) {
-                LayerRenderer<?> layer = iterator.next();
-                if (layer instanceof LayerCape
-                        || layer instanceof LayerElytra
-                        || layer instanceof MineTogetherCapeLayer
-                        || layer instanceof MineTogetherElytraLayer
-                        || layer instanceof CosmeticLayer) {
-                    iterator.remove();
-                }
-            }
-        } catch (IllegalAccessException ex) {
-            throw new RuntimeException("Unable to update player renderer layers", ex);
-        }
+        MinecraftForge.EVENT_BUS.register(new LegacyCosmeticRenderer());
     }
 
     public static void onClientWorldJoin() {
@@ -117,15 +72,37 @@ public class ClientProxy extends CommonProxy {
         PlayerCosmeticCache.clearAll();
     }
 
-    private static Field findField(Class<?> owner, String... names) {
-        for (String name : names) {
+    private static void registerClientCommand(net.minecraft.command.ICommand command) {
+        try {
+            for (Method method : ClientCommandHandler.class.getMethods()) {
+                if (!isRegisterCommandMethod(method) || method.getParameterTypes().length != 1) {
+                    continue;
+                }
+                if (method.getParameterTypes()[0].isAssignableFrom(command.getClass())) {
+                    method.invoke(ClientCommandHandler.instance, command);
+                    return;
+                }
+            }
+            throw new NoSuchMethodException("ClientCommandHandler.registerCommand(ICommand)");
+        } catch (Exception ex) {
+            throw new RuntimeException("Unable to register MineTogether client command " + commandName(command), ex);
+        }
+    }
+
+    private static boolean isRegisterCommandMethod(Method method) {
+        String name = method.getName();
+        return "registerCommand".equals(name) || "func_71560_a".equals(name) || "a".equals(name);
+    }
+
+    private static String commandName(net.minecraft.command.ICommand command) {
+        for (String methodName : new String[]{"getCommandName", "func_71517_b"}) {
             try {
-                Field field = owner.getDeclaredField(name);
-                field.setAccessible(true);
-                return field;
-            } catch (NoSuchFieldException ignored) {
+                Method method = command.getClass().getMethod(methodName);
+                Object value = method.invoke(command);
+                if (value != null) return String.valueOf(value);
+            } catch (Exception ignored) {
             }
         }
-        throw new IllegalStateException("Could not find field on " + owner.getName());
+        return command.getClass().getName();
     }
 }

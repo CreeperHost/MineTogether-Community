@@ -44,16 +44,15 @@ import net.minecraft.client.settings.GameSettings;
 import net.minecraft.client.resources.I18n;
 import net.minecraft.server.integrated.IntegratedServer;
 import net.minecraft.util.math.MathHelper;
-import net.minecraft.util.text.ChatType;
 import net.minecraft.util.text.TextFormatting;
 import net.minecraftforge.client.event.ClientChatReceivedEvent;
-import net.minecraftforge.client.event.ClientChatEvent;
+import net.minecraftforge.client.event.GuiOpenEvent;
 import net.minecraftforge.client.event.GuiScreenEvent;
 import net.minecraftforge.client.event.RenderGameOverlayEvent;
-import net.minecraftforge.fml.common.eventhandler.SubscribeEvent;
-import net.minecraftforge.fml.common.gameevent.InputEvent;
-import net.minecraftforge.fml.common.gameevent.TickEvent;
-import org.lwjgl.input.Mouse;
+import cpw.mods.fml.common.eventhandler.SubscribeEvent;
+import cpw.mods.fml.common.gameevent.InputEvent;
+import cpw.mods.fml.common.gameevent.TickEvent;
+import org.lwjgl.input.Keyboard;
 
 import java.lang.reflect.Field;
 import java.net.MalformedURLException;
@@ -78,6 +77,7 @@ public class ClientEvents {
     private static final int BUTTON_NEW_USER_REJECT = -812031;
     private static final int VANILLA_BUTTON_SHARE_TO_LAN = 7;
     private static final Field CHAT_INPUT_FIELD = findField(GuiChat.class, "inputField", "field_146415_a");
+    private static final Field CHAT_DEFAULT_INPUT_TEXT = findOptionalField(GuiChat.class, "defaultInputFieldText", "field_146409_v");
     private static final Field DRAWN_CHAT_LINES = findField(GuiNewChat.class, "drawnChatLines", "field_146253_i");
     private static final Field CHAT_SCROLL_POS = findField(GuiNewChat.class, "scrollPos", "field_146250_j");
     private static final Field CHAT_IS_SCROLLED = findField(GuiNewChat.class, "isScrolled", "field_146251_k");
@@ -95,7 +95,7 @@ public class ClientEvents {
     @SubscribeEvent
     public void onClientTick(TickEvent.ClientTickEvent event) {
         if (event.phase != TickEvent.Phase.END) return;
-        boolean hasWorld = Minecraft.getMinecraft().world != null;
+        boolean hasWorld = Minecraft.getMinecraft().theWorld != null;
         if (hasWorld && !hadWorld) {
             ClientProxy.onClientWorldJoin();
         } else if (!hasWorld && hadWorld) {
@@ -121,33 +121,17 @@ public class ClientEvents {
     }
 
     @SubscribeEvent
-    public void onClientChat(ClientChatEvent event) {
-        String message = event.getMessage();
-        if (message == null || message.trim().isEmpty()) return;
-        if (message.startsWith("/")) {
-            if (MineTogetherChat.getTarget() != ChatTarget.VANILLA) {
-                MineTogetherChat.setTarget(ChatTarget.VANILLA);
-            }
-            return;
-        }
-        ChatTarget target = MineTogetherChat.getTarget();
-        if (target == ChatTarget.VANILLA) return;
-
-        event.setCanceled(true);
-        if (target == ChatTarget.PUBLIC && MineTogetherChat.isNewUser()) {
-            ChatStatistics.pollStats();
-            MineTogetherChat.localStatus("minetogether.gui.chat.accept_first");
-            return;
-        }
-        if (!MineTogetherChat.sendMessageToTarget(target, message)) {
-            MineTogetherChat.localStatus("minetogether.gui.chat.send_failed");
+    public void onGuiOpen(GuiOpenEvent event) {
+        if (event.gui instanceof GuiChat
+                && !(event.gui instanceof MineTogetherGuiChat)
+                && LocalConfig.instance().chatEnabled) {
+            event.gui = new MineTogetherGuiChat(defaultChatText((GuiChat) event.gui));
         }
     }
 
     @SubscribeEvent
     public void onClientChatReceived(ClientChatReceivedEvent event) {
-        if (event.getType() == ChatType.GAME_INFO) return;
-        InGameChatBridge.captureVanillaMessage(event.getMessage());
+        InGameChatBridge.captureVanillaMessage(event.message);
         if (MineTogetherChat.getTarget() != ChatTarget.VANILLA) {
             event.setCanceled(true);
         }
@@ -172,63 +156,13 @@ public class ClientEvents {
             drawFocusedChat(mc, chat, event);
             event.setCanceled(true);
         } catch (IllegalAccessException ignored) {
-            drawFocusedChatBackdrop(mc, chat, event.getResolution().getScaledHeight());
+            drawFocusedChatBackdrop(mc, chat, event.resolution.getScaledHeight());
         }
-    }
-
-    @SubscribeEvent
-    public void onChatMouseInput(GuiScreenEvent.MouseInputEvent.Pre event) {
-        GuiScreen gui = event.getGui();
-        int button = Mouse.getEventButton();
-        if (!(gui instanceof GuiChat)
-                || !LocalConfig.instance().chatEnabled
-                || MineTogetherChat.getTarget() == ChatTarget.VANILLA
-                || (button != 0 && button != 1)
-                || !Mouse.getEventButtonState()) {
-            return;
-        }
-
-        Minecraft mc = Minecraft.getMinecraft();
-        int rawMouseX = Mouse.getEventX();
-        int rawMouseY = Mouse.getEventY();
-        int mouseX = rawMouseX * gui.width / mc.displayWidth;
-        int mouseY = gui.height - rawMouseY * gui.height / mc.displayHeight - 1;
-
-        if (isOverChatControl(gui, mouseX, mouseY)) {
-            chatActionPopup = null;
-            return;
-        }
-
-        if (chatActionPopup != null) {
-            chatActionPopup.mouseClicked(mouseX, mouseY);
-            event.setCanceled(true);
-            return;
-        }
-
-        Message message = button == 1 || button == 0 && GuiScreen.isShiftKeyDown()
-                ? InGameChatBridge.getMessageUnderMouse(mouseX, mouseY)
-                : InGameChatBridge.getClickedMessage(mouseX, mouseY);
-        PreviewElement.URLInfo urlInfo = InGameChatBridge.getUrlUnderMouse(mouseX, mouseY);
-        URL clickedUrl = urlInfo == null ? null : urlInfo.getUrl();
-        if (!isActionableMessage(message) && clickedUrl == null) return;
-
-        event.setCanceled(true);
-        if (button == 0 && clickedUrl != null && !GuiScreen.isShiftKeyDown()) {
-            if (!KeycloakOAuth.openURL(clickedUrl)) {
-                MineTogetherChat.localStatus("minetogether.gui.chat.action.open_failed");
-            }
-            return;
-        }
-        if (isActionableMessage(message) && LocalConfig.instance().shiftClickMention && button == 0 && GuiScreen.isShiftKeyDown()) {
-            mentionInChat((GuiChat) gui, message.sender);
-            return;
-        }
-        chatActionPopup = new ChatActionPopup(message, clickedUrl, mouseX, mouseY, gui.width, gui.height);
     }
 
     @SubscribeEvent
     public void onGuiInit(GuiScreenEvent.InitGuiEvent.Post event) {
-        GuiScreen gui = event.getGui();
+        GuiScreen gui = event.gui;
         if (gui instanceof GuiChat && LocalConfig.instance().chatEnabled) {
             clampFocusedChatHeight(Minecraft.getMinecraft());
             addChatTargetButtons(event, gui);
@@ -256,29 +190,29 @@ public class ClientEvents {
 
     @SubscribeEvent
     public void onActionPre(GuiScreenEvent.ActionPerformedEvent.Pre event) {
-        if (event.getGui() instanceof GuiMultiplayer && event.getButton().id == 1
-                && ServerListAppender.INSTANCE.hasSelectedFriendServer((GuiMultiplayer) event.getGui())) {
+        if (event.gui instanceof GuiMultiplayer && event.button.id == 1
+                && ServerListAppender.INSTANCE.hasSelectedFriendServer((GuiMultiplayer) event.gui)) {
             event.setCanceled(true);
-            ServerListAppender.INSTANCE.openSelected((GuiMultiplayer) event.getGui());
+            ServerListAppender.INSTANCE.openSelected((GuiMultiplayer) event.gui);
         }
     }
 
     @SubscribeEvent
     public void onAction(GuiScreenEvent.ActionPerformedEvent.Post event) {
-        GuiButton button = event.getButton();
+        GuiButton button = event.button;
         Minecraft mc = Minecraft.getMinecraft();
         if (button.id == BUTTON_SETTINGS) {
-            mc.displayGuiScreen(new SettingGui.Screen(event.getGui()));
+            mc.displayGuiScreen(new SettingGui.Screen(event.gui));
         } else if (button.id == BUTTON_FRIENDS) {
-            mc.displayGuiScreen(new FriendChatGui.Screen(event.getGui()));
+            mc.displayGuiScreen(new FriendChatGui.Screen(event.gui));
         } else if (button.id == BUTTON_CHAT) {
-            mc.displayGuiScreen(new PublicChatGui.Screen(event.getGui()));
+            mc.displayGuiScreen(new PublicChatGui.Screen(event.gui));
         } else if (button.id == BUTTON_CONNECT) {
             if (isIntegratedSharingOpen(mc)) {
                 ConnectHandler.closeSharing();
                 mc.displayGuiScreen(new GuiIngameMenu());
             } else {
-                mc.displayGuiScreen(new GuiShareToFriends.Screen(event.getGui()));
+                mc.displayGuiScreen(new GuiShareToFriends.Screen(event.gui));
             }
         } else if (button.id == BUTTON_ISSUE_TRACKER) {
             openIssueTracker();
@@ -304,10 +238,10 @@ public class ClientEvents {
         String url = Config.instance().issueTrackerUrl;
         if (url == null || url.trim().isEmpty()) return;
         String label = I18n.format("menu.reportBugs");
-        for (int i = 0; i < event.getButtonList().size(); i++) {
-            GuiButton button = event.getButtonList().get(i);
+        for (int i = 0; i < event.buttonList.size(); i++) {
+            GuiButton button = (GuiButton) event.buttonList.get(i);
             if (!label.equals(button.displayString)) continue;
-            event.getButtonList().set(i, new GuiButton(BUTTON_ISSUE_TRACKER, button.x, button.y, button.width, button.height, button.displayString));
+            event.buttonList.set(i, new GuiButton(BUTTON_ISSUE_TRACKER, button.xPosition, button.yPosition, button.width, button.height, button.displayString));
             return;
         }
     }
@@ -323,12 +257,12 @@ public class ClientEvents {
     }
 
     private void addPauseConnectButton(GuiScreenEvent.InitGuiEvent.Post event, GuiScreen gui) {
-        GuiButton lanButton = findButton(event.getButtonList(), VANILLA_BUTTON_SHARE_TO_LAN);
+        GuiButton lanButton = findButton(event.buttonList, VANILLA_BUTTON_SHARE_TO_LAN);
         boolean sharingOpen = isIntegratedSharingOpen(Minecraft.getMinecraft());
         if (lanButton != null) {
             if (sharingOpen) {
-                int index = event.getButtonList().indexOf(lanButton);
-                event.getButtonList().set(index, new TrimmingButton(BUTTON_CONNECT, lanButton.x, lanButton.y,
+                int index = event.buttonList.indexOf(lanButton);
+                event.buttonList.set(index, new TrimmingButton(BUTTON_CONNECT, lanButton.xPosition, lanButton.yPosition,
                         lanButton.width, lanButton.height, I18n.format("minetogether.connect.close_server")));
             } else {
                 int gap = 4;
@@ -336,8 +270,8 @@ public class ClientEvents {
                 int leftWidth = Math.max(50, (totalWidth - gap) / 2);
                 int rightWidth = Math.max(50, totalWidth - leftWidth - gap);
                 lanButton.width = leftWidth;
-                event.getButtonList().add(new TrimmingButton(BUTTON_CONNECT,
-                        lanButton.x + leftWidth + gap, lanButton.y, rightWidth, lanButton.height,
+                event.buttonList.add(new TrimmingButton(BUTTON_CONNECT,
+                        lanButton.xPosition + leftWidth + gap, lanButton.yPosition, rightWidth, lanButton.height,
                         I18n.format("minetogether.connect.open")));
             }
             return;
@@ -351,17 +285,18 @@ public class ClientEvents {
         if (Config.instance().moveButtonsOnPauseMenu) {
             int preferredX = gui.width / 2 - 100;
             int preferredY = gui.height / 4 + 144;
-            for (GuiButton button : event.getButtonList()) {
-                if (intersects(preferredX, preferredY, width, height, button.x, button.y, button.width, button.height)) {
-                    preferredY = Math.max(preferredY, button.y + button.height + 4);
+            for (Object rawButton : event.buttonList) {
+                GuiButton button = (GuiButton) rawButton;
+                if (intersects(preferredX, preferredY, width, height, button.xPosition, button.yPosition, button.width, button.height)) {
+                    preferredY = Math.max(preferredY, button.yPosition + button.height + 4);
                 }
             }
-            if (preferredY + height <= gui.height - 6 && !collides(event.getButtonList(), preferredX, preferredY, width, height)) {
+            if (preferredY + height <= gui.height - 6 && !collides(event.buttonList, preferredX, preferredY, width, height)) {
                 x = preferredX;
                 y = preferredY;
             }
         }
-        event.getButtonList().add(new TrimmingButton(BUTTON_CONNECT, x, y, width, height, label));
+        event.buttonList.add(new TrimmingButton(BUTTON_CONNECT, x, y, width, height, label));
     }
 
     private GuiButton findButton(List<GuiButton> buttons, int id) {
@@ -380,7 +315,7 @@ public class ClientEvents {
 
     private boolean collides(List<GuiButton> buttons, int x, int y, int width, int height) {
         for (GuiButton button : buttons) {
-            if (intersects(x, y, width, height, button.x, button.y, button.width, button.height)) {
+            if (intersects(x, y, width, height, button.xPosition, button.yPosition, button.width, button.height)) {
                 return true;
             }
         }
@@ -393,7 +328,7 @@ public class ClientEvents {
 
     @SubscribeEvent
     public void onDrawScreen(GuiScreenEvent.DrawScreenEvent.Pre event) {
-        GuiScreen gui = event.getGui();
+        GuiScreen gui = event.gui;
         if (gui instanceof GuiChat && LocalConfig.instance().chatEnabled && !Minecraft.getMinecraft().gameSettings.hideGUI) {
             syncChatControlBounds(gui);
         }
@@ -418,29 +353,29 @@ public class ClientEvents {
 
     @SubscribeEvent
     public void onDrawScreenPost(GuiScreenEvent.DrawScreenEvent.Post event) {
-        if (!(event.getGui() instanceof GuiChat)
+        if (!(event.gui instanceof GuiChat)
                 || MineTogetherChat.getTarget() == ChatTarget.VANILLA
                 || Minecraft.getMinecraft().gameSettings.hideGUI) {
             return;
         }
         if (chatActionPopup != null) {
-            chatActionPopup.draw(event.getMouseX(), event.getMouseY());
+            chatActionPopup.draw(event.mouseX, event.mouseY);
             return;
         }
-        PreviewElement.URLInfo info = InGameChatBridge.getUrlUnderMouse(event.getMouseX(), event.getMouseY());
+        PreviewElement.URLInfo info = InGameChatBridge.getUrlUnderMouse(event.mouseX, event.mouseY);
         if (info != null) {
-            PreviewElement.renderPreview(Minecraft.getMinecraft(), info, event.getMouseX(), event.getMouseY(),
-                    event.getGui().width, event.getGui().height, 80, false);
+            PreviewElement.renderPreview(Minecraft.getMinecraft(), info, event.mouseX, event.mouseY,
+                    event.gui.width, event.gui.height, 80, false);
         }
     }
 
     private void addMenuButtons(GuiScreenEvent.InitGuiEvent.Post event, GuiScreen gui) {
         int x = gui.width - 25;
         int y = 5;
-        event.getButtonList().add(new IconButton(BUTTON_SETTINGS, x, y, 3, Constants.WIDGETS_SHEET, I18n.format("minetogether.gui.button.settings.info")));
-        event.getButtonList().add(new IconButton(BUTTON_FRIENDS, x - 21, y, 7, Constants.WIDGETS_SHEET, I18n.format("minetogether.gui.button.friends.info")));
+        event.buttonList.add(new IconButton(BUTTON_SETTINGS, x, y, 3, Constants.WIDGETS_SHEET, I18n.format("minetogether.gui.button.settings.info")));
+        event.buttonList.add(new IconButton(BUTTON_FRIENDS, x - 21, y, 7, Constants.WIDGETS_SHEET, I18n.format("minetogether.gui.button.friends.info")));
         if (LocalConfig.instance().chatEnabled) {
-            event.getButtonList().add(new IconButton(BUTTON_CHAT, x - 42, y, 1, Constants.WIDGETS_SHEET, I18n.format("minetogether.gui.button.global_chat.info")));
+            event.buttonList.add(new IconButton(BUTTON_CHAT, x - 42, y, 1, Constants.WIDGETS_SHEET, I18n.format("minetogether.gui.button.global_chat.info")));
         }
     }
 
@@ -450,9 +385,9 @@ public class ClientEvents {
         int chatRight = chatContentRightEdge();
         int y = gui.height - 38;
         int sliderWidth = Math.max(44, chatRight / 3);
-        event.getButtonList().add(new CompactChatSlider(BUTTON_CHAT_WIDTH, 0, y, sliderWidth, GameSettings.Options.CHAT_WIDTH));
-        event.getButtonList().add(new CompactChatSlider(BUTTON_CHAT_HEIGHT, sliderWidth + 2, y, sliderWidth, GameSettings.Options.CHAT_HEIGHT_FOCUSED));
-        event.getButtonList().add(new CompactChatSlider(BUTTON_CHAT_SCALE, (sliderWidth * 2) + 4, y, Math.max(44, chatRight - (sliderWidth * 2) - 4), GameSettings.Options.CHAT_SCALE));
+        event.buttonList.add(new CompactChatSlider(BUTTON_CHAT_WIDTH, 0, y, sliderWidth, GameSettings.Options.CHAT_WIDTH));
+        event.buttonList.add(new CompactChatSlider(BUTTON_CHAT_HEIGHT, sliderWidth + 2, y, sliderWidth, GameSettings.Options.CHAT_HEIGHT_FOCUSED));
+        event.buttonList.add(new CompactChatSlider(BUTTON_CHAT_SCALE, (sliderWidth * 2) + 4, y, Math.max(44, chatRight - (sliderWidth * 2) - 4), GameSettings.Options.CHAT_SCALE));
     }
 
     private boolean isOverChatControl(GuiScreen gui, int mouseX, int mouseY) {
@@ -474,6 +409,78 @@ public class ClientEvents {
         int thirdWidth = Math.max(44, chatRight - (sliderWidth * 2) - 4);
         int sliderRight = (sliderWidth * 2) + 4 + thirdWidth;
         return mouseY >= y && mouseY < y + 7 && mouseX >= 0 && mouseX < sliderRight;
+    }
+
+    private boolean handleMineTogetherChatClick(GuiChat gui, int mouseX, int mouseY, int mouseButton) {
+        if (!LocalConfig.instance().chatEnabled || MineTogetherChat.getTarget() == ChatTarget.VANILLA) {
+            return false;
+        }
+
+        if (isOverChatControl(gui, mouseX, mouseY)) {
+            chatActionPopup = null;
+            return false;
+        }
+
+        if (chatActionPopup != null) {
+            if (mouseButton == 0) {
+                chatActionPopup.mouseClicked(mouseX, mouseY);
+                return true;
+            }
+            if (mouseButton == 1) {
+                chatActionPopup = null;
+                refocusChatInput();
+                return true;
+            }
+        }
+
+        if (mouseButton != 0 && mouseButton != 1) {
+            return false;
+        }
+
+        Message message = mouseButton == 1 || mouseButton == 0 && GuiScreen.isShiftKeyDown()
+                ? InGameChatBridge.getMessageUnderMouse(mouseX, mouseY)
+                : InGameChatBridge.getClickedMessage(mouseX, mouseY);
+        PreviewElement.URLInfo info = InGameChatBridge.getUrlUnderMouse(mouseX, mouseY);
+        URL url = info == null ? null : info.getUrl();
+        if (!isActionableMessage(message) && url == null) {
+            return false;
+        }
+
+        if (mouseButton == 0 && url != null && !GuiScreen.isShiftKeyDown()) {
+            if (!KeycloakOAuth.openURL(url)) {
+                MineTogetherChat.localStatus("minetogether.gui.chat.action.open_failed");
+            }
+            return true;
+        }
+        if (mouseButton == 0 && LocalConfig.instance().shiftClickMention && GuiScreen.isShiftKeyDown() && isActionableMessage(message)) {
+            mentionInChat(gui, message.sender);
+            return true;
+        }
+
+        chatActionPopup = new ChatActionPopup(message, url, mouseX, mouseY, gui.width, gui.height);
+        refocusChatInput();
+        return true;
+    }
+
+    private boolean submitMineTogetherChat(ChatTarget target, String text) {
+        String trimmed = text == null ? "" : text.trim();
+        if (!trimmed.isEmpty()) {
+            Minecraft mc = Minecraft.getMinecraft();
+            if (target == ChatTarget.PUBLIC && MineTogetherChat.isNewUser()) {
+                ChatStatistics.pollStats();
+                MineTogetherChat.localStatus("minetogether.gui.chat.accept_first");
+                return true;
+            }
+            if (mc.ingameGUI != null) {
+                mc.ingameGUI.getChatGUI().addToSentMessages(trimmed);
+            }
+            if (!MineTogetherChat.sendMessageToTarget(target, trimmed)) {
+                MineTogetherChat.localStatus("minetogether.gui.chat.send_failed");
+            }
+        }
+        chatActionPopup = null;
+        Minecraft.getMinecraft().displayGuiScreen(null);
+        return true;
     }
 
     @SuppressWarnings("unchecked")
@@ -528,8 +535,8 @@ public class ClientEvents {
     }
 
     private void setButtonBounds(GuiButton button, int x, int y, int width, int height) {
-        button.x = x;
-        button.y = y;
+        button.xPosition = x;
+        button.yPosition = y;
         button.width = Math.max(0, width);
         button.height = Math.max(0, height);
     }
@@ -539,23 +546,23 @@ public class ClientEvents {
 
         ChatLayout layout = chatLayout(gui);
         boolean groupChat = hasGroupChat();
-        event.getButtonList().add(new ChatTargetButton(BUTTON_TARGET_VANILLA, layout.x, layout.vanillaY, 12, layout.vanillaHeight,
+        event.buttonList.add(new ChatTargetButton(BUTTON_TARGET_VANILLA, layout.x, layout.vanillaY, 12, layout.vanillaHeight,
                 new Supplier<String>() {
                     @Override
                     public String get() {
                         return vanillaChatTargetLabel();
                     }
                 }, ChatTarget.VANILLA));
-        event.getButtonList().add(new ChatTargetButton(BUTTON_TARGET_PUBLIC, layout.x, layout.publicY, 12, layout.publicHeight,
+        event.buttonList.add(new ChatTargetButton(BUTTON_TARGET_PUBLIC, layout.x, layout.publicY, 12, layout.publicHeight,
                 label("minetogether:ingame.chat.global"), ChatTarget.PUBLIC));
 
         ChatTargetButton group = new ChatTargetButton(BUTTON_TARGET_GROUP, layout.x, layout.groupY, 12, layout.groupHeight,
                 label("minetogether:ingame.chat.group"), ChatTarget.GROUP);
         group.visible = groupChat;
         group.enabled = groupChat;
-        event.getButtonList().add(group);
+        event.buttonList.add(group);
 
-        event.getButtonList().add(new IconButton(BUTTON_SETTINGS, layout.x, layout.settingsY, 12, 12, Constants.GEAR_BUTTON, I18n.format("minetogether.gui.button.settings.info")));
+        event.buttonList.add(new IconButton(BUTTON_SETTINGS, layout.x, layout.settingsY, 12, 12, Constants.GEAR_BUTTON, I18n.format("minetogether.gui.button.settings.info")));
     }
 
     private String vanillaChatTargetLabel() {
@@ -584,9 +591,9 @@ public class ClientEvents {
         int x = newUserPanelX(gui);
         int y = newUserPanelY(gui);
         int width = newUserPanelWidth(gui);
-        event.getButtonList().add(new TrimmingButton(BUTTON_NEW_USER_ACCEPT, x + 8, y + 78, width - 16, 20,
+        event.buttonList.add(new TrimmingButton(BUTTON_NEW_USER_ACCEPT, x + 8, y + 78, width - 16, 20,
                 I18n.format("minetogether.gui.join.button.accept", ChatStatistics.onlineCount)));
-        event.getButtonList().add(new TrimmingButton(BUTTON_NEW_USER_REJECT, x + 8, y + 100, width - 16, 20,
+        event.buttonList.add(new TrimmingButton(BUTTON_NEW_USER_REJECT, x + 8, y + 100, width - 16, 20,
                 I18n.format("minetogether.gui.join.button.reject")));
     }
 
@@ -605,11 +612,11 @@ public class ClientEvents {
 
     private void drawCentered(Minecraft mc, String text, int x, int y, int width, int color) {
         String trimmed = trimToWidth(mc, text, width - 8);
-        mc.fontRenderer.drawStringWithShadow(trimmed, x + (width - mc.fontRenderer.getStringWidth(trimmed)) / 2, y, color);
+        mc.fontRendererObj.drawStringWithShadow(trimmed, x + (width - mc.fontRendererObj.getStringWidth(trimmed)) / 2, y, color);
     }
 
     private void drawFocusedChat(Minecraft mc, GuiNewChat chat, RenderGameOverlayEvent.Chat event) throws IllegalAccessException {
-        drawFocusedChatBackdrop(mc, chat, event.getResolution().getScaledHeight());
+        drawFocusedChatBackdrop(mc, chat, event.resolution.getScaledHeight());
 
         @SuppressWarnings("unchecked")
         List<ChatLine> lines = (List<ChatLine>) DRAWN_CHAT_LINES.get(chat);
@@ -626,7 +633,7 @@ public class ClientEvents {
 
         GlStateManager.pushMatrix();
         GlStateManager.enableBlend();
-        GlStateManager.translate((float) event.getPosX(), (float) event.getPosY(), 0.0F);
+        GlStateManager.translate((float) event.posX, (float) event.posY, 0.0F);
         GlStateManager.translate(2.0F, 8.0F, 0.0F);
         GlStateManager.scale(scale, scale, 1.0F);
         for (int lineIndex = 0; lineIndex + scrollPos < lines.size() && lineIndex < maxLines; lineIndex++) {
@@ -641,9 +648,9 @@ public class ClientEvents {
             String text = line.getChatComponent().getFormattedText();
             int y = -lineIndex * 9;
             GlStateManager.enableBlend();
-            mc.fontRenderer.drawStringWithShadow(text, 0.0F, (float) (y - 8), 0xFFFFFF + (alpha << 24));
+            mc.fontRendererObj.drawStringWithShadow(text, 0, y - 8, 0xFFFFFF + (alpha << 24));
         }
-        drawFocusedChatScrollBar(lines.size(), renderedLines, scrollPos, isScrolled, mc.fontRenderer.FONT_HEIGHT);
+        drawFocusedChatScrollBar(lines.size(), renderedLines, scrollPos, isScrolled, mc.fontRendererObj.FONT_HEIGHT);
         GlStateManager.disableAlpha();
         GlStateManager.disableBlend();
         GlStateManager.popMatrix();
@@ -703,7 +710,7 @@ public class ClientEvents {
 
     private void drawLogo(Minecraft mc, int x, int y, int width, int height) {
         if (width <= 0 || height <= 0) return;
-        FontRenderer font = mc.fontRenderer;
+        FontRenderer font = mc.fontRendererObj;
         String created = "Created by";
         int creeperHeight = 19;
         int creeperWidth = (int) (creeperHeight * (960D / 266D));
@@ -763,9 +770,9 @@ public class ClientEvents {
 
     private static String trimToWidth(Minecraft mc, String text, int width) {
         if (text == null) return "";
-        if (width <= 0 || mc.fontRenderer.getStringWidth(text) <= width) return text;
-        int ellipsis = mc.fontRenderer.getStringWidth("...");
-        return mc.fontRenderer.trimStringToWidth(text, Math.max(1, width - ellipsis)) + "...";
+        if (width <= 0 || mc.fontRendererObj.getStringWidth(text) <= width) return text;
+        int ellipsis = mc.fontRendererObj.getStringWidth("...");
+        return mc.fontRendererObj.trimStringToWidth(text, Math.max(1, width - ellipsis)) + "...";
     }
 
     private int chatContentRightEdge() {
@@ -860,6 +867,7 @@ public class ClientEvents {
         private static final int PADDING = 4;
         private static final int ROW_HEIGHT = 13;
         private static final int MAX_WIDTH = 300;
+        private static final int TEXT_SPARE = 8;
         private final List<PopupOption> options = new java.util.ArrayList<PopupOption>();
 
         private ChatActionPopup(Message message, URL url, int mouseX, int mouseY, int screenWidth, int screenHeight) {
@@ -905,12 +913,13 @@ public class ClientEvents {
             }
 
             Minecraft mc = Minecraft.getMinecraft();
-            int measuredWidth = mc.fontRenderer.getStringWidth(title());
+            int measuredWidth = mc.fontRendererObj.getStringWidth(title());
             for (PopupOption option : options) {
-                measuredWidth = Math.max(measuredWidth, mc.fontRenderer.getStringWidth(option.label));
+                measuredWidth = Math.max(measuredWidth, mc.fontRendererObj.getStringWidth(option.label));
             }
-            width = Math.max(80, Math.min(Math.min(MAX_WIDTH, screenWidth - 8), measuredWidth + PADDING * 2));
-            int height = height();
+            int maxPopupWidth = Math.max(40, Math.min(MAX_WIDTH, screenWidth - 8));
+            int minPopupWidth = Math.min(80, maxPopupWidth);
+            width = Math.max(minPopupWidth, Math.min(maxPopupWidth, measuredWidth + PADDING * 2 + TEXT_SPARE));
             int popupHeight = height();
             int left = mouseX + width + 4 > screenWidth ? mouseX - width - 4 : mouseX;
             int top = mouseY + popupHeight + 4 > screenHeight ? mouseY - popupHeight - 4 : mouseY;
@@ -919,25 +928,26 @@ public class ClientEvents {
         }
 
         private int height() {
-            return PADDING * 2 + ROW_HEIGHT * (options.size() + 1);
+            int total = PADDING * 2 + rowHeight(title());
+            for (PopupOption option : options) {
+                total += rowHeight(option.label);
+            }
+            return total;
         }
 
         private void draw(int mouseX, int mouseY) {
             Minecraft mc = Minecraft.getMinecraft();
-            int height = height();
-            drawTooltipBackground(height);
+            drawTooltipBackground(height());
             int rowY = y + PADDING;
-            String title = TextFormatting.UNDERLINE + trimToWidth(mc, title(), width - PADDING * 2);
-            mc.fontRenderer.drawStringWithShadow(title, x + PADDING, rowY + 2, MTStyle.Flat.TEXT_WARN);
-            rowY += ROW_HEIGHT;
+            rowY += drawWrapped(mc, TextFormatting.UNDERLINE + title(), rowY, MTStyle.Flat.TEXT_WARN);
 
             for (int i = 0; i < options.size(); i++) {
                 PopupOption option = options.get(i);
+                int rowHeight = rowHeight(option.label);
                 if (isOption(mouseX, mouseY, i)) {
-                    Gui.drawRect(x + 2, rowY, x + width - 2, rowY + ROW_HEIGHT, MTStyle.Flat.CONTENT_AREA_HOVER);
+                    Gui.drawRect(x + 2, rowY, x + width - 2, rowY + rowHeight, MTStyle.Flat.CONTENT_AREA_HOVER);
                 }
-                mc.fontRenderer.drawStringWithShadow(trimToWidth(mc, option.label, width - PADDING * 2), x + PADDING, rowY + 2, option.color);
-                rowY += ROW_HEIGHT;
+                rowY += drawWrapped(mc, option.label, rowY, option.color);
             }
         }
 
@@ -953,8 +963,29 @@ public class ClientEvents {
         }
 
         private boolean isOption(int mouseX, int mouseY, int index) {
-            int oy = y + PADDING + ROW_HEIGHT + index * ROW_HEIGHT;
-            return mouseX >= x + 2 && mouseX < x + width - 2 && mouseY >= oy && mouseY < oy + ROW_HEIGHT;
+            int oy = y + PADDING + rowHeight(title());
+            for (int i = 0; i < index; i++) {
+                oy += rowHeight(options.get(i).label);
+            }
+            int optionHeight = rowHeight(options.get(index).label);
+            return mouseX >= x + 2 && mouseX < x + width - 2 && mouseY >= oy && mouseY < oy + optionHeight;
+        }
+
+        private int rowHeight(String text) {
+            return Math.max(ROW_HEIGHT, wrappedLines(text).size() * Minecraft.getMinecraft().fontRendererObj.FONT_HEIGHT + 4);
+        }
+
+        private int drawWrapped(Minecraft mc, String text, int rowY, int color) {
+            List<String> lines = wrappedLines(text);
+            for (int i = 0; i < lines.size(); i++) {
+                mc.fontRendererObj.drawStringWithShadow(lines.get(i), x + PADDING, rowY + 2 + i * mc.fontRendererObj.FONT_HEIGHT, color);
+            }
+            return Math.max(ROW_HEIGHT, lines.size() * mc.fontRendererObj.FONT_HEIGHT + 4);
+        }
+
+        @SuppressWarnings("unchecked")
+        private List<String> wrappedLines(String text) {
+            return Minecraft.getMinecraft().fontRendererObj.listFormattedStringToWidth(text == null ? "" : text, Math.max(1, width - PADDING * 2));
         }
 
         private void drawTooltipBackground(int height) {
@@ -997,13 +1028,14 @@ public class ClientEvents {
     }
 
     private void scanRemoteCosmetics(Minecraft mc) {
-        if (mc.world == null || mc.player == null) return;
+        if (mc.theWorld == null || mc.thePlayer == null) return;
         cosmeticScanTicks++;
         if (cosmeticScanTicks < 20) return;
         cosmeticScanTicks = 0;
 
-        for (EntityPlayer player : mc.world.playerEntities) {
-            if (player == null || player == mc.player) continue;
+        for (Object playerObject : mc.theWorld.playerEntities) {
+            EntityPlayer player = (EntityPlayer) playerObject;
+            if (player == null || player == mc.thePlayer) continue;
             if (PlayerCosmeticCache.get(player.getUniqueID()) != null) continue;
             CosmeticApiClient.fetchProfileForPlayerAsync(player.getUniqueID());
         }
@@ -1019,6 +1051,58 @@ public class ClientEvents {
             }
         }
         throw new IllegalStateException("Could not find field on " + owner.getName());
+    }
+
+    private static Field findOptionalField(Class<?> owner, String... names) {
+        for (String name : names) {
+            try {
+                Field field = owner.getDeclaredField(name);
+                field.setAccessible(true);
+                return field;
+            } catch (NoSuchFieldException ignored) {
+            }
+        }
+        return null;
+    }
+
+    private static String defaultChatText(GuiChat gui) {
+        if (CHAT_DEFAULT_INPUT_TEXT == null) return "";
+        try {
+            Object value = CHAT_DEFAULT_INPUT_TEXT.get(gui);
+            return value instanceof String ? (String) value : "";
+        } catch (IllegalAccessException ignored) {
+            return "";
+        }
+    }
+
+    private class MineTogetherGuiChat extends GuiChat {
+        private MineTogetherGuiChat(String defaultText) {
+            super(defaultText == null ? "" : defaultText);
+        }
+
+        @Override
+        protected void keyTyped(char typedChar, int keyCode) {
+            ChatTarget target = MineTogetherChat.getTarget();
+            if ((keyCode == Keyboard.KEY_RETURN || keyCode == Keyboard.KEY_NUMPADENTER)
+                    && LocalConfig.instance().chatEnabled
+                    && target != ChatTarget.VANILLA) {
+                String text = inputField == null ? "" : inputField.getText();
+                if (!text.trim().startsWith("/")) {
+                    submitMineTogetherChat(target, text);
+                    return;
+                }
+                MineTogetherChat.setTarget(ChatTarget.VANILLA);
+            }
+            super.keyTyped(typedChar, keyCode);
+        }
+
+        @Override
+        protected void mouseClicked(int mouseX, int mouseY, int mouseButton) {
+            if (handleMineTogetherChatClick(this, mouseX, mouseY, mouseButton)) {
+                return;
+            }
+            super.mouseClicked(mouseX, mouseY, mouseButton);
+        }
     }
 
     private static class ChatLayout {
@@ -1049,11 +1133,11 @@ public class ClientEvents {
         }
 
         @Override
-        public void drawButton(Minecraft mc, int mouseX, int mouseY, float partialTicks) {
+        public void drawButton(Minecraft mc, int mouseX, int mouseY) {
             String original = displayString;
             displayString = trimToWidth(mc, original, width - 8);
             try {
-                super.drawButton(mc, mouseX, mouseY, partialTicks);
+                super.drawButton(mc, mouseX, mouseY);
             } finally {
                 displayString = original;
             }
@@ -1071,26 +1155,26 @@ public class ClientEvents {
         }
 
         @Override
-        public void drawButton(Minecraft mc, int mouseX, int mouseY, float partialTicks) {
+        public void drawButton(Minecraft mc, int mouseX, int mouseY) {
             if (!(mc.currentScreen instanceof GuiChat)) {
                 visible = false;
                 return;
             }
             if (!visible) return;
             displayString = label.get();
-            hovered = mouseX >= x && mouseY >= y && mouseX < x + width && mouseY < y + height;
+            hovered = mouseX >= xPosition && mouseY >= yPosition && mouseX < xPosition + width && mouseY < yPosition + height;
             boolean selected = MineTogetherChat.getTarget() == target;
             boolean highlighted = hovered || selected;
-            Gui.drawRect(x, y, x + width, y + height, highlighted ? 0x80000000 : 0x64202020);
+            Gui.drawRect(xPosition, yPosition, xPosition + width, yPosition + height, highlighted ? 0x80000000 : 0x64202020);
             drawVerticalLabel(mc, highlighted ? 0xFFFFA0 : 0xFFFFFF);
         }
 
         private void drawVerticalLabel(Minecraft mc, int color) {
             String label = displayString;
-            int textWidth = mc.fontRenderer.getStringWidth(label);
+            int textWidth = mc.fontRendererObj.getStringWidth(label);
             if (textWidth <= 0) return;
             float scale = 1.0F;
-            float lineHeight = mc.fontRenderer.FONT_HEIGHT;
+            float lineHeight = mc.fontRendererObj.FONT_HEIGHT;
             float scaledHeight = lineHeight * scale;
             float scaledWidth = textWidth * scale;
             int autoWidth = height - 6;
@@ -1102,12 +1186,12 @@ public class ClientEvents {
 
             GlStateManager.pushMatrix();
             GlStateManager.translate(
-                    x + scaledHeight + (width / 2.0F) - (scaledHeight / 2.0F),
-                    y + (height / 2.0F) - (scaledWidth / 2.0F),
+                    xPosition + scaledHeight + (width / 2.0F) - (scaledHeight / 2.0F),
+                    yPosition + (height / 2.0F) - (scaledWidth / 2.0F),
                     0.0F);
             GlStateManager.rotate(90.0F, 0.0F, 0.0F, 1.0F);
             GlStateManager.scale(scale, scale, 1.0F);
-            mc.fontRenderer.drawString(label, 0, 0, color);
+            mc.fontRendererObj.drawString(label, 0, 0, color);
             GlStateManager.popMatrix();
         }
     }
@@ -1122,7 +1206,7 @@ public class ClientEvents {
         }
 
         @Override
-        public void drawButton(Minecraft mc, int mouseX, int mouseY, float partialTicks) {
+        public void drawButton(Minecraft mc, int mouseX, int mouseY) {
             if (!(mc.currentScreen instanceof GuiChat)) {
                 visible = false;
                 return;
@@ -1130,21 +1214,21 @@ public class ClientEvents {
             if (dragging) {
                 setFromMouse(mc, mouseX);
             }
-            hovered = mouseX >= x && mouseY >= y && mouseX < x + width && mouseY < y + height;
-            Gui.drawRect(x, y, x + width, y + height, hovered || dragging ? 0x60202020 : 0x40202020);
-            Gui.drawRect(x + 3, y + height - 2, x + width - 3, y + height - 1, 0x80505050);
+            hovered = mouseX >= xPosition && mouseY >= yPosition && mouseX < xPosition + width && mouseY < yPosition + height;
+            Gui.drawRect(xPosition, yPosition, xPosition + width, yPosition + height, hovered || dragging ? 0x60202020 : 0x40202020);
+            Gui.drawRect(xPosition + 3, yPosition + height - 2, xPosition + width - 3, yPosition + height - 1, 0x80505050);
 
             float value = option.normalizeValue(mc.gameSettings.getOptionFloatValue(option));
-            int knob = x + 3 + Math.round(value * Math.max(1, width - 6));
-            Gui.drawRect(knob - 1, y + 1, knob + 2, y + height - 1, hovered || dragging ? 0xFFFFFFFF : 0xCCFFFFFF);
+            int knob = xPosition + 3 + Math.round(value * Math.max(1, width - 6));
+            Gui.drawRect(knob - 1, yPosition + 1, knob + 2, yPosition + height - 1, hovered || dragging ? 0xFFFFFFFF : 0xCCFFFFFF);
 
             String label = trimToWidth(mc, compactLabel(mc.gameSettings.getKeyBinding(option)), width - 10);
             float scale = 0.55F;
-            int labelWidth = mc.fontRenderer.getStringWidth(label);
+            int labelWidth = mc.fontRendererObj.getStringWidth(label);
             GlStateManager.pushMatrix();
-            GlStateManager.translate(x + (width / 2.0F) - (labelWidth * scale / 2.0F), y + 1.0F, 0.0F);
+            GlStateManager.translate(xPosition + (width / 2.0F) - (labelWidth * scale / 2.0F), yPosition + 1.0F, 0.0F);
             GlStateManager.scale(scale, scale, 1.0F);
-            mc.fontRenderer.drawString(label, 0, 0, MTStyle.Flat.TEXT);
+            mc.fontRendererObj.drawString(label, 0, 0, MTStyle.Flat.TEXT);
             GlStateManager.popMatrix();
         }
 
@@ -1173,7 +1257,7 @@ public class ClientEvents {
         }
 
         private void setFromMouse(Minecraft mc, int mouseX) {
-            float normalized = MathHelper.clamp((mouseX - (x + 3)) / (float) Math.max(1, width - 6), 0.0F, 1.0F);
+            float normalized = MathHelper.clamp((mouseX - (xPosition + 3)) / (float) Math.max(1, width - 6), 0.0F, 1.0F);
             if (option == GameSettings.Options.CHAT_HEIGHT_FOCUSED) {
                 normalized = Math.max(normalized, minFocusedChatHeightValue(mc));
             }

@@ -1,5 +1,6 @@
 package net.creeperhost.minetogethercommunity.modulargui;
 
+import net.minecraft.client.gui.Gui;
 import net.minecraft.client.renderer.GlStateManager;
 import net.minecraft.util.ResourceLocation;
 
@@ -24,6 +25,6 @@ public class GuiTexture extends GuiElement<GuiTexture> {
     protected void renderBackground(int mouseX, int mouseY, float partialTicks) {
         mc().getTextureManager().bindTexture(texture);
         GlStateManager.color(1, 1, 1, 1);
-        drawScaledCustomSizeModalRect(x, y, 0, 0, textureWidth, textureHeight, width, height, textureWidth, textureHeight);
+        Gui.drawScaledCustomSizeModalRect(x, y, 0, 0, textureWidth, textureHeight, width, height, textureWidth, textureHeight);
     }
 }

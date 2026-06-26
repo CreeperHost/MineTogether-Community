@@ -32,7 +32,9 @@ public class GuiTextPrompt extends GuiElement<GuiTextPrompt> {
     public void init() {
         int modalWidth = modalWidth();
         int modalLeft = x + (width - modalWidth) / 2;
-        field = new net.minecraft.client.gui.GuiTextField(0, font(), modalLeft + PADDING, textFieldTop(), modalWidth - PADDING * 2, TEXT_FIELD_HEIGHT);
+        int textHeight = font().FONT_HEIGHT;
+        int textY = textFieldTop() + Math.max(0, (TEXT_FIELD_HEIGHT - textHeight) / 2);
+        field = new net.minecraft.client.gui.GuiTextField(font(), modalLeft + PADDING + 3, textY, modalWidth - PADDING * 2 - 6, textHeight);
         field.setEnableBackgroundDrawing(false);
         field.setMaxStringLength(64);
         field.setText(initialValue);

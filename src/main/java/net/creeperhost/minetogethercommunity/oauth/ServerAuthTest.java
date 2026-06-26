@@ -5,7 +5,8 @@ import net.minecraft.client.Minecraft;
 import net.minecraft.network.EnumConnectionState;
 import net.minecraft.network.NetworkManager;
 import net.minecraft.network.handshake.client.C00Handshake;
-import net.minecraft.network.login.client.CPacketLoginStart;
+import net.minecraft.network.login.client.C00PacketLoginStart;
+import net.minecraft.realms.RealmsSharedConstants;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
@@ -44,11 +45,11 @@ public class ServerAuthTest {
                 try {
                     if (cancel) return;
                     InetSocketAddress socketAddress = new InetSocketAddress(InetAddress.getByName(address), port);
-                    networkManager = NetworkManager.createNetworkManagerAndConnect(socketAddress.getAddress(), socketAddress.getPort(), true);
+                    networkManager = NetworkManager.provideLanClient(socketAddress.getAddress(), socketAddress.getPort());
                     networkManager.setNetHandler(new NetHandlerLoginClientOurs(networkManager, mc));
-                    networkManager.sendPacket(new C00Handshake(address, port, EnumConnectionState.LOGIN, true));
+                    networkManager.scheduleOutboundPacket(new C00Handshake(RealmsSharedConstants.NETWORK_PROTOCOL_VERSION, address, port, EnumConnectionState.LOGIN));
                     UUID uuid = mc.getSession().getProfile().getId();
-                    networkManager.sendPacket(new CPacketLoginStart(new GameProfile(uuid, mc.getSession().getUsername())));
+                    networkManager.scheduleOutboundPacket(new C00PacketLoginStart(new GameProfile(uuid, mc.getSession().getUsername())));
                 } catch (UnknownHostException ex) {
                     if (!cancel) {
                         LOGGER.error("Could not resolve MineTogether auth server", ex);
@@ -79,7 +80,6 @@ public class ServerAuthTest {
         if (manager.isChannelOpen()) {
             manager.processReceivedPackets();
         } else {
-            manager.handleDisconnection();
         }
     }
 

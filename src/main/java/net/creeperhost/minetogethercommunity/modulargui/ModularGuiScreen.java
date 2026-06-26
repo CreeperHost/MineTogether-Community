@@ -26,6 +26,7 @@ public class ModularGuiScreen extends GuiScreen {
 
     @Override
     public void onGuiClosed() {
+        GuiClip.clear();
         Keyboard.enableRepeatEvents(false);
     }
 
@@ -37,19 +38,28 @@ public class ModularGuiScreen extends GuiScreen {
 
     @Override
     public void drawScreen(int mouseX, int mouseY, float partialTicks) {
-        if (modularGui == null || modularGui.rendersBackground()) {
-            drawDefaultBackground();
+        GuiClip.clear();
+        try {
+            if (modularGui == null || modularGui.rendersBackground()) {
+                drawDefaultBackground();
+            }
+            if (modularGui != null) {
+                modularGui.render(mouseX, mouseY, partialTicks);
+            }
+            super.drawScreen(mouseX, mouseY, partialTicks);
+        } finally {
+            GuiClip.clear();
         }
-        if (modularGui != null) {
-            modularGui.render(mouseX, mouseY, partialTicks);
-        }
-        super.drawScreen(mouseX, mouseY, partialTicks);
     }
 
     @Override
-    protected void mouseClicked(int mouseX, int mouseY, int mouseButton) throws IOException {
-        if (modularGui == null || !modularGui.mouseClicked(mouseX, mouseY, mouseButton)) {
-            super.mouseClicked(mouseX, mouseY, mouseButton);
+    protected void mouseClicked(int mouseX, int mouseY, int mouseButton) {
+        try {
+            if (modularGui == null || !modularGui.mouseClicked(mouseX, mouseY, mouseButton)) {
+                super.mouseClicked(mouseX, mouseY, mouseButton);
+            }
+        } catch (IOException ex) {
+            throw new RuntimeException("Error handling modular GUI mouse click", ex);
         }
     }
 
@@ -61,20 +71,28 @@ public class ModularGuiScreen extends GuiScreen {
     }
 
     @Override
-    public void handleMouseInput() throws IOException {
+    public void handleMouseInput() {
         int mouseX = Mouse.getEventX() * this.width / this.mc.displayWidth;
         int mouseY = this.height - Mouse.getEventY() * this.height / this.mc.displayHeight - 1;
         int dWheel = Mouse.getEventDWheel();
-        if (dWheel != 0 && modularGui != null && modularGui.mouseInput(mouseX, mouseY, dWheel)) {
-            return;
+        try {
+            if (dWheel != 0 && modularGui != null && modularGui.mouseInput(mouseX, mouseY, dWheel)) {
+                return;
+            }
+            super.handleMouseInput();
+        } catch (IOException ex) {
+            throw new RuntimeException("Error handling modular GUI mouse input", ex);
         }
-        super.handleMouseInput();
     }
 
     @Override
-    protected void keyTyped(char typedChar, int keyCode) throws IOException {
-        if (modularGui == null || !modularGui.keyTyped(typedChar, keyCode)) {
-            super.keyTyped(typedChar, keyCode);
+    protected void keyTyped(char typedChar, int keyCode) {
+        try {
+            if (modularGui == null || !modularGui.keyTyped(typedChar, keyCode)) {
+                super.keyTyped(typedChar, keyCode);
+            }
+        } catch (IOException ex) {
+            throw new RuntimeException("Error handling modular GUI key input", ex);
         }
     }
 

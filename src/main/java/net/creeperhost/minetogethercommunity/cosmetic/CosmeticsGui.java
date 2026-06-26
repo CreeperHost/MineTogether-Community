@@ -550,8 +550,8 @@ public class CosmeticsGui implements GuiProvider {
     }
 
     private String fontTrim(String value, int width) {
-        if (Minecraft.getMinecraft().fontRenderer.getStringWidth(value) <= width) return value;
-        return Minecraft.getMinecraft().fontRenderer.trimStringToWidth(value, Math.max(1, width - Minecraft.getMinecraft().fontRenderer.getStringWidth("..."))) + "...";
+        if (Minecraft.getMinecraft().fontRendererObj.getStringWidth(value) <= width) return value;
+        return Minecraft.getMinecraft().fontRendererObj.trimStringToWidth(value, Math.max(1, width - Minecraft.getMinecraft().fontRendererObj.getStringWidth("..."))) + "...";
     }
 
     private void drawBorder(int x, int y, int width, int height, int color) {
@@ -730,7 +730,7 @@ public class CosmeticsGui implements GuiProvider {
             drawRect(x, y, x + width, y + height, 0xAA000000);
             drawRect(x, y, x + width, y + 1, 0xFF25384A);
 
-            EntityLivingBase entity = Minecraft.getMinecraft().player;
+            EntityLivingBase entity = Minecraft.getMinecraft().thePlayer;
             if (entity == null) {
                 drawCenteredString(font(), I18n.format("minetogether.gui.cosmetics.preview.unavailable"),
                         x + width / 2, y + height / 2, 0xAAAAAA);
@@ -745,14 +745,14 @@ public class CosmeticsGui implements GuiProvider {
     }
 
     private void renderCardPreview(CosmeticItem item, int x, int y, int width, int height) {
-        EntityLivingBase entity = Minecraft.getMinecraft().player;
+        EntityLivingBase entity = Minecraft.getMinecraft().thePlayer;
         if (item == null) return;
         if (entity == null) {
             pushScissor(x, y, width, height);
             try {
                 String label = trimToWidth(I18n.format("minetogether.gui.cosmetics.preview.card_unavailable"), width - 8);
-                Minecraft.getMinecraft().fontRenderer.drawString(label,
-                        x + (width - Minecraft.getMinecraft().fontRenderer.getStringWidth(label)) / 2,
+                Minecraft.getMinecraft().fontRendererObj.drawString(label,
+                        x + (width - Minecraft.getMinecraft().fontRendererObj.getStringWidth(label)) / 2,
                         y + height / 2 - 4, MTStyle.Flat.TEXT_MUTED);
             } finally {
                 popScissor();
@@ -851,12 +851,12 @@ public class CosmeticsGui implements GuiProvider {
             entity.rotationYawHead = yaw;
             entity.prevRotationYawHead = yaw;
 
-            RenderManager renderManager = Minecraft.getMinecraft().getRenderManager();
-            renderManager.setPlayerViewY(180.0F);
-            renderManager.setRenderShadow(false);
-            renderManager.renderEntity(entity, 0.0D, 0.0D, 0.0D, 0.0F, 1.0F, false);
+            RenderManager renderManager = RenderManager.instance;
+            float previousPlayerViewY = renderManager.playerViewY;
+            renderManager.playerViewY = 180.0F;
+            renderManager.doRenderEntity(entity, 0.0D, 0.0D, 0.0D, 0.0F, 1.0F, false);
+            renderManager.playerViewY = previousPlayerViewY;
         } finally {
-            Minecraft.getMinecraft().getRenderManager().setRenderShadow(true);
             entity.renderYawOffset = previousRenderYawOffset;
             entity.rotationYaw = previousRotationYaw;
             entity.rotationPitch = previousRotationPitch;
@@ -904,12 +904,12 @@ public class CosmeticsGui implements GuiProvider {
             entity.rotationYawHead = entity.rotationYaw;
             entity.prevRotationYawHead = entity.rotationYaw;
 
-            RenderManager renderManager = Minecraft.getMinecraft().getRenderManager();
-            renderManager.setPlayerViewY(180.0F);
-            renderManager.setRenderShadow(false);
-            renderManager.renderEntity(entity, 0.0D, 0.0D, 0.0D, 0.0F, 1.0F, false);
+            RenderManager renderManager = RenderManager.instance;
+            float previousPlayerViewY = renderManager.playerViewY;
+            renderManager.playerViewY = 180.0F;
+            renderManager.doRenderEntity(entity, 0.0D, 0.0D, 0.0D, 0.0F, 1.0F, false);
+            renderManager.playerViewY = previousPlayerViewY;
         } finally {
-            Minecraft.getMinecraft().getRenderManager().setRenderShadow(true);
             CosmeticSelections.instance().suppressVanillaCapeForPreview = previousSuppressVanillaCapeForPreview;
             entity.renderYawOffset = previousRenderYawOffset;
             entity.rotationYaw = previousRotationYaw;

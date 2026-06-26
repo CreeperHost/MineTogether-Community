@@ -165,7 +165,7 @@ public class GuiElement<T extends GuiElement<T>> extends Gui {
     }
 
     public FontRenderer font() {
-        return mc().fontRenderer;
+        return mc().fontRendererObj;
     }
 
     public ModularGui getModularGui() {

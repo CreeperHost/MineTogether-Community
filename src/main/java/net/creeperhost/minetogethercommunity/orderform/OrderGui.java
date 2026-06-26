@@ -603,8 +603,8 @@ public class OrderGui implements GuiProvider {
 
     private int wrappedHeight(String text, int width, float scale, int minHeight, int maxHeight) {
         int fitWidth = Math.max(1, Math.round(width / Math.max(0.25F, scale)));
-        int lines = Minecraft.getMinecraft().fontRenderer.listFormattedStringToWidth(StringUtils.defaultString(text), fitWidth).size();
-        int height = Math.max(1, Math.round(lines * Minecraft.getMinecraft().fontRenderer.FONT_HEIGHT * Math.max(0.25F, scale)));
+        int lines = Minecraft.getMinecraft().fontRendererObj.listFormattedStringToWidth(StringUtils.defaultString(text), fitWidth).size();
+        int height = Math.max(1, Math.round(lines * Minecraft.getMinecraft().fontRendererObj.FONT_HEIGHT * Math.max(0.25F, scale)));
         return Math.max(minHeight, Math.min(maxHeight, height));
     }
 

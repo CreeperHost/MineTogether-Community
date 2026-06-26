@@ -5,12 +5,13 @@ buildscript {
         mavenCentral()
     }
     dependencies {
-        classpath "net.minecraftforge.gradle:ForgeGradle:2.3-SNAPSHOT"
-        classpath "com.github.jengelman.gradle.plugins:shadow:2.0.4"
+        classpath "net.minecraftforge.gradle:ForgeGradle:1.2-SNAPSHOT"
+        classpath "com.github.jengelman.gradle.plugins:shadow:1.2.4"
+        classpath "org.ow2.asm:asm:5.0.3"
     }
 }
 
-apply plugin: "net.minecraftforge.gradle.forge"
+apply plugin: "forge"
 apply plugin: "com.github.johnrengelman.shadow"
 apply plugin: "maven-publish"
 
@@ -24,6 +25,16 @@ minecraft {
     version = "${minecraft_version}-${forge_version}"
     runDir = "run"
     mappings = "${mappings_channel}_${mappings_version}"
+}
+
+[
+        downloadClient: "https://launcher.mojang.com/v1/objects/e80d9b3bf5085002218d4be59e668bac718abbc6/client.jar",
+        downloadServer: "https://launcher.mojang.com/v1/objects/952438ac4e01b4d115c5fc38f891710c4941df29/server.jar",
+        getAssetsIndex: "https://launchermeta.mojang.com/v1/packages/1863782e33ce7b584fc45b037325a1964e095d3e/1.7.10.json"
+].each { taskName, modernUrl ->
+    tasks.matching { it.name == taskName }.all { task ->
+        task.setUrl(new net.minecraftforge.gradle.delayed.DelayedString(project, modernUrl))
+    }
 }
 
 repositories {
@@ -58,14 +69,21 @@ dependencies {
     shade "org.apache.httpcomponents:httpcore:4.4.16"
     shade "org.apache.httpcomponents:httpmime:4.5.14"
     shade "commons-codec:commons-codec:1.15"
+    shade "commons-io:commons-io:2.11.0"
     shade "commons-logging:commons-logging:1.2"
     shade "org.apache.commons:commons-lang3:3.12.0"
+    shade "org.apache.commons:commons-text:1.10.0"
+    shade "org.jetbrains:annotations:24.1.0"
+    shade "org.slf4j:slf4j-api:1.7.36"
+    shade "org.slf4j:slf4j-nop:1.7.36"
     testCompile "junit:junit:4.13.2"
 }
 
 sourceSets {
     main {
         java.srcDir "src/main/java"
+        java.exclude "net/creeperhost/minetogethercommunity/compat/ftbquests/**"
+        java.exclude "net/creeperhost/minetogethercommunity/util/LoggerNameStartsWithFilter.java"
         resources {
             srcDir "src/main/resources"
         }
@@ -93,6 +111,17 @@ shadowJar {
     exclude "module-info.class"
     exclude "META-INF/versions/**"
     exclude "net/covers1624/quack/net/httpapi/java11/**"
+    exclude "net/covers1624/quack/asm/**"
+    exclude "net/covers1624/quack/gradle/**"
+    exclude "net/covers1624/quack/logging/**"
+    exclude "net/covers1624/quack/net/httpapi/curl4j/**"
+    exclude "net/covers1624/quack/net/httpapi/okhttp/**"
+    exclude "net/covers1624/quack/net/okhttp/**"
+    exclude "net/covers1624/quack/net/download/DownloadProgressTail*.class"
+    exclude "org/apache/commons/logging/impl/AvalonLogger.class"
+    exclude "org/apache/commons/logging/impl/Log4JLogger.class"
+    exclude "org/apache/commons/logging/impl/LogKitLogger.class"
+    exclude "org/apache/commons/logging/impl/ServletContextCleaner.class"
     relocate "net.covers1624", "net.creeperhost.minetogethercommunity.repack.net.covers1624"
     relocate "org.pircbotx", "net.creeperhost.minetogethercommunity.repack.org.pircbotx"
     relocate "fi.iki.elonen", "net.creeperhost.minetogethercommunity.repack.fi.iki.elonen"
@@ -101,22 +130,115 @@ shadowJar {
     relocate "net.creeperhost.minetogether.connect", "net.creeperhost.minetogethercommunity.repack.minetogether.connect"
     relocate "org.apache.http", "net.creeperhost.minetogethercommunity.repack.org.apache.http"
     relocate "org.apache.commons.codec", "net.creeperhost.minetogethercommunity.repack.org.apache.commons.codec"
+    relocate "org.apache.commons.io", "net.creeperhost.minetogethercommunity.repack.org.apache.commons.io"
     relocate "org.apache.commons.logging", "net.creeperhost.minetogethercommunity.repack.org.apache.commons.logging"
     relocate "org.apache.commons.lang3", "net.creeperhost.minetogethercommunity.repack.org.apache.commons.lang3"
+    relocate "org.apache.commons.text", "net.creeperhost.minetogethercommunity.repack.org.apache.commons.text"
+    relocate "org.jetbrains.annotations", "net.creeperhost.minetogethercommunity.repack.org.jetbrains.annotations"
+    relocate "org.slf4j", "net.creeperhost.minetogethercommunity.repack.org.slf4j"
+}
+
+ext.legacyLog4jReplacementDescriptor = { String desc ->
+    String prefix = "(Ljava/lang/String;"
+    if (!desc.startsWith(prefix) || !desc.endsWith(")V")) {
+        return null
+    }
+    String args = desc.substring(prefix.length(), desc.length() - 2)
+    int count = 0
+    while (args.startsWith("Ljava/lang/Object;")) {
+        count++
+        args = args.substring("Ljava/lang/Object;".length())
+    }
+    if (count == 0 || count > 4 || args.length() != 0) {
+        return null
+    }
+    return "(Lorg/apache/logging/log4j/Logger;Ljava/lang/String;" + ((1..count).collect { "Ljava/lang/Object;" }.join("")) + ")V"
+}
+
+task patchLegacyLog4jCalls {
+    dependsOn shadowJar
+    doLast {
+        File jarFile = shadowJar.archivePath
+        File tmpFile = new File(jarFile.parentFile, jarFile.name + ".log4jfix")
+        int patchedCalls = 0
+        new java.util.zip.ZipFile(jarFile).withCloseable { zip ->
+            new java.util.zip.ZipOutputStream(new FileOutputStream(tmpFile)).withCloseable { out ->
+                zip.entries().each { entry ->
+                    byte[] bytes = zip.getInputStream(entry).withCloseable { stream -> stream.bytes }
+                    if (entry.name.endsWith(".class")) {
+                        def patched = [false]
+                        def reader = new org.objectweb.asm.ClassReader(bytes)
+                        def writer = new org.objectweb.asm.ClassWriter(reader, 0)
+                        def visitor = new org.objectweb.asm.ClassVisitor(org.objectweb.asm.Opcodes.ASM5, writer) {
+                            @Override
+                            org.objectweb.asm.MethodVisitor visitMethod(int access, String name, String desc, String signature, String[] exceptions) {
+                                def methodVisitor = super.visitMethod(access, name, desc, signature, exceptions)
+                                return new org.objectweb.asm.MethodVisitor(org.objectweb.asm.Opcodes.ASM5, methodVisitor) {
+                                    @Override
+                                    void visitMethodInsn(int opcode, String owner, String methodName, String methodDesc, boolean itf) {
+                                        String replacementDesc = project.legacyLog4jReplacementDescriptor(methodDesc)
+                                        boolean legacyLoggerCall = (opcode == org.objectweb.asm.Opcodes.INVOKEINTERFACE
+                                                && owner == "org/apache/logging/log4j/Logger"
+                                                && ["trace", "debug", "info", "warn", "error", "fatal"].contains(methodName)
+                                                && replacementDesc != null)
+                                        if (legacyLoggerCall) {
+                                            patched[0] = true
+                                            patchedCalls++
+                                            super.visitMethodInsn(
+                                                    org.objectweb.asm.Opcodes.INVOKESTATIC,
+                                                    "net/creeperhost/minetogethercommunity/util/LegacyLog4jCompat",
+                                                    methodName,
+                                                    replacementDesc,
+                                                    false
+                                            )
+                                            return
+                                        }
+                                        super.visitMethodInsn(opcode, owner, methodName, methodDesc, itf)
+                                    }
+                                }
+                            }
+                        }
+                        reader.accept(visitor, 0)
+                        if (patched[0]) {
+                            bytes = writer.toByteArray()
+                        }
+                    }
+                    def outEntry = new java.util.zip.ZipEntry(entry.name)
+                    outEntry.time = entry.time
+                    out.putNextEntry(outEntry)
+                    out.write(bytes)
+                    out.closeEntry()
+                }
+            }
+        }
+        if (!jarFile.delete()) {
+            throw new GradleException("Could not delete ${jarFile} before writing Log4j compatibility patched jar")
+        }
+        if (!tmpFile.renameTo(jarFile)) {
+            throw new GradleException("Could not replace ${jarFile} with Log4j compatibility patched jar")
+        }
+        if (patchedCalls > 0) {
+            println "Patched ${patchedCalls} Log4j fixed-arity calls for Minecraft 1.7.10 compatibility."
+        }
+    }
 }
 
 reobf {
     shadowJar {}
 }
 
+tasks.reobf.reobf(tasks.shadowJar)
+tasks.reobf.dependsOn tasks.shadowJar
+tasks.reobf.dependsOn patchLegacyLog4jCalls
+
 jar {
     classifier = "thin"
 }
 
-build.dependsOn reobfShadowJar
+build.dependsOn "reobf"
 
 task checkClassfileVersion {
-    dependsOn reobfShadowJar
+    dependsOn "reobf"
     doLast {
         new java.util.zip.ZipFile(shadowJar.archivePath).withCloseable { zip ->
             zip.entries().each { entry ->
@@ -136,8 +258,68 @@ task checkClassfileVersion {
     }
 }
 
+task checkReobfuscatedJar {
+    dependsOn "reobf"
+    doLast {
+        def checks = [
+                [
+                        entry: "net/creeperhost/minetogethercommunity/client/ClientEvents.class",
+                        forbidden: ["getMinecraft", "theWorld", "displayGuiScreen", "currentScreen"],
+                        required: ["func_71410_x", "field_71441_e", "func_147108_a", "field_71462_r"]
+                ],
+                [
+                        entry: "net/creeperhost/minetogethercommunity/cosmetic/render/LegacyCosmeticRenderer.class",
+                        forbidden: ["getMinecraft", "modelBipedMain", "renderCloak"],
+                        required: ["func_71410_x", "field_77109_a", "func_78111_c"]
+                ],
+                [
+                        entry: "net/creeperhost/minetogethercommunity/client/MineTogetherSettingsCommand.class",
+                        forbidden: [],
+                        required: ["func_71517_b", "func_71518_a", "func_71515_b", "func_82362_a"]
+                ],
+                [
+                        entry: "net/creeperhost/minetogethercommunity/client/OpenFriendChatCommand.class",
+                        forbidden: [],
+                        required: ["func_71517_b", "func_71518_a", "func_71515_b", "func_82362_a"]
+                ],
+                [
+                        entry: "net/creeperhost/minetogethercommunity/connect/ConnectHandler.class",
+                        forbidden: ["field_151336_a"],
+                        required: ["field_72405_c", "field_71346_p", "field_71345_q"]
+                ]
+        ]
+        def offenders = []
+        new java.util.zip.ZipFile(shadowJar.archivePath).withCloseable { zip ->
+            checks.each { check ->
+                def entry = zip.getEntry(check.entry)
+                if (entry == null) {
+                    offenders << "${check.entry} is missing from shaded jar"
+                    return
+                }
+                byte[] bytes = zip.getInputStream(entry).withCloseable { stream ->
+                    stream.bytes
+                }
+                String text = new String(bytes, "ISO-8859-1")
+                check.forbidden.each { token ->
+                    if (text.contains(token)) {
+                        offenders << "${check.entry} still contains MCP name ${token}; shaded jar was not reobfuscated"
+                    }
+                }
+                check.required.each { token ->
+                    if (!text.contains(token)) {
+                        offenders << "${check.entry} is missing expected SRG name ${token}; shaded jar may not be reobfuscated"
+                    }
+                }
+            }
+        }
+        if (!offenders.isEmpty()) {
+            throw new GradleException("Shaded jar reobfuscation check failed:\n" + offenders.sort().join("\n"))
+        }
+    }
+}
+
 task checkJarHygiene {
-    dependsOn reobfShadowJar
+    dependsOn "reobf"
     doLast {
         def forbidden = [
                 ~/^META-INF\/versions\//,
@@ -147,10 +329,22 @@ task checkJarHygiene {
                 ~/accesswidener$/,
                 ~/mixins\.json$/,
                 ~/(^|\/)mixin\//,
+                ~/^net\/creeperhost\/minetogethercommunity\/repack\/net\/covers1624\/quack\/asm\//,
+                ~/^net\/creeperhost\/minetogethercommunity\/repack\/net\/covers1624\/quack\/gradle\//,
+                ~/^net\/creeperhost\/minetogethercommunity\/repack\/net\/covers1624\/quack\/logging\//,
+                ~/^net\/creeperhost\/minetogethercommunity\/repack\/net\/covers1624\/quack\/net\/httpapi\/curl4j\//,
+                ~/^net\/creeperhost\/minetogethercommunity\/repack\/net\/covers1624\/quack\/net\/httpapi\/okhttp\//,
+                ~/^net\/creeperhost\/minetogethercommunity\/repack\/net\/covers1624\/quack\/net\/okhttp\//,
+                ~/^net\/creeperhost\/minetogethercommunity\/repack\/net\/covers1624\/quack\/net\/download\/DownloadProgressTail/,
+                ~/^net\/creeperhost\/minetogethercommunity\/repack\/org\/apache\/commons\/logging\/impl\/(?:AvalonLogger|Log4JLogger|LogKitLogger|ServletContextCleaner)\.class$/,
                 ~/^org\/apache\/http\//,
                 ~/^org\/apache\/commons\/codec\//,
+                ~/^org\/apache\/commons\/io\//,
                 ~/^org\/apache\/commons\/logging\//,
                 ~/^org\/apache\/commons\/lang3\//,
+                ~/^org\/apache\/commons\/text\//,
+                ~/^org\/jetbrains\/annotations\//,
+                ~/^org\/slf4j\//,
                 ~/(^|\/)com\/fasterxml\//,
                 ~/(^|\/)org\/codehaus\/jackson\//,
                 ~/(^|\/)com\/github\/scribejava\//
@@ -171,15 +365,20 @@ task checkJarHygiene {
 }
 
 task checkRuntimeDependencyCompleteness {
-    dependsOn reobfShadowJar
+    dependsOn "reobf"
     doLast {
         def required = [
                 "net/creeperhost/minetogethercommunity/repack/net/covers1624/quack/net/httpapi/apache/ApacheEngine.class",
                 "net/creeperhost/minetogethercommunity/repack/org/apache/http/client/HttpClient.class",
                 "net/creeperhost/minetogethercommunity/repack/org/apache/http/entity/mime/content/ContentBody.class",
                 "net/creeperhost/minetogethercommunity/repack/org/apache/commons/codec/binary/Base64.class",
+                "net/creeperhost/minetogethercommunity/repack/org/apache/commons/io/IOUtils.class",
                 "net/creeperhost/minetogethercommunity/repack/org/apache/commons/logging/Log.class",
                 "net/creeperhost/minetogethercommunity/repack/org/apache/commons/lang3/StringUtils.class",
+                "net/creeperhost/minetogethercommunity/repack/org/apache/commons/text/WordUtils.class",
+                "net/creeperhost/minetogethercommunity/repack/org/jetbrains/annotations/ApiStatus.class",
+                "net/creeperhost/minetogethercommunity/repack/org/slf4j/Logger.class",
+                "net/creeperhost/minetogethercommunity/repack/org/slf4j/impl/StaticLoggerBinder.class",
                 "net/creeperhost/minetogethercommunity/repack/org/pircbotx/PircBotX.class"
         ] as Set
         def present = [] as Set
@@ -193,6 +392,42 @@ task checkRuntimeDependencyCompleteness {
         def missing = required - present
         if (!missing.isEmpty()) {
             throw new GradleException("Missing shaded runtime dependency classes needed for MineTogether HTTP/IRC startup:\n" + missing.sort().join("\n"))
+        }
+    }
+}
+
+task checkLegacyLog4jCompatibility {
+    dependsOn "reobf"
+    doLast {
+        def offenders = []
+        new java.util.zip.ZipFile(shadowJar.archivePath).withCloseable { zip ->
+            zip.entries().each { entry ->
+                if (!entry.name.endsWith(".class")) {
+                    return
+                }
+                byte[] bytes = zip.getInputStream(entry).withCloseable { stream -> stream.bytes }
+                def reader = new org.objectweb.asm.ClassReader(bytes)
+                def visitor = new org.objectweb.asm.ClassVisitor(org.objectweb.asm.Opcodes.ASM5) {
+                    @Override
+                    org.objectweb.asm.MethodVisitor visitMethod(int access, String name, String desc, String signature, String[] exceptions) {
+                        return new org.objectweb.asm.MethodVisitor(org.objectweb.asm.Opcodes.ASM5) {
+                            @Override
+                            void visitMethodInsn(int opcode, String owner, String methodName, String methodDesc, boolean itf) {
+                                if ((opcode == org.objectweb.asm.Opcodes.INVOKEINTERFACE
+                                        && owner == "org/apache/logging/log4j/Logger"
+                                        && ["trace", "debug", "info", "warn", "error", "fatal"].contains(methodName)
+                                        && project.legacyLog4jReplacementDescriptor(methodDesc) != null)) {
+                                    offenders << "${entry.name} calls Logger.${methodName}${methodDesc}"
+                                }
+                            }
+                        }
+                    }
+                }
+                reader.accept(visitor, org.objectweb.asm.ClassReader.SKIP_DEBUG | org.objectweb.asm.ClassReader.SKIP_FRAMES)
+            }
+        }
+        if (!offenders.isEmpty()) {
+            throw new GradleException("Shaded jar still calls Log4j overloads missing from Minecraft 1.7.10:\n" + offenders.sort().join("\n"))
         }
     }
 }
@@ -222,7 +457,7 @@ task checkResourceReferences {
 
 task checkLanguageKeys {
     doLast {
-        File langFile = file("src/main/resources/assets/minetogethercommunity/lang/en_us.lang")
+        File langFile = file("src/main/resources/assets/minetogethercommunity/lang/en_US.lang")
         def langKeys = new LinkedHashSet<String>()
         langFile.eachLine("UTF-8") { line ->
             def matcher = (line =~ /^\s*([^#=\s][^=]*)=/)
@@ -320,39 +555,40 @@ task checkLegacyResourceMetadata {
         File resourcesRoot = file("src/main/resources")
         File mcmod = new File(resourcesRoot, "mcmod.info")
         File pack = new File(resourcesRoot, "pack.mcmeta")
-        File lang = new File(resourcesRoot, "assets/minetogethercommunity/lang/en_us.lang")
+        File lang = new File(resourcesRoot, "assets/minetogethercommunity/lang/en_US.lang")
         File modernLang = new File(resourcesRoot, "assets/minetogethercommunity/lang/en_us.json")
 
         if (!mcmod.isFile()) {
-            throw new GradleException("Forge 1.12.2 metadata is missing mcmod.info")
+            throw new GradleException("Forge 1.7.10 metadata is missing mcmod.info")
         }
         if (!pack.isFile()) {
-            throw new GradleException("Forge 1.12.2 resources are missing pack.mcmeta")
+            throw new GradleException("Forge 1.7.10 resources are missing pack.mcmeta")
         }
         if (!lang.isFile()) {
-            throw new GradleException("Forge 1.12.2 resources are missing en_us.lang")
+            throw new GradleException("Forge 1.7.10 resources are missing en_US.lang")
         }
         if (modernLang.exists()) {
-            throw new GradleException("Forge 1.12.2 resources must use en_us.lang, not en_us.json")
+            throw new GradleException("Forge 1.7.10 resources must use en_US.lang, not en_us.json")
         }
 
         def parser = new groovy.json.JsonSlurper()
         def mods = parser.parse(mcmod)
         if (!(mods instanceof List) || mods.isEmpty()) {
-            throw new GradleException("mcmod.info must contain a Forge 1.12.2 mod info array")
+            throw new GradleException("mcmod.info must contain a Forge 1.7.10 mod info array")
         }
-        if (mods[0].modid != "minetogethercommunity" || mods[0].mcversion != "1.12.2") {
-            throw new GradleException("mcmod.info must target minetogethercommunity on Minecraft 1.12.2")
+        if (mods[0].modid != "minetogethercommunity" || mods[0].mcversion != "1.7.10") {
+            throw new GradleException("mcmod.info must target minetogethercommunity on Minecraft 1.7.10")
         }
 
         def packMeta = parser.parse(pack)
-        if (packMeta.pack == null || packMeta.pack.pack_format != 3) {
-            throw new GradleException("pack.mcmeta must use pack_format 3 for Minecraft 1.12.2")
+        if (packMeta.pack == null || packMeta.pack.pack_format != 1) {
+            throw new GradleException("pack.mcmeta must use pack_format 1 for Minecraft 1.7.10")
         }
     }
 }
 
 check.dependsOn checkClassfileVersion
+check.dependsOn checkReobfuscatedJar
 check.dependsOn checkJarHygiene
 check.dependsOn checkRuntimeDependencyCompleteness
 check.dependsOn checkResourceReferences

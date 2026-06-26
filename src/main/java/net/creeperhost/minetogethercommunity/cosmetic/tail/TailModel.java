@@ -1,9 +1,6 @@
 package net.creeperhost.minetogethercommunity.cosmetic.tail;
 
-import net.minecraft.client.renderer.BufferBuilder;
 import net.minecraft.client.renderer.Tessellator;
-import net.minecraft.client.renderer.vertex.DefaultVertexFormats;
-import org.lwjgl.opengl.GL11;
 
 import java.util.List;
 
@@ -30,14 +27,13 @@ public class TailModel {
     }
 
     public void render(TailPose pose) {
-        Tessellator tessellator = Tessellator.getInstance();
-        BufferBuilder buffer = tessellator.getBuffer();
-        buffer.begin(GL11.GL_QUADS, DefaultVertexFormats.POSITION_TEX_NORMAL);
+        Tessellator tessellator = Tessellator.instance;
+        tessellator.startDrawingQuads();
         if (animatedChain) {
-            renderAnimatedChain(buffer, pose);
+            renderAnimatedChain(tessellator, pose);
         } else {
             for (TailElement element : elements) {
-                emitElement(buffer, element, null, null);
+                emitElement(tessellator, element, null, null);
             }
         }
         tessellator.draw();
@@ -47,18 +43,18 @@ public class TailModel {
         return elements;
     }
 
-    private void emitElement(BufferBuilder buffer, TailElement element, float[] dynamicOrigin, float[] dynamicAngles) {
+    private void emitElement(Tessellator tessellator, TailElement element, float[] dynamicOrigin, float[] dynamicAngles) {
         float x0 = element.from()[0], y0 = element.from()[1], z0 = element.from()[2];
         float x1 = element.to()[0], y1 = element.to()[1], z1 = element.to()[2];
-        if (element.south() != null) emitFace(buffer, element.south(), verts(element, dynamicOrigin, dynamicAngles, new float[][] {{x0, y0, z1}, {x1, y0, z1}, {x1, y1, z1}, {x0, y1, z1}}), normal(element, dynamicAngles, 0, 0, 1));
-        if (element.north() != null) emitFace(buffer, element.north(), verts(element, dynamicOrigin, dynamicAngles, new float[][] {{x1, y0, z0}, {x0, y0, z0}, {x0, y1, z0}, {x1, y1, z0}}), normal(element, dynamicAngles, 0, 0, -1));
-        if (element.east() != null) emitFace(buffer, element.east(), verts(element, dynamicOrigin, dynamicAngles, new float[][] {{x1, y0, z1}, {x1, y0, z0}, {x1, y1, z0}, {x1, y1, z1}}), normal(element, dynamicAngles, 1, 0, 0));
-        if (element.west() != null) emitFace(buffer, element.west(), verts(element, dynamicOrigin, dynamicAngles, new float[][] {{x0, y0, z0}, {x0, y0, z1}, {x0, y1, z1}, {x0, y1, z0}}), normal(element, dynamicAngles, -1, 0, 0));
-        if (element.up() != null) emitFace(buffer, element.up(), verts(element, dynamicOrigin, dynamicAngles, new float[][] {{x0, y1, z1}, {x1, y1, z1}, {x1, y1, z0}, {x0, y1, z0}}), normal(element, dynamicAngles, 0, 1, 0));
-        if (element.down() != null) emitFace(buffer, element.down(), verts(element, dynamicOrigin, dynamicAngles, new float[][] {{x0, y0, z0}, {x1, y0, z0}, {x1, y0, z1}, {x0, y0, z1}}), normal(element, dynamicAngles, 0, -1, 0));
+        if (element.south() != null) emitFace(tessellator, element.south(), verts(element, dynamicOrigin, dynamicAngles, new float[][] {{x0, y0, z1}, {x1, y0, z1}, {x1, y1, z1}, {x0, y1, z1}}), normal(element, dynamicAngles, 0, 0, 1));
+        if (element.north() != null) emitFace(tessellator, element.north(), verts(element, dynamicOrigin, dynamicAngles, new float[][] {{x1, y0, z0}, {x0, y0, z0}, {x0, y1, z0}, {x1, y1, z0}}), normal(element, dynamicAngles, 0, 0, -1));
+        if (element.east() != null) emitFace(tessellator, element.east(), verts(element, dynamicOrigin, dynamicAngles, new float[][] {{x1, y0, z1}, {x1, y0, z0}, {x1, y1, z0}, {x1, y1, z1}}), normal(element, dynamicAngles, 1, 0, 0));
+        if (element.west() != null) emitFace(tessellator, element.west(), verts(element, dynamicOrigin, dynamicAngles, new float[][] {{x0, y0, z0}, {x0, y0, z1}, {x0, y1, z1}, {x0, y1, z0}}), normal(element, dynamicAngles, -1, 0, 0));
+        if (element.up() != null) emitFace(tessellator, element.up(), verts(element, dynamicOrigin, dynamicAngles, new float[][] {{x0, y1, z1}, {x1, y1, z1}, {x1, y1, z0}, {x0, y1, z0}}), normal(element, dynamicAngles, 0, 1, 0));
+        if (element.down() != null) emitFace(tessellator, element.down(), verts(element, dynamicOrigin, dynamicAngles, new float[][] {{x0, y0, z0}, {x1, y0, z0}, {x1, y0, z1}, {x0, y0, z1}}), normal(element, dynamicAngles, 0, -1, 0));
     }
 
-    private void renderAnimatedChain(BufferBuilder buffer, TailPose pose) {
+    private void renderAnimatedChain(Tessellator tessellator, TailPose pose) {
         float[] previousStaticOrigin = null;
         float[] previousDynamicOrigin = null;
         float[] previousStaticAngles = null;
@@ -73,7 +69,7 @@ public class TailModel {
                     pose.y(animationIndex) * animationScale,
                     pose.z(animationIndex) * animationScale);
             float[] dynamicOrigin = dynamicOrigin(staticOrigin, previousStaticOrigin, previousDynamicOrigin, previousStaticAngles, previousDynamicAngles);
-            emitElement(buffer, element, dynamicOrigin, dynamicAngles);
+            emitElement(tessellator, element, dynamicOrigin, dynamicAngles);
             previousStaticOrigin = staticOrigin;
             previousDynamicOrigin = dynamicOrigin;
             previousStaticAngles = staticAngles;
@@ -109,15 +105,13 @@ public class TailModel {
         return rotate(x, y, z, elementAngles(element, 0.0F, 0.0F, 0.0F));
     }
 
-    private void emitFace(BufferBuilder buffer, TailFace face, float[][] verts, float[] normal) {
+    private void emitFace(Tessellator tessellator, TailFace face, float[][] verts, float[] normal) {
         float u0 = face.u0() / texW, v0 = face.v0() / texH;
         float u1 = face.u1() / texW, v1 = face.v1() / texH;
         float[][] uvs = {{u0, v0}, {u1, v0}, {u1, v1}, {u0, v1}};
+        tessellator.setNormal(normal[0], normal[1], normal[2]);
         for (int i = 0; i < 4; i++) {
-            buffer.pos(verts[i][0] / 16.0F, verts[i][1] / 16.0F, verts[i][2] / 16.0F)
-                    .tex(uvs[i][0], uvs[i][1])
-                    .normal(normal[0], normal[1], normal[2])
-                    .endVertex();
+            tessellator.addVertexWithUV(verts[i][0] / 16.0F, verts[i][1] / 16.0F, verts[i][2] / 16.0F, uvs[i][0], uvs[i][1]);
         }
     }
 

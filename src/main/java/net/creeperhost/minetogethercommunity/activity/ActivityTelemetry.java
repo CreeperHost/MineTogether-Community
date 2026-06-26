@@ -8,32 +8,21 @@ import net.creeperhost.minetogether.lib.web.ApiClientResponse;
 import net.creeperhost.minetogethercommunity.MineTogether;
 import net.creeperhost.minetogethercommunity.config.LocalConfig;
 import net.creeperhost.minetogethercommunity.util.ModPackInfo;
-import net.minecraft.advancements.Advancement;
-import net.minecraft.advancements.AdvancementProgress;
-import net.minecraft.advancements.DisplayInfo;
 import net.minecraft.client.Minecraft;
-import net.minecraft.client.multiplayer.ClientAdvancementManager;
+import net.minecraft.client.entity.EntityClientPlayerMP;
 import net.minecraft.client.multiplayer.ServerData;
 import net.minecraft.item.Item;
 import net.minecraft.item.ItemStack;
-import net.minecraft.util.ResourceLocation;
-import net.minecraft.util.text.ITextComponent;
-import net.minecraft.util.text.TextComponentTranslation;
-import net.minecraft.client.resources.IResource;
+import net.minecraft.stats.Achievement;
+import net.minecraft.stats.AchievementList;
+import net.minecraft.stats.StatFileWriter;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
-import java.io.BufferedReader;
-import java.io.InputStreamReader;
-import java.io.IOException;
-import java.lang.reflect.Field;
 import java.nio.charset.StandardCharsets;
 import java.util.Base64;
 import java.util.HashSet;
-import java.util.IllegalFormatException;
-import java.util.Locale;
 import java.util.Map;
-import java.util.HashMap;
 import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.ExecutorService;
@@ -59,8 +48,6 @@ public final class ActivityTelemetry {
 
     private static final Set<String> COMPLETED_ADVANCEMENTS = new HashSet<>();
     private static ActivityModels.QueueState state;
-    private static Field advancementProgressField;
-    private static boolean advancementProgressFieldMissing;
     private static boolean advancementSnapshotSeen;
     private static volatile boolean enabled = true;
     private static volatile boolean initialized;
@@ -78,8 +65,6 @@ public final class ActivityTelemetry {
     private static long lastAdvancementScan;
     private static long playtimeStarted;
     private static boolean inWorld;
-    private static boolean englishLanguageLoadAttempted;
-    private static Map<String, String> englishTranslations;
 
     private ActivityTelemetry() {
     }
@@ -207,191 +192,43 @@ public final class ActivityTelemetry {
     }
 
     private static void scanClientAdvancements() {
-        if (!enabled || shouldSkipTelemetry()) return;
-        if (state == null || state.authKey == null || state.authKey.isEmpty()) return;
-
         Minecraft mc = Minecraft.getMinecraft();
-        if (mc.player == null || mc.player.connection == null) return;
+        if (!(mc.thePlayer instanceof EntityClientPlayerMP)) return;
+        StatFileWriter stats = ((EntityClientPlayerMP) mc.thePlayer).getStatFileWriter();
+        if (stats == null) return;
 
-        Map<Advancement, AdvancementProgress> progress = advancementProgress(mc.player.connection.getAdvancementManager());
-        if (progress == null || progress.isEmpty()) return;
-
-        String source = advancementSnapshotSeen ? "incremental" : "snapshot";
-        for (Map.Entry<Advancement, AdvancementProgress> entry : progress.entrySet()) {
-            Advancement advancement = entry.getKey();
-            AdvancementProgress advancementProgress = entry.getValue();
-            if (advancement == null || advancementProgress == null || !advancementProgress.isDone()) continue;
-
-            String id = advancementId(advancement);
-            if (id.isEmpty() || id.startsWith("minecraft:recipes/")) continue;
-
-            synchronized (COMPLETED_ADVANCEMENTS) {
-                if (COMPLETED_ADVANCEMENTS.contains(id)) continue;
-            }
-            if (queueAdvancement(advancement, source)) {
+        boolean reportNewUnlocks = advancementSnapshotSeen;
+        for (Object rawAchievement : AchievementList.achievementList) {
+            if (!(rawAchievement instanceof Achievement)) continue;
+            Achievement achievement = (Achievement) rawAchievement;
+            try {
+                if (!stats.hasAchievementUnlocked(achievement)) continue;
+                boolean firstSeen;
                 synchronized (COMPLETED_ADVANCEMENTS) {
-                    COMPLETED_ADVANCEMENTS.add(id);
+                    firstSeen = COMPLETED_ADVANCEMENTS.add(achievement.statId);
                 }
+                if (reportNewUnlocks && firstSeen) {
+                    queueLegacyAchievement(achievement);
+                }
+            } catch (Throwable t) {
+                LOGGER.debug("Failed to scan legacy achievement {} for MineTogether telemetry.", achievement.statId, t);
             }
         }
         advancementSnapshotSeen = true;
     }
 
-    @SuppressWarnings("unchecked")
-    private static Map<Advancement, AdvancementProgress> advancementProgress(ClientAdvancementManager manager) {
-        if (manager == null || advancementProgressFieldMissing) return null;
-        try {
-            if (advancementProgressField == null) {
-                advancementProgressField = findField(ClientAdvancementManager.class, "advancementToProgress", "field_192803_d");
-            }
-            return (Map<Advancement, AdvancementProgress>) advancementProgressField.get(manager);
-        } catch (Throwable t) {
-            advancementProgressFieldMissing = true;
-            LOGGER.warn("MineTogether activity telemetry cannot inspect 1.12 advancement progress; advancement telemetry will be limited.", t);
-            return null;
-        }
+    private static void queueLegacyAchievement(Achievement achievement) {
+        queueAdvancement(achievement.statId,
+                achievement.getStatName().getUnformattedText(),
+                achievement.getDescription(),
+                iconItemId(achievement.theItemStack),
+                "legacy_achievement");
     }
 
-    private static Field findField(Class<?> owner, String... names) throws NoSuchFieldException {
-        for (String name : names) {
-            try {
-                Field field = owner.getDeclaredField(name);
-                field.setAccessible(true);
-                return field;
-            } catch (NoSuchFieldException ignored) {
-            }
-        }
-        throw new NoSuchFieldException(owner.getName());
-    }
-
-    private static boolean queueAdvancement(Advancement advancement, String source) {
-        if (!enabled || shouldSkipTelemetry()) return false;
-
-        ActivityModels.Metadata metadata = metadataForAdvancement(advancement);
-        if (metadata == null) return false;
-
-        ActivityModels.AdvancementEvent event = new ActivityModels.AdvancementEvent();
-        event.metadataRef = metadata.metadataRef;
-        event.completedAt = System.currentTimeMillis();
-        event.source = source == null || source.isEmpty() ? "incremental" : source;
-        event.eventId = hash(state.clientSessionId + ":" + currentWorld().key + ":" + modpackIdentity() + ":" + metadata.contentId);
-
-        ActivityModels.Batch batch = newBaseBatch();
-        batch.metadata.add(metadata);
-        batch.advancements.add(event);
-        queue(batch);
-        flush();
-        return true;
-    }
-
-    private static ActivityModels.Metadata metadataForAdvancement(Advancement advancement) {
-        if (advancement == null) return null;
-
-        String id = advancementId(advancement);
-        if (id.isEmpty() || id.startsWith("minecraft:recipes/")) return null;
-
-        DisplayInfo display = advancement.getDisplay();
-        if (display == null) return null;
-
-        ActivityModels.Metadata metadata = new ActivityModels.Metadata();
-        metadata.type = "advancement";
-        metadata.provider = "vanilla";
-        metadata.contentId = id;
-        metadata.locale = "en_us";
-        fillDisplay(metadata, display);
-        metadata.metadataRef = hash(metadata.type + ":" + metadata.provider + ":" + metadata.contentId + ":" + metadata.titleKey + ":" + metadata.descriptionKey + ":" + metadata.titleEn + ":" + metadata.descriptionEn);
-        return metadata;
-    }
-
-    private static void fillDisplay(ActivityModels.Metadata metadata, DisplayInfo display) {
-        ITextComponent title = display.getTitle();
-        ITextComponent description = display.getDescription();
-        metadata.titleKey = translationKey(title);
-        metadata.descriptionKey = translationKey(description);
-        metadata.titleEn = englishText(title);
-        metadata.descriptionEn = englishText(description);
-        metadata.titleComponentJson = componentJson(title);
-        metadata.descriptionComponentJson = componentJson(description);
-
-        ItemStack icon = display.getIcon();
-        if (icon != null && !icon.isEmpty()) {
-            ResourceLocation itemId = Item.REGISTRY.getNameForObject(icon.getItem());
-            metadata.iconItemId = itemId == null ? "" : itemId.toString();
-        }
-        if (display.getFrame() != null) {
-            metadata.frameOrType = display.getFrame().getName();
-        }
-    }
-
-    private static String advancementId(Advancement advancement) {
-        ResourceLocation id = advancement == null ? null : advancement.getId();
-        return id == null ? "" : id.toString();
-    }
-
-    private static String translationKey(ITextComponent component) {
-        return component instanceof TextComponentTranslation ? ((TextComponentTranslation) component).getKey() : "";
-    }
-
-    private static String text(ITextComponent component) {
-        return component == null ? "" : component.getUnformattedText();
-    }
-
-    private static String englishText(ITextComponent component) {
-        if (!(component instanceof TextComponentTranslation)) {
-            return text(component);
-        }
-
-        TextComponentTranslation translated = (TextComponentTranslation) component;
-        String fallback = text(component);
-        String pattern = englishTranslations().get(translated.getKey());
-        if (pattern == null || pattern.isEmpty()) {
-            return fallback;
-        }
-
-        Object[] args = translated.getFormatArgs();
-        Object[] formatted = new Object[args.length];
-        for (int i = 0; i < args.length; i++) {
-            Object arg = args[i];
-            formatted[i] = arg instanceof ITextComponent ? englishText((ITextComponent) arg) : String.valueOf(arg);
-        }
-
-        try {
-            return String.format(Locale.ROOT, pattern, formatted);
-        } catch (IllegalFormatException ignored) {
-            return fallback;
-        }
-    }
-
-    private static Map<String, String> englishTranslations() {
-        if (!englishLanguageLoadAttempted) {
-            englishLanguageLoadAttempted = true;
-            englishTranslations = loadEnglishTranslations();
-        }
-        return englishTranslations == null ? new HashMap<String, String>() : englishTranslations;
-    }
-
-    private static Map<String, String> loadEnglishTranslations() {
-        Map<String, String> translations = new HashMap<String, String>();
-        try {
-            IResource resource = Minecraft.getMinecraft().getResourceManager().getResource(new ResourceLocation("minecraft", "lang/en_us.lang"));
-            try (BufferedReader reader = new BufferedReader(new InputStreamReader(resource.getInputStream(), StandardCharsets.UTF_8))) {
-                String line;
-                while ((line = reader.readLine()) != null) {
-                    String trimmed = line.trim();
-                    if (trimmed.isEmpty() || trimmed.charAt(0) == '#') continue;
-                    int equals = trimmed.indexOf('=');
-                    if (equals <= 0) continue;
-                    translations.put(trimmed.substring(0, equals), trimmed.substring(equals + 1));
-                }
-            }
-        } catch (IOException ex) {
-            LOGGER.warn("Failed to load en_us language resources for MineTogether activity metadata.", ex);
-        }
-        return translations;
-    }
-
-    private static String componentJson(ITextComponent component) {
-        return component == null ? "" : ITextComponent.Serializer.componentToJson(component);
+    private static String iconItemId(ItemStack stack) {
+        if (stack == null || stack.getItem() == null) return "";
+        String name = Item.itemRegistry.getNameForObject(stack.getItem());
+        return name == null ? stack.getUnlocalizedName() : name;
     }
 
     public static boolean isProfileVisibilityBusy() {
@@ -498,8 +335,8 @@ public final class ActivityTelemetry {
     private static boolean shouldSkipTelemetry() {
         if (!LocalConfig.instance().activityTelemetry) return true;
         Minecraft mc = Minecraft.getMinecraft();
-        if (mc.player != null && mc.player.capabilities.isCreativeMode) return true;
-        return mc.isSingleplayer() && mc.world != null && mc.world.getWorldInfo().areCommandsAllowed();
+        if (mc.thePlayer != null && mc.thePlayer.capabilities.isCreativeMode) return true;
+        return mc.isSingleplayer() && mc.theWorld != null && mc.theWorld.getWorldInfo().areCommandsAllowed();
     }
 
     private static void queuePlaytime(long now) {
@@ -641,7 +478,7 @@ public final class ActivityTelemetry {
             modpack.packId = info.curseID;
         }
         modpack.websiteId = info.websiteID;
-        modpack.minecraftVersion = "1.12.2";
+        modpack.minecraftVersion = "1.7.10";
         modpack.loader = "forge";
         modpack.modVersion = MineTogether.VERSION;
         return modpack;
@@ -657,7 +494,7 @@ public final class ActivityTelemetry {
         ActivityModels.World world = new ActivityModels.World();
         if (mc.isSingleplayer()) {
             world.kind = "singleplayer";
-            String worldName = mc.world == null ? "unknown" : mc.world.getWorldInfo().getWorldName();
+            String worldName = mc.theWorld == null ? "unknown" : mc.theWorld.getWorldInfo().getWorldName();
             world.key = hash("singleplayer:" + worldName);
         } else {
             ServerData server = mc.getCurrentServerData();

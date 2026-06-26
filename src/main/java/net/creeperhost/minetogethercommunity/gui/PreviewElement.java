@@ -78,7 +78,7 @@ public class PreviewElement extends GuiElement<PreviewElement> {
         if (!image.isLoaded()) {
             drawHoverBox(mouseX, mouseY, 110, 18);
             String loading = net.minecraft.client.resources.I18n.format("minetogether.gui.chat.loading_preview");
-            mc.fontRenderer.drawStringWithShadow(loading, mouseX + (110 - mc.fontRenderer.getStringWidth(loading)) / 2, mouseY + 5, 0xFFFFFF);
+            mc.fontRendererObj.drawStringWithShadow(loading, mouseX + (110 - mc.fontRendererObj.getStringWidth(loading)) / 2, mouseY + 5, 0xFFFFFF);
             return;
         }
 
@@ -167,7 +167,7 @@ public class PreviewElement extends GuiElement<PreviewElement> {
                 connection = (HttpURLConnection) target.openConnection();
                 connection.setConnectTimeout(3000);
                 connection.setReadTimeout(5000);
-                connection.setRequestProperty("User-Agent", "MineTogetherCommunity/1.12.2");
+                connection.setRequestProperty("User-Agent", "MineTogetherCommunity/1.7.10");
                 String contentType = connection.getContentType();
                 if (contentType != null) {
                     contentType = contentType.split(";", 2)[0].trim().toLowerCase();

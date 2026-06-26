@@ -6,20 +6,26 @@ import net.creeperhost.minetogethercommunity.chat.MineTogetherChat;
 import net.creeperhost.minetogethercommunity.gui.chat.FriendChatGui;
 import net.minecraft.client.Minecraft;
 import net.minecraft.command.CommandBase;
-import net.minecraft.command.CommandException;
 import net.minecraft.command.ICommandSender;
-import net.minecraft.server.MinecraftServer;
 
 public class OpenFriendChatCommand extends CommandBase {
 
     @Override
-    public String getName() {
+    public String getCommandName() {
         return "minetogether_friend_chat";
     }
 
+    public String func_71517_b() {
+        return getCommandName();
+    }
+
     @Override
-    public String getUsage(ICommandSender sender) {
+    public String getCommandUsage(ICommandSender sender) {
         return "/minetogether_friend_chat <profileHash>";
+    }
+
+    public String func_71518_a(ICommandSender sender) {
+        return getCommandUsage(sender);
     }
 
     @Override
@@ -28,7 +34,7 @@ public class OpenFriendChatCommand extends CommandBase {
     }
 
     @Override
-    public void execute(MinecraftServer server, ICommandSender sender, String[] args) throws CommandException {
+    public void processCommand(ICommandSender sender, String[] args) {
         if (args.length == 0 || MineTogetherChat.CHAT_STATE == null) return;
         final String hash = args[0];
         final Minecraft mc = Minecraft.getMinecraft();
@@ -38,6 +44,10 @@ public class OpenFriendChatCommand extends CommandBase {
             FriendChatGui.setSelected(target);
             mc.displayGuiScreen(new FriendChatGui.Screen(mc.currentScreen));
         });
+    }
+
+    public void func_71515_b(ICommandSender sender, String[] args) {
+        processCommand(sender, args);
     }
 
     private Profile findFriend(String hash) {

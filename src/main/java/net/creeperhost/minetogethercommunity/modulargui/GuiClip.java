@@ -58,8 +58,17 @@ public final class GuiClip {
         }
     }
 
+    public static void clear() {
+        STACK.clear();
+        OFFSETS.clear();
+        offsetX = 0;
+        offsetY = 0;
+        GL11.glDisable(GL11.GL_SCISSOR_TEST);
+    }
+
     private static void apply(int[] rect) {
-        ScaledResolution scaledResolution = new ScaledResolution(Minecraft.getMinecraft());
+        Minecraft minecraft = Minecraft.getMinecraft();
+        ScaledResolution scaledResolution = new ScaledResolution(minecraft, minecraft.displayWidth, minecraft.displayHeight);
         int factor = scaledResolution.getScaleFactor();
         GL11.glEnable(GL11.GL_SCISSOR_TEST);
         GL11.glScissor(rect[0] * factor,
