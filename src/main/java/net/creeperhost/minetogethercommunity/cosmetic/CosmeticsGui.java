@@ -16,6 +16,7 @@ import net.minecraft.client.resources.I18n;
 import net.minecraft.client.renderer.GlStateManager;
 import net.minecraft.client.renderer.RenderHelper;
 import net.minecraft.client.renderer.entity.RenderManager;
+import net.minecraft.entity.Entity;
 import net.minecraft.entity.EntityLivingBase;
 import org.lwjgl.input.Mouse;
 import org.lwjgl.opengl.GL13;
@@ -787,7 +788,7 @@ public class CosmeticsGui implements GuiProvider {
             resetGuiGlState();
             pushScissor(x, y, width, height);
             try {
-                float entityHeight = Math.max(0.1F, entity.height);
+                float entityHeight = Math.max(0.1F, ((Entity) entity).height);
                 int scale = Math.max(18, Math.round(Math.min((height / entityHeight) * 1.45F, 46.0F)));
                 int yPos = Math.round(y + height + scale * cardPreviewYOffset());
                 try {
@@ -843,9 +844,10 @@ public class CosmeticsGui implements GuiProvider {
     }
 
     private void drawStaticEntityPreview(int x, int y, int scale, EntityLivingBase entity, float yaw) {
+        Entity baseEntity = entity;
         float previousRenderYawOffset = entity.renderYawOffset;
-        float previousRotationYaw = entity.rotationYaw;
-        float previousRotationPitch = entity.rotationPitch;
+        float previousRotationYaw = baseEntity.rotationYaw;
+        float previousRotationPitch = baseEntity.rotationPitch;
         float previousPrevRotationYawHead = entity.prevRotationYawHead;
         float previousRotationYawHead = entity.rotationYawHead;
 
@@ -860,8 +862,8 @@ public class CosmeticsGui implements GuiProvider {
             GlStateManager.enableDepth();
 
             entity.renderYawOffset = yaw;
-            entity.rotationYaw = yaw;
-            entity.rotationPitch = 0.0F;
+            baseEntity.rotationYaw = yaw;
+            baseEntity.rotationPitch = 0.0F;
             entity.rotationYawHead = yaw;
             entity.prevRotationYawHead = yaw;
 
@@ -872,8 +874,8 @@ public class CosmeticsGui implements GuiProvider {
             renderManager.playerViewY = previousPlayerViewY;
         } finally {
             entity.renderYawOffset = previousRenderYawOffset;
-            entity.rotationYaw = previousRotationYaw;
-            entity.rotationPitch = previousRotationPitch;
+            baseEntity.rotationYaw = previousRotationYaw;
+            baseEntity.rotationPitch = previousRotationPitch;
             entity.prevRotationYawHead = previousPrevRotationYawHead;
             entity.rotationYawHead = previousRotationYawHead;
 
@@ -892,9 +894,10 @@ public class CosmeticsGui implements GuiProvider {
     }
 
     private void drawEntityPreview(int x, int y, int scale, EntityLivingBase entity, int mouseX, int mouseY) {
+        Entity baseEntity = entity;
         float previousRenderYawOffset = entity.renderYawOffset;
-        float previousRotationYaw = entity.rotationYaw;
-        float previousRotationPitch = entity.rotationPitch;
+        float previousRotationYaw = baseEntity.rotationYaw;
+        float previousRotationPitch = baseEntity.rotationPitch;
         float previousPrevRotationYawHead = entity.prevRotationYawHead;
         float previousRotationYawHead = entity.rotationYawHead;
         boolean previousSuppressVanillaCapeForPreview = CosmeticSelections.instance().suppressVanillaCapeForPreview;
@@ -913,10 +916,10 @@ public class CosmeticsGui implements GuiProvider {
             float xAngle = previewTracking ? (float) Math.atan((x - mouseX) / 40.0F) : 0.0F;
             float yAngle = previewTracking ? (float) Math.atan((y - mouseY - entity.getEyeHeight() * scale) / 40.0F) : 0.0F;
             entity.renderYawOffset = previewYaw + xAngle * 20.0F;
-            entity.rotationYaw = previewYaw + xAngle * 40.0F;
-            entity.rotationPitch = -yAngle * 20.0F;
-            entity.rotationYawHead = entity.rotationYaw;
-            entity.prevRotationYawHead = entity.rotationYaw;
+            baseEntity.rotationYaw = previewYaw + xAngle * 40.0F;
+            baseEntity.rotationPitch = -yAngle * 20.0F;
+            entity.rotationYawHead = baseEntity.rotationYaw;
+            entity.prevRotationYawHead = baseEntity.rotationYaw;
 
             RenderManager renderManager = RenderManager.instance;
             float previousPlayerViewY = renderManager.playerViewY;
@@ -926,8 +929,8 @@ public class CosmeticsGui implements GuiProvider {
         } finally {
             CosmeticSelections.instance().suppressVanillaCapeForPreview = previousSuppressVanillaCapeForPreview;
             entity.renderYawOffset = previousRenderYawOffset;
-            entity.rotationYaw = previousRotationYaw;
-            entity.rotationPitch = previousRotationPitch;
+            baseEntity.rotationYaw = previousRotationYaw;
+            baseEntity.rotationPitch = previousRotationPitch;
             entity.prevRotationYawHead = previousPrevRotationYawHead;
             entity.rotationYawHead = previousRotationYawHead;
 
