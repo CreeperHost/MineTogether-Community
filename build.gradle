@@ -29,18 +29,33 @@ minecraft {
 repositories {
     mavenLocal()
     maven { url = "https://maven.creeperhost.net" }
+    maven { url = "https://nexus.covers1624.net/repository/maven-releases/" }
     mavenCentral()
 }
 
 configurations {
+    quackRaw
     shade
+    shade.exclude group: "net.covers1624", module: "Quack"
     compile.extendsFrom shade
     all {
         resolutionStrategy.force "net.covers1624:Quack:0.4.10.128"
     }
 }
 
+task filteredQuackJar(type: Zip) {
+    group = "build"
+    description = "Builds a Java 8-safe Quack jar for Forge 1.12 dev runtime scanning."
+    archiveName = "Quack-0.4.10.128-java8.jar"
+    destinationDir = file("${buildDir}/filtered-deps")
+    from({ zipTree(configurations.quackRaw.singleFile) }) {
+        exclude "net/covers1624/quack/net/httpapi/java11/**"
+    }
+}
+
 dependencies {
+    quackRaw "net.covers1624:Quack:0.4.10.128"
+    runtime "net.covers1624:DevLogin:0.1.0.5"
     shade("net.creeperhost:MineTogetherLib:${mtlib_version}") {
         exclude group: "net.creeperhost", module: "MineTogetherSessions"
     }
@@ -51,7 +66,7 @@ dependencies {
         exclude group: "net.creeperhost", module: "MineTogetherLib"
         exclude group: "net.creeperhost", module: "MineTogetherSessions"
     }
-    shade "net.covers1624:Quack:0.4.10.128"
+    shade filteredQuackJar.outputs.files
     shade "net.covers1624:pircbotx:2.3.11"
     shade "org.nanohttpd:nanohttpd:2.3.1"
     shade "org.apache.httpcomponents:httpclient:4.5.14"
@@ -72,6 +87,48 @@ sourceSets {
     }
     test {
         java.srcDir "src/test/java"
+    }
+}
+
+ideaWorkspace.doLast {
+    File workspaceFile = file("${rootProject.name}.iws")
+    if (workspaceFile.isFile()) {
+        String workspace = workspaceFile.getText("UTF-8")
+                .replace("${rootProject.name}_main", rootProject.name)
+
+        String devLoginConfig = """    <configuration default="false" factoryName="Application" name="Minecraft Client (DevLogin)" type="Application">
+      <extension enabled="false" name="coverage" runner="idea" sample_coverage="true"/>
+      <option name="MAIN_CLASS_NAME" value="net.covers1624.devlogin.DevLogin"/>
+      <option name="VM_PARAMETERS" value=""/>
+      <option name="PROGRAM_PARAMETERS" value="--launch_target GradleStart"/>
+      <option name="WORKING_DIRECTORY" value="file://\$PROJECT_DIR\$\\run"/>
+      <option name="ALTERNATIVE_JRE_PATH_ENABLED" value="false"/>
+      <option name="ALTERNATIVE_JRE_PATH" value=""/>
+      <option name="ENABLE_SWING_INSPECTOR" value="false"/>
+      <option name="ENV_VARIABLES"/>
+      <option name="PASS_PARENT_ENVS" value="true"/>
+      <module name="${rootProject.name}"/>
+      <RunnerSettings RunnerId="Run"/>
+      <ConfigurationWrapper RunnerId="Run"/>
+    </configuration>
+"""
+
+        workspace = workspace.replaceAll(/(?s)\s*<configuration default="false" factoryName="Application" name="Minecraft Client \(DevLogin\)" type="Application">.*?<\/configuration>/, "")
+        workspace = workspace.replaceFirst(/(?s)(<component name="RunManager".*?>)/, "\$1\n" + java.util.regex.Matcher.quoteReplacement(devLoginConfig))
+        workspaceFile.write(workspace, "UTF-8")
+    }
+}
+
+task devlogin {
+    group = "ForgeGradle"
+    description = "Runs the Forge dev client through covers1624 DevLogin Microsoft authentication."
+    dependsOn runClient
+}
+
+gradle.taskGraph.whenReady { graph ->
+    if (graph.hasTask(devlogin)) {
+        tasks.runClient.main = "net.covers1624.devlogin.DevLogin"
+        tasks.runClient.args "--launch_target", "GradleStart"
     }
 }
 
