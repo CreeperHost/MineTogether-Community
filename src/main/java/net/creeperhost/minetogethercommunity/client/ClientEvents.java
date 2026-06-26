@@ -682,9 +682,6 @@ public class ClientEvents {
         int maxY = screenHeight - 40;
         int y = maxY - height;
         Gui.drawRect(0, y, width, maxY, focusedChatBackgroundColor(mc));
-        if (MineTogetherChat.getTarget() != ChatTarget.VANILLA) {
-            drawFocusedChatLogo(mc, width, y, height);
-        }
     }
 
     private void drawFocusedChatLogo(Minecraft mc, int x, int y, int height) {
