@@ -418,6 +418,9 @@ public class ClientEvents {
 
     @SubscribeEvent
     public void onDrawScreenPost(GuiScreenEvent.DrawScreenEvent.Post event) {
+        if (event.getGui() instanceof GuiMainMenu || event.getGui() instanceof GuiIngameMenu) {
+            drawIconButtonTooltips(event);
+        }
         if (!(event.getGui() instanceof GuiChat)
                 || MineTogetherChat.getTarget() == ChatTarget.VANILLA
                 || Minecraft.getMinecraft().gameSettings.hideGUI) {
@@ -431,6 +434,21 @@ public class ClientEvents {
         if (info != null) {
             PreviewElement.renderPreview(Minecraft.getMinecraft(), info, event.getMouseX(), event.getMouseY(),
                     event.getGui().width, event.getGui().height, 80, false);
+        }
+    }
+
+    @SuppressWarnings("unchecked")
+    private void drawIconButtonTooltips(GuiScreenEvent.DrawScreenEvent.Post event) {
+        try {
+            List<GuiButton> buttons = (List<GuiButton>) GUI_BUTTON_LIST.get(event.getGui());
+            if (buttons == null) return;
+            Minecraft mc = Minecraft.getMinecraft();
+            for (GuiButton button : buttons) {
+                if (button instanceof IconButton) {
+                    ((IconButton) button).drawTooltip(mc, event.getMouseX(), event.getMouseY());
+                }
+            }
+        } catch (IllegalAccessException ignored) {
         }
     }
 
