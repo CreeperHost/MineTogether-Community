@@ -103,12 +103,10 @@ public class ModPackInfo {
         }
 
         private boolean readCurseInstance(File file) {
-            System.out.println("readCurseInstance");
             try (FileReader reader = new FileReader(file)) {
                 CurseInstance instance = GSON.fromJson(reader, CurseInstance.class);
                 if (instance == null || instance.projectID <= 0) return false;
                 curseID = String.valueOf(instance.projectID);
-                System.out.println("readCurseInstance " +  curseID);
                 return fetchWebsiteIDCurse();
             } catch (Exception ex) {
                 LOGGER.warn("Failed to read Curse instance {}", file, ex);
