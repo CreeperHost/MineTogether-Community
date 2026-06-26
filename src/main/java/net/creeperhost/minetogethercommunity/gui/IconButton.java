@@ -58,6 +58,9 @@ public class IconButton extends GuiButton {
             Gui.drawModalRectWithCustomSizedTexture(xPosition, yPosition, u, v, width, height, SHEET_SIZE, SHEET_SIZE);
         }
         GlStateManager.color(1F, 1F, 1F, 1F);
+    }
+
+    public void drawTooltip(Minecraft mc, int mouseX, int mouseY) {
         if (hovered && tooltip != null && !tooltip.isEmpty()) {
             TooltipRenderer.draw(this, mc.fontRendererObj, tooltip, mouseX, mouseY, mc.currentScreen.width, mc.currentScreen.height);
         }

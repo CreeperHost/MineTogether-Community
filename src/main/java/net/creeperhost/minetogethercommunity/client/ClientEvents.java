@@ -353,6 +353,9 @@ public class ClientEvents {
 
     @SubscribeEvent
     public void onDrawScreenPost(GuiScreenEvent.DrawScreenEvent.Post event) {
+        if (event.gui instanceof GuiMainMenu || event.gui instanceof GuiIngameMenu) {
+            drawIconButtonTooltips(event);
+        }
         if (!(event.gui instanceof GuiChat)
                 || MineTogetherChat.getTarget() == ChatTarget.VANILLA
                 || Minecraft.getMinecraft().gameSettings.hideGUI) {
@@ -366,6 +369,21 @@ public class ClientEvents {
         if (info != null) {
             PreviewElement.renderPreview(Minecraft.getMinecraft(), info, event.mouseX, event.mouseY,
                     event.gui.width, event.gui.height, 80, false);
+        }
+    }
+
+    @SuppressWarnings("unchecked")
+    private void drawIconButtonTooltips(GuiScreenEvent.DrawScreenEvent.Post event) {
+        try {
+            List<GuiButton> buttons = (List<GuiButton>) GUI_BUTTON_LIST.get(event.gui);
+            if (buttons == null) return;
+            Minecraft mc = Minecraft.getMinecraft();
+            for (GuiButton button : buttons) {
+                if (button instanceof IconButton) {
+                    ((IconButton) button).drawTooltip(mc, event.mouseX, event.mouseY);
+                }
+            }
+        } catch (IllegalAccessException ignored) {
         }
     }
 
@@ -689,9 +707,6 @@ public class ClientEvents {
         int maxY = screenHeight - 40;
         int y = maxY - height;
         Gui.drawRect(0, y, width, maxY, focusedChatBackgroundColor(mc));
-        if (MineTogetherChat.getTarget() != ChatTarget.VANILLA) {
-            drawFocusedChatLogo(mc, width, y, height);
-        }
     }
 
     private void drawFocusedChatLogo(Minecraft mc, int x, int y, int height) {
