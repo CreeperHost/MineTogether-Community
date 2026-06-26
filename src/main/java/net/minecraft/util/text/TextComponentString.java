@@ -26,17 +26,17 @@ public class TextComponentString extends ChatComponentText implements ITextCompo
     }
 
     public ITextComponent appendText(String text) {
-        super.appendText(text);
+        super.getSiblings().add(new TextComponentString(text));
         return this;
     }
 
     public ITextComponent appendSibling(ITextComponent component) {
-        super.appendSibling(component);
+        super.getSiblings().add(component);
         return this;
     }
 
     public ITextComponent appendSibling(IChatComponent component) {
-        super.appendSibling(component);
+        super.getSiblings().add(component);
         return this;
     }
 

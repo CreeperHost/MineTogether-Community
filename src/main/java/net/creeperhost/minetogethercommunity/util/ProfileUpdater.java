@@ -48,7 +48,7 @@ public final class ProfileUpdater {
             if (throwable != null) {
                 LOGGER.warn("Failed to refresh Minecraft profile {}", uuid, throwable);
             }
-            Minecraft.getMinecraft().addScheduledTask(new Runnable() {
+            ClientTaskRunner.run(new Runnable() {
                 @Override
                 public void run() {
                     callback.accept(profile);

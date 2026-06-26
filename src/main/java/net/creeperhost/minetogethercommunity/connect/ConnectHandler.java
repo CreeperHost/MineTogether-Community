@@ -13,6 +13,7 @@ import net.creeperhost.minetogether.session.MineTogetherSession;
 import net.creeperhost.minetogethercommunity.MineTogether;
 import net.creeperhost.minetogethercommunity.chat.MineTogetherChat;
 import net.creeperhost.minetogethercommunity.connect.netty.NettyClient;
+import net.creeperhost.minetogethercommunity.util.ClientTaskRunner;
 import net.creeperhost.minetogethercommunity.util.ModPackInfo;
 import net.minecraft.client.Minecraft;
 import net.minecraft.server.integrated.IntegratedServer;
@@ -372,7 +373,7 @@ public class ConnectHandler {
     }
 
     private static void sendChat(final String key, final Object... args) {
-        Minecraft.getMinecraft().addScheduledTask(new Runnable() {
+        ClientTaskRunner.run(new Runnable() {
             @Override
             public void run() {
                 if (Minecraft.getMinecraft().ingameGUI != null) {

@@ -83,7 +83,7 @@ public class FriendConnectScreen extends GuiScreen {
     }
 
     private void showDisconnect(final Exception ex) {
-        Minecraft.getMinecraft().addScheduledTask(new Runnable() {
+        net.creeperhost.minetogethercommunity.util.ClientTaskRunner.run(new Runnable() {
             @Override
             public void run() {
                 String message = ex instanceof IOException && ex.getMessage() != null ? ex.getMessage() : ex.toString();

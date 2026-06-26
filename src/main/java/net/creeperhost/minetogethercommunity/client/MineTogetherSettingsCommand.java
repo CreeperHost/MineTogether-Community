@@ -33,7 +33,7 @@ public class MineTogetherSettingsCommand extends CommandBase {
     @Override
     public void processCommand(ICommandSender sender, String[] args) {
         final Minecraft mc = Minecraft.getMinecraft();
-        mc.addScheduledTask(() -> mc.displayGuiScreen(new SettingGui.Screen(mc.currentScreen)));
+        net.creeperhost.minetogethercommunity.util.ClientTaskRunner.run(() -> mc.displayGuiScreen(new SettingGui.Screen(mc.currentScreen)));
     }
 
     public void func_71515_b(ICommandSender sender, String[] args) {

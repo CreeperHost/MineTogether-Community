@@ -382,7 +382,7 @@ public class NettyClient {
     }
 
     private static void sendChat(final String key, final Object... args) {
-        Minecraft.getMinecraft().addScheduledTask(new Runnable() {
+        net.creeperhost.minetogethercommunity.util.ClientTaskRunner.run(new Runnable() {
             @Override
             public void run() {
                 if (Minecraft.getMinecraft().ingameGUI != null) {
@@ -490,7 +490,7 @@ public class NettyClient {
         @Override
         public void handleMessage(ChannelHandlerContext ctx, CMessage packet) {
             if (Minecraft.getMinecraft().thePlayer != null) {
-                Minecraft.getMinecraft().addScheduledTask(new Runnable() {
+                net.creeperhost.minetogethercommunity.util.ClientTaskRunner.run(new Runnable() {
                     @Override
                     public void run() {
                         Minecraft.getMinecraft().thePlayer.addChatMessage(new TextComponentString("[MTConnect Broadcast] " + packet.message));

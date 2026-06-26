@@ -344,7 +344,7 @@ public class CosmeticDownloader {
         if (tc2File == null) throw new IOException("No .tc2 file in metadata for hat '" + id + "'");
         final Hat hat = TechneLoader.load(id, item.displayName(), item.author(), item.mod(),
                 item.locked(), item.howToUnlock(), Files.readAllBytes(new File(itemDir, tc2File).toPath()));
-        Minecraft.getMinecraft().addScheduledTask(new Runnable() {
+        net.creeperhost.minetogethercommunity.util.ClientTaskRunner.run(new Runnable() {
             @Override
             public void run() {
                 loadedHats.put(id, hat);
@@ -370,7 +370,7 @@ public class CosmeticDownloader {
         final Hat hat = new Hat(id, item.displayName(), item.author(), item.mod(), item.locked(), item.howToUnlock(),
                 location, texW, texH, HatModelType.JSON, Collections.<net.creeperhost.minetogethercommunity.cosmetic.hat.HatCuboid>emptyList(),
                 elements, new TailModel(elements, texW, texH));
-        Minecraft.getMinecraft().addScheduledTask(new Runnable() {
+        net.creeperhost.minetogethercommunity.util.ClientTaskRunner.run(new Runnable() {
             @Override
             public void run() {
                 Minecraft.getMinecraft().getTextureManager().loadTexture(location, new DynamicTexture(image));
@@ -393,7 +393,7 @@ public class CosmeticDownloader {
         final ResourceLocation location = textureLocation("cape", id);
         final Cape cape = new Cape(id, item.displayName(), item.author(), item.mod(), item.locked(), item.howToUnlock(),
                 location, image.getWidth(), image.getHeight());
-        Minecraft.getMinecraft().addScheduledTask(new Runnable() {
+        net.creeperhost.minetogethercommunity.util.ClientTaskRunner.run(new Runnable() {
             @Override
             public void run() {
                 Minecraft.getMinecraft().getTextureManager().loadTexture(location, new DynamicTexture(image));
@@ -422,7 +422,7 @@ public class CosmeticDownloader {
         final ResourceLocation location = textureLocation("tail", id);
         final Tail tail = new Tail(id, item.displayName(), item.author(), item.mod(), item.locked(), item.howToUnlock(),
                 location, texW, texH, elements, new TailModel(elements, texW, texH));
-        Minecraft.getMinecraft().addScheduledTask(new Runnable() {
+        net.creeperhost.minetogethercommunity.util.ClientTaskRunner.run(new Runnable() {
             @Override
             public void run() {
                 Minecraft.getMinecraft().getTextureManager().loadTexture(location, new DynamicTexture(image));
@@ -453,7 +453,7 @@ public class CosmeticDownloader {
         final ResourceLocation location = textureLocation("wing", id);
         final Wing wing = new Wing(id, item.displayName(), item.author(), item.mod(), item.locked(), item.howToUnlock(),
                 location, texW, texH, elements, new TailModel(elements, texW, texH), animation);
-        Minecraft.getMinecraft().addScheduledTask(new Runnable() {
+        net.creeperhost.minetogethercommunity.util.ClientTaskRunner.run(new Runnable() {
             @Override
             public void run() {
                 Minecraft.getMinecraft().getTextureManager().loadTexture(location, new DynamicTexture(image));

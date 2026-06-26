@@ -64,6 +64,7 @@ dependencies {
     }
     shade "net.covers1624:Quack:0.4.10.128"
     shade "net.covers1624:pircbotx:2.3.11"
+    shade "com.google.guava:guava:21.0"
     shade "org.nanohttpd:nanohttpd:2.3.1"
     shade "org.apache.httpcomponents:httpclient:4.5.14"
     shade "org.apache.httpcomponents:httpcore:4.4.16"
@@ -136,6 +137,7 @@ shadowJar {
     relocate "org.apache.commons.text", "net.creeperhost.minetogethercommunity.repack.org.apache.commons.text"
     relocate "org.jetbrains.annotations", "net.creeperhost.minetogethercommunity.repack.org.jetbrains.annotations"
     relocate "org.slf4j", "net.creeperhost.minetogethercommunity.repack.org.slf4j"
+    relocate "com.google.common", "net.creeperhost.minetogethercommunity.repack.com.google.common"
 }
 
 ext.legacyLog4jReplacementDescriptor = { String desc ->
@@ -345,6 +347,7 @@ task checkJarHygiene {
                 ~/^org\/apache\/commons\/text\//,
                 ~/^org\/jetbrains\/annotations\//,
                 ~/^org\/slf4j\//,
+                ~/^com\/google\/common\//,
                 ~/(^|\/)com\/fasterxml\//,
                 ~/(^|\/)org\/codehaus\/jackson\//,
                 ~/(^|\/)com\/github\/scribejava\//
@@ -379,6 +382,7 @@ task checkRuntimeDependencyCompleteness {
                 "net/creeperhost/minetogethercommunity/repack/org/jetbrains/annotations/ApiStatus.class",
                 "net/creeperhost/minetogethercommunity/repack/org/slf4j/Logger.class",
                 "net/creeperhost/minetogethercommunity/repack/org/slf4j/impl/StaticLoggerBinder.class",
+                "net/creeperhost/minetogethercommunity/repack/com/google/common/base/CharMatcher.class",
                 "net/creeperhost/minetogethercommunity/repack/org/pircbotx/PircBotX.class"
         ] as Set
         def present = [] as Set

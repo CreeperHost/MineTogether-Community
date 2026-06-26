@@ -38,7 +38,7 @@ public class OpenFriendChatCommand extends CommandBase {
         if (args.length == 0 || MineTogetherChat.CHAT_STATE == null) return;
         final String hash = args[0];
         final Minecraft mc = Minecraft.getMinecraft();
-        mc.addScheduledTask(() -> {
+        net.creeperhost.minetogethercommunity.util.ClientTaskRunner.run(() -> {
             Profile target = findFriend(hash);
             if (target == null) return;
             FriendChatGui.setSelected(target);

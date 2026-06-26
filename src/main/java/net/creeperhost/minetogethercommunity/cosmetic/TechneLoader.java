@@ -40,7 +40,7 @@ public final class TechneLoader {
         final ResourceLocation texture = new ResourceLocation(MineTogether.MOD_ID, "dynamic/hat/" + sanitize(id));
         final BufferedImage image = ImageIO.read(new ByteArrayInputStream(parsed.textureBytes));
         if (image == null) throw new IOException("Invalid texture PNG in " + displayName);
-        Minecraft.getMinecraft().addScheduledTask(new Runnable() {
+        net.creeperhost.minetogethercommunity.util.ClientTaskRunner.run(new Runnable() {
             @Override
             public void run() {
                 Minecraft.getMinecraft().getTextureManager().loadTexture(texture, new DynamicTexture(image));

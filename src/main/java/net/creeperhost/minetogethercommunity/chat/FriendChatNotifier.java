@@ -4,6 +4,7 @@ import net.creeperhost.minetogether.lib.chat.profile.Profile;
 import net.creeperhost.minetogether.lib.chat.profile.ProfileManager;
 import net.creeperhost.minetogether.lib.chat.irc.IrcUser;
 import net.creeperhost.minetogethercommunity.config.LocalConfig;
+import net.creeperhost.minetogethercommunity.util.ClientTaskRunner;
 import net.minecraft.client.Minecraft;
 import net.minecraft.util.text.ITextComponent;
 import net.minecraft.util.text.Style;
@@ -42,7 +43,7 @@ public class FriendChatNotifier {
 
     private static void handle(final ProfileManager.ProfileManagerEvent event) {
         if (event == null || event.type == null) return;
-        Minecraft.getMinecraft().addScheduledTask(new Runnable() {
+        ClientTaskRunner.run(new Runnable() {
             @Override
             public void run() {
                 switch (event.type) {
