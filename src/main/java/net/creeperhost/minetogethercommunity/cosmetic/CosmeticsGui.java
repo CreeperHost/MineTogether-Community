@@ -35,6 +35,7 @@ public class CosmeticsGui implements GuiProvider {
     private static final int TILE_GAP = 6;
     private static final int GRID_COLUMNS = 3;
     private static final int PREVIEW_MAX_SCALE = 58;
+    private static final float PLAYER_PREVIEW_BOTTOM_RATIO = 0.35F;
     private static final char[] SPINNER = new char[] {'|', '/', '-', '\\'};
 
     private CosmeticTypes activeTab = CosmeticTypes.HAT;
@@ -145,6 +146,7 @@ public class CosmeticsGui implements GuiProvider {
         int gridLeft = listLeft + 8;
         int gridTop = bodyTop + 36;
         int gridWidth = listWidth - 22;
+        new CatalogGrid(root).setBounds(gridLeft, gridTop, gridWidth, screenHeight - gridTop - 14);
         if (CosmeticDownloader.instance().isCatalogLoading() && catalog.isEmpty()) {
             new GuiText(root, new java.util.function.Supplier<String>() {
                 @Override
@@ -152,15 +154,7 @@ public class CosmeticsGui implements GuiProvider {
                     return I18n.format("minetogether.gui.cosmetics.loading");
                 }
             }).setColor(0xAAAAAA).setBounds(gridLeft, gridTop, gridWidth, 12);
-        } else if (catalog.isEmpty()) {
-            new GuiText(root, new java.util.function.Supplier<String>() {
-                @Override
-                public String get() {
-                    return I18n.format("minetogether.gui.cosmetics.empty");
-                }
-            }).setColor(0xAAAAAA).setBounds(gridLeft, gridTop, gridWidth, 12);
         }
-        new CatalogGrid(root).setBounds(gridLeft, gridTop, gridWidth, screenHeight - gridTop - 14);
 
         new GuiRectangle(root, 0xE0101010).setBounds(previewLeft, bodyTop, PREVIEW_WIDTH, bodyHeight);
         new PreviewElement(root).setBounds(previewLeft + 8, bodyTop + 42, PREVIEW_WIDTH - 16, bodyHeight - 90);
@@ -397,8 +391,10 @@ public class CosmeticsGui implements GuiProvider {
             boolean selected = isSelected(item);
             boolean hover = mouseX >= tileX && mouseX < tileX + tileWidth && mouseY >= tileY && mouseY < tileY + tileHeight;
             boolean locked = item != null && item.locked();
-            drawRect(tileX, tileY, tileX + tileWidth, tileY + tileHeight, item == null ? 0xFF202020 : hover ? 0xFF1F2A30 : 0xFF172026);
-            drawRect(tileX + 4, tileY + 22, tileX + tileWidth - 4, tileY + tileHeight - 6, item == null ? 0xFF151515 : 0xFF102030);
+            drawRect(tileX, tileY, tileX + tileWidth, tileY + tileHeight,
+                    selected ? (hover ? 0xFF1F3528 : 0xFF172A20) : item == null ? 0xFF202020 : hover ? 0xFF1F2A30 : 0xFF172026);
+            drawRect(tileX + 4, tileY + 22, tileX + tileWidth - 4, tileY + tileHeight - 6,
+                    selected ? 0xFF10281A : item == null ? 0xFF151515 : 0xFF102030);
 
             if (item == null) {
                 drawCenteredString(font(), I18n.format("minetogether.gui.cosmetics.none"), tileX + tileWidth / 2, tileY + 44, 0xAAAAAA);
@@ -417,23 +413,21 @@ public class CosmeticsGui implements GuiProvider {
             }
 
             resetGuiGlState();
-            drawRect(tileX + 4, tileY + tileHeight - 3, tileX + tileWidth - 4, tileY + tileHeight - 1, selected ? 0xFF00AA33 : 0xFF005A9C);
             if (selected) {
-                drawBorder(tileX, tileY, tileWidth, tileHeight, 0xFFE0E0E0);
+                drawBorder(tileX, tileY, tileWidth, tileHeight, 0xFF00AA33);
+            } else {
+                drawRect(tileX + 4, tileY + tileHeight - 3, tileX + tileWidth - 4, tileY + tileHeight - 1, 0xFF005A9C);
             }
             drawTileForeground(tileX, tileY, tileWidth, tileHeight, item, locked, selected, hover);
             resetGuiGlState();
         }
 
         private void drawTileForeground(int tileX, int tileY, int tileWidth, int tileHeight, CosmeticItem item, boolean locked, boolean selected, boolean hover) {
-            int nameColor = item == null ? 0xFFE0E0E0 : locked ? 0xFF777777 : MTStyle.Flat.TEXT;
+            int nameColor = selected ? 0xFF55FF55 : item == null ? 0xFFE0E0E0 : locked ? 0xFF777777 : MTStyle.Flat.TEXT;
             drawScrollingTitle(displayName(item), tileX + 6, tileY + 8, tileWidth - 12, nameColor, hover);
             resetGlColor();
             if (item != null && locked) {
                 font().drawString(trimToWidth(subtitle(item), tileWidth - 12), tileX + 6, tileY + tileHeight - 15, 0x777777);
-                resetGlColor();
-            } else if (item != null && selected) {
-                font().drawString("v", tileX + tileWidth - 14, tileY + tileHeight - 15, 0xFF00FF55);
                 resetGlColor();
             }
         }
@@ -739,7 +733,7 @@ public class CosmeticsGui implements GuiProvider {
                 return;
             }
 
-            int renderBottom = y + Math.round(height * 0.78F);
+            int renderBottom = y + Math.round(height * PLAYER_PREVIEW_BOTTOM_RATIO);
             int availableHeight = Math.max(40, height - 24);
             int scale = Math.max(28, Math.min(PREVIEW_MAX_SCALE, Math.min(width / 2, availableHeight / 2)));
             try {
@@ -795,7 +789,7 @@ public class CosmeticsGui implements GuiProvider {
             pushScissor(x, y, width, height);
             try {
                 float entityHeight = Math.max(0.1F, ((Entity) entity).height);
-                int scale = Math.max(18, Math.round(Math.min((height / entityHeight) * 1.45F, 46.0F)));
+                int scale = Math.max(18, Math.round(Math.min((height / entityHeight) * 1.45F, 46.0F) * cardPreviewScale()));
                 int yPos = Math.round(y + height + scale * cardPreviewYOffset());
                 try {
                     drawStaticEntityPreview(x + width / 2, yPos, scale, entity, cardPreviewYaw());
@@ -837,15 +831,31 @@ public class CosmeticsGui implements GuiProvider {
         return 180.0F - modernYaw;
     }
 
+    private float cardPreviewScale() {
+        switch (activeTab) {
+            case CAPE:
+                return 0.92F;
+            case TAIL:
+                return 0.68F;
+            case WINGS:
+                return 0.84F;
+            default:
+                return 1.0F;
+        }
+    }
+
     private float cardPreviewYOffset() {
         switch (activeTab) {
             case HAT:
-                return 0.25F;
+                return -0.20F;
+            case CAPE:
+                return -1.05F;
             case TAIL:
+                return -1.80F;
             case WINGS:
-                return -0.05F;
+                return -1.10F;
             default:
-                return 0.20F;
+                return -0.40F;
         }
     }
 
@@ -856,6 +866,9 @@ public class CosmeticsGui implements GuiProvider {
         float previousRotationPitch = baseEntity.rotationPitch;
         float previousPrevRotationYawHead = entity.prevRotationYawHead;
         float previousRotationYawHead = entity.rotationYawHead;
+        int previousHurtTime = entity.hurtTime;
+        int previousDeathTime = entity.deathTime;
+        float previousAttackedAtYaw = entity.attackedAtYaw;
 
         resetGuiGlState();
         GlStateManager.enableColorMaterial();
@@ -872,18 +885,27 @@ public class CosmeticsGui implements GuiProvider {
             baseEntity.rotationPitch = 0.0F;
             entity.rotationYawHead = yaw;
             entity.prevRotationYawHead = yaw;
+            entity.hurtTime = 0;
+            entity.deathTime = 0;
+            entity.attackedAtYaw = 0.0F;
 
             RenderManager renderManager = RenderManager.instance;
             float previousPlayerViewY = renderManager.playerViewY;
-            renderManager.playerViewY = 180.0F;
-            renderManager.doRenderEntity(entity, 0.0D, 0.0D, 0.0D, 0.0F, 1.0F, false);
-            renderManager.playerViewY = previousPlayerViewY;
+            try {
+                renderManager.playerViewY = 180.0F;
+                renderManager.doRenderEntity(entity, 0.0D, 0.0D, 0.0D, 0.0F, 1.0F, false);
+            } finally {
+                renderManager.playerViewY = previousPlayerViewY;
+            }
         } finally {
             entity.renderYawOffset = previousRenderYawOffset;
             baseEntity.rotationYaw = previousRotationYaw;
             baseEntity.rotationPitch = previousRotationPitch;
             entity.prevRotationYawHead = previousPrevRotationYawHead;
             entity.rotationYawHead = previousRotationYawHead;
+            entity.hurtTime = previousHurtTime;
+            entity.deathTime = previousDeathTime;
+            entity.attackedAtYaw = previousAttackedAtYaw;
 
             GlStateManager.popMatrix();
             RenderHelper.disableStandardItemLighting();
@@ -906,6 +928,9 @@ public class CosmeticsGui implements GuiProvider {
         float previousRotationPitch = baseEntity.rotationPitch;
         float previousPrevRotationYawHead = entity.prevRotationYawHead;
         float previousRotationYawHead = entity.rotationYawHead;
+        int previousHurtTime = entity.hurtTime;
+        int previousDeathTime = entity.deathTime;
+        float previousAttackedAtYaw = entity.attackedAtYaw;
         boolean previousSuppressVanillaCapeForPreview = CosmeticSelections.instance().suppressVanillaCapeForPreview;
 
         resetGuiGlState();
@@ -926,12 +951,18 @@ public class CosmeticsGui implements GuiProvider {
             baseEntity.rotationPitch = -yAngle * 20.0F;
             entity.rotationYawHead = baseEntity.rotationYaw;
             entity.prevRotationYawHead = baseEntity.rotationYaw;
+            entity.hurtTime = 0;
+            entity.deathTime = 0;
+            entity.attackedAtYaw = 0.0F;
 
             RenderManager renderManager = RenderManager.instance;
             float previousPlayerViewY = renderManager.playerViewY;
-            renderManager.playerViewY = 180.0F;
-            renderManager.doRenderEntity(entity, 0.0D, 0.0D, 0.0D, 0.0F, 1.0F, false);
-            renderManager.playerViewY = previousPlayerViewY;
+            try {
+                renderManager.playerViewY = 180.0F;
+                renderManager.doRenderEntity(entity, 0.0D, 0.0D, 0.0D, 0.0F, 1.0F, false);
+            } finally {
+                renderManager.playerViewY = previousPlayerViewY;
+            }
         } finally {
             CosmeticSelections.instance().suppressVanillaCapeForPreview = previousSuppressVanillaCapeForPreview;
             entity.renderYawOffset = previousRenderYawOffset;
@@ -939,6 +970,9 @@ public class CosmeticsGui implements GuiProvider {
             baseEntity.rotationPitch = previousRotationPitch;
             entity.prevRotationYawHead = previousPrevRotationYawHead;
             entity.rotationYawHead = previousRotationYawHead;
+            entity.hurtTime = previousHurtTime;
+            entity.deathTime = previousDeathTime;
+            entity.attackedAtYaw = previousAttackedAtYaw;
 
             GlStateManager.popMatrix();
             RenderHelper.disableStandardItemLighting();
