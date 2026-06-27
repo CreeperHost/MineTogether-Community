@@ -41,6 +41,7 @@ minecraft {
     // Pin to stable_12, the mappings the mod was written against. RFG 1.4.9 otherwise
     // defaults 1.7.10 to stable_39, which renamed members (e.g. fontRendererObj ->
     // fontRenderer), breaking compilation.
+    useForgeEmbeddedMappings = false
     mcpMappingChannel = "stable"
     mcpMappingVersion = "12"
 }
