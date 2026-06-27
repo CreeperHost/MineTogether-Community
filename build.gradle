@@ -1,40 +1,48 @@
+// ASM is used by the in-script Log4j-compat bytecode tasks further down.
 buildscript {
     repositories {
-        maven { url = "https://maven.minecraftforge.net/" }
-        maven { url = "https://plugins.gradle.org/m2/" }
         mavenCentral()
     }
     dependencies {
-        classpath "net.minecraftforge.gradle:ForgeGradle:1.2-SNAPSHOT"
-        classpath "com.github.jengelman.gradle.plugins:shadow:1.2.4"
-        classpath "org.ow2.asm:asm:5.0.3"
+        classpath "org.ow2.asm:asm:9.7"
     }
 }
 
-apply plugin: "forge"
-apply plugin: "com.github.johnrengelman.shadow"
-apply plugin: "maven-publish"
+plugins {
+    id "java-library"
+    id "maven-publish"
+    // RetroFuturaGradle replaces the legacy ForgeGradle 1.2 toolchain for 1.7.10.
+    id "com.gtnewhorizons.retrofuturagradle" version "1.4.9"
+    // GradleUp shadow (successor to johnrengelman's plugin) for the shaded fat jar.
+    id "com.gradleup.shadow" version "8.3.5"
+}
 
-archivesBaseName = archives_base_name
+base {
+    archivesName = archives_base_name
+}
 version = mod_version
 group = maven_group
 
-sourceCompatibility = targetCompatibility = JavaVersion.VERSION_1_8
-
-minecraft {
-    version = "${minecraft_version}-${forge_version}"
-    runDir = "run"
-    mappings = "${mappings_channel}_${mappings_version}"
+// Decouple the JDK that runs Gradle from the JDK that compiles the mod: the mod is
+// compiled to Java 8 bytecode by a real JDK 8 toolchain (auto-provisioned via foojay),
+// which is also what keeps reobf inheritance resolution behaving like the 1.7.10 era.
+java {
+    toolchain {
+        languageVersion = JavaLanguageVersion.of(8)
+        vendor = org.gradle.jvm.toolchain.JvmVendorSpec.AZUL
+    }
 }
 
-[
-        downloadClient: "https://launcher.mojang.com/v1/objects/e80d9b3bf5085002218d4be59e668bac718abbc6/client.jar",
-        downloadServer: "https://launcher.mojang.com/v1/objects/952438ac4e01b4d115c5fc38f891710c4941df29/server.jar",
-        getAssetsIndex: "https://launchermeta.mojang.com/v1/packages/1863782e33ce7b584fc45b037325a1964e095d3e/1.7.10.json"
-].each { taskName, modernUrl ->
-    tasks.matching { it.name == taskName }.all { task ->
-        task.setUrl(new net.minecraftforge.gradle.delayed.DelayedString(project, modernUrl))
-    }
+// RFG's 1.7.10 defaults are forge 10.13.4.1614 + stable_12 mappings, i.e. the same
+// versions previously pinned in gradle.properties.
+minecraft {
+    mcVersion = "1.7.10"
+    username = "Developer"
+    // Pin to stable_12, the mappings the mod was written against. RFG 1.4.9 otherwise
+    // defaults 1.7.10 to stable_39, which renamed members (e.g. fontRendererObj ->
+    // fontRenderer), breaking compilation.
+    mcpMappingChannel = "stable"
+    mcpMappingVersion = "12"
 }
 
 repositories {
@@ -46,7 +54,7 @@ repositories {
 configurations {
     devLogin
     shade
-    compile.extendsFrom shade
+    implementation.extendsFrom shade
     all {
         resolutionStrategy.force "net.covers1624:Quack:0.4.10.128"
     }
@@ -79,24 +87,21 @@ dependencies {
     shade "org.jetbrains:annotations:24.1.0"
     shade "org.slf4j:slf4j-api:1.7.36"
     shade "org.slf4j:slf4j-nop:1.7.36"
-    testCompile "junit:junit:4.13.2"
+    testImplementation "junit:junit:4.13.2"
 }
 
 sourceSets {
     main {
-        java.srcDir "src/main/java"
+        // src/main/java and src/main/resources are already the default source dirs; only
+        // the excludes below are meaningful. Re-adding the default resources dir made
+        // Gradle 8's processResources enumerate it twice -> duplicate-entry failure.
         java.exclude "net/creeperhost/minetogethercommunity/compat/ftbquests/**"
         java.exclude "net/creeperhost/minetogethercommunity/util/LoggerNameStartsWithFilter.java"
-        resources {
-            srcDir "src/main/resources"
-        }
-    }
-    test {
-        java.srcDir "src/test/java"
     }
 }
 
 processResources {
+    duplicatesStrategy = DuplicatesStrategy.EXCLUDE
     inputs.property "version", project.version
     filesMatching("mcmod.info") {
         expand "version": project.version
@@ -108,20 +113,35 @@ tasks.withType(JavaCompile) {
     options.compilerArgs += ["-Xlint:deprecation", "-Xlint:unchecked"]
 }
 
+// Route RFG's runClient through covers1624 DevLogin so a real Microsoft account is used
+// in dev (RFG's default is the dummy "Developer" offline account).
+//
+// runClient is a RunMinecraftTask (extends JavaExec) whose mainClass is GradleStart. RFG
+// appends Minecraft's launch args (--username/--uuid/--accessToken/...) in its own doFirst,
+// registered in the task constructor as "setup late-binding arguments". Gradle runs doFirst
+// actions most-recently-added-first, so the block below executes BEFORE RFG's: we capture
+// the real main class (GradleStart), hand it to DevLogin via --launch_target, and RFG then
+// appends the MC args after it. DevLogin authenticates and overrides the credential args
+// before delegating to GradleStart.
+//
+// Everything is done in the doFirst (execution time) so it is robust against RFG finalizing
+// the classpath/args in an afterEvaluate: by the time this runs, RFG's wiring is in place
+// and we only add to it. setupLateArgs preserves existing jvmArgs/args and appends.
 tasks.matching { it.name == "runClient" }.all { JavaExec task ->
-    task.classpath += configurations.devLogin
     task.doFirst {
-        String originalMain = task.main
-        if (originalMain != "net.covers1624.devlogin.DevLogin") {
-            task.args("--launch_target", originalMain)
-            task.main = "net.covers1624.devlogin.DevLogin"
+        task.classpath = task.classpath + configurations.devLogin
+        String launchTarget = task.mainClass.get()
+        if (launchTarget != "net.covers1624.devlogin.DevLogin") {
+            task.args("--launch_target", launchTarget)
+            task.mainClass.set("net.covers1624.devlogin.DevLogin")
         }
     }
 }
 
 shadowJar {
     configurations = [project.configurations.shade]
-    classifier = ""
+    // The shaded (deobf) jar is an intermediate; reobfJar produces the final no-classifier artifact.
+    archiveClassifier = "shaded"
     exclude "module-info.class"
     exclude "META-INF/versions/**"
     exclude "net/covers1624/quack/net/httpapi/java11/**"
@@ -173,7 +193,7 @@ ext.legacyLog4jReplacementDescriptor = { String desc ->
 task patchLegacyLog4jCalls {
     dependsOn shadowJar
     doLast {
-        File jarFile = shadowJar.archivePath
+        File jarFile = shadowJar.archiveFile.get().asFile
         File tmpFile = new File(jarFile.parentFile, jarFile.name + ".log4jfix")
         int patchedCalls = 0
         new java.util.zip.ZipFile(jarFile).withCloseable { zip ->
@@ -238,24 +258,25 @@ task patchLegacyLog4jCalls {
     }
 }
 
-reobf {
-    shadowJar {}
+// RFG registers a `reobfJar` task that reobfuscates the `jar` output by default.
+// Repoint it at the shaded jar so the published artifact is shaded + reobfuscated, and
+// make it the primary (no-classifier) artifact. RFG auto-wires the SRG/CSV mappings and
+// the reference classpath (full MC + Forge + deps) used for inheritance-aware reobf.
+tasks.named("reobfJar", com.gtnewhorizons.retrofuturagradle.mcp.ReobfuscatedJar) {
+    setInputJarFromTask(tasks.named("shadowJar"))
+    archiveClassifier = ""
+    // patchLegacyLog4jCalls rewrites the shaded jar in place before reobf reads it.
+    dependsOn "patchLegacyLog4jCalls"
 }
 
-tasks.reobf.reobf(tasks.shadowJar)
-tasks.reobf.dependsOn tasks.shadowJar
-tasks.reobf.dependsOn patchLegacyLog4jCalls
-
-jar {
-    classifier = "thin"
+tasks.named("build") {
+    dependsOn "reobfJar"
 }
-
-build.dependsOn "reobf"
 
 task checkClassfileVersion {
-    dependsOn "reobf"
+    dependsOn "reobfJar"
     doLast {
-        new java.util.zip.ZipFile(shadowJar.archivePath).withCloseable { zip ->
+        new java.util.zip.ZipFile(tasks.reobfJar.archiveFile.get().asFile).withCloseable { zip ->
             zip.entries().each { entry ->
                 if (!entry.name.endsWith(".class")) {
                     return
@@ -274,7 +295,7 @@ task checkClassfileVersion {
 }
 
 task checkReobfuscatedJar {
-    dependsOn "reobf"
+    dependsOn "reobfJar"
     doLast {
         def checks = [
                 [
@@ -304,7 +325,7 @@ task checkReobfuscatedJar {
                 ]
         ]
         def offenders = []
-        new java.util.zip.ZipFile(shadowJar.archivePath).withCloseable { zip ->
+        new java.util.zip.ZipFile(tasks.reobfJar.archiveFile.get().asFile).withCloseable { zip ->
             checks.each { check ->
                 def entry = zip.getEntry(check.entry)
                 if (entry == null) {
@@ -334,7 +355,7 @@ task checkReobfuscatedJar {
 }
 
 task checkJarHygiene {
-    dependsOn "reobf"
+    dependsOn "reobfJar"
     doLast {
         def forbidden = [
                 ~/^META-INF\/versions\//,
@@ -366,7 +387,7 @@ task checkJarHygiene {
                 ~/(^|\/)com\/github\/scribejava\//
         ]
         def offenders = []
-        new java.util.zip.ZipFile(shadowJar.archivePath).withCloseable { zip ->
+        new java.util.zip.ZipFile(tasks.reobfJar.archiveFile.get().asFile).withCloseable { zip ->
             zip.entries().each { entry ->
                 String name = entry.name
                 if (forbidden.any { pattern -> (name =~ pattern).find() }) {
@@ -381,7 +402,7 @@ task checkJarHygiene {
 }
 
 task checkRuntimeDependencyCompleteness {
-    dependsOn "reobf"
+    dependsOn "reobfJar"
     doLast {
         def required = [
                 "net/creeperhost/minetogethercommunity/repack/net/covers1624/quack/net/httpapi/apache/ApacheEngine.class",
@@ -399,7 +420,7 @@ task checkRuntimeDependencyCompleteness {
                 "net/creeperhost/minetogethercommunity/repack/org/pircbotx/PircBotX.class"
         ] as Set
         def present = [] as Set
-        new java.util.zip.ZipFile(shadowJar.archivePath).withCloseable { zip ->
+        new java.util.zip.ZipFile(tasks.reobfJar.archiveFile.get().asFile).withCloseable { zip ->
             zip.entries().each { entry ->
                 if (required.contains(entry.name)) {
                     present << entry.name
@@ -414,10 +435,10 @@ task checkRuntimeDependencyCompleteness {
 }
 
 task checkLegacyLog4jCompatibility {
-    dependsOn "reobf"
+    dependsOn "reobfJar"
     doLast {
         def offenders = []
-        new java.util.zip.ZipFile(shadowJar.archivePath).withCloseable { zip ->
+        new java.util.zip.ZipFile(tasks.reobfJar.archiveFile.get().asFile).withCloseable { zip ->
             zip.entries().each { entry ->
                 if (!entry.name.endsWith(".class")) {
                     return
