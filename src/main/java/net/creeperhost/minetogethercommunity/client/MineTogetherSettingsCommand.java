@@ -12,17 +12,9 @@ public class MineTogetherSettingsCommand extends CommandBase {
         return "minetogether_settings";
     }
 
-    public String func_71517_b() {
-        return getCommandName();
-    }
-
     @Override
     public String getCommandUsage(ICommandSender sender) {
         return "/minetogether_settings";
-    }
-
-    public String func_71518_a(ICommandSender sender) {
-        return getCommandUsage(sender);
     }
 
     @Override
@@ -36,7 +28,4 @@ public class MineTogetherSettingsCommand extends CommandBase {
         net.creeperhost.minetogethercommunity.util.ClientTaskRunner.run(() -> mc.displayGuiScreen(new SettingGui.Screen(mc.currentScreen)));
     }
 
-    public void func_71515_b(ICommandSender sender, String[] args) {
-        processCommand(sender, args);
-    }
 }

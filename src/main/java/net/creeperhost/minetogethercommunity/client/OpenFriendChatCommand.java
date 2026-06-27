@@ -15,17 +15,9 @@ public class OpenFriendChatCommand extends CommandBase {
         return "minetogether_friend_chat";
     }
 
-    public String func_71517_b() {
-        return getCommandName();
-    }
-
     @Override
     public String getCommandUsage(ICommandSender sender) {
         return "/minetogether_friend_chat <profileHash>";
-    }
-
-    public String func_71518_a(ICommandSender sender) {
-        return getCommandUsage(sender);
     }
 
     @Override
@@ -44,10 +36,6 @@ public class OpenFriendChatCommand extends CommandBase {
             FriendChatGui.setSelected(target);
             mc.displayGuiScreen(new FriendChatGui.Screen(mc.currentScreen));
         });
-    }
-
-    public void func_71515_b(ICommandSender sender, String[] args) {
-        processCommand(sender, args);
     }
 
     private Profile findFriend(String hash) {
