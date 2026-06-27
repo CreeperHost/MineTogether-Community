@@ -611,7 +611,7 @@ public class CosmeticsGui implements GuiProvider {
             default:
                 break;
         }
-        CosmeticSelections.instance().set(type, safeId);
+        CosmeticSelections.instance().setLocal(type, safeId);
         if (!safeId.isEmpty()) {
             CosmeticDownloader.instance().ensureAssetLoaded(type.slotName(), safeId);
         }

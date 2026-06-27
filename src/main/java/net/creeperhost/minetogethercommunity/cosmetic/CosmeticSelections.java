@@ -10,6 +10,7 @@ public class CosmeticSelections {
     public volatile String selectedWingId = "";
     public volatile boolean suppressVanillaCapeForPreview;
     public volatile boolean fullBrightPreview;
+    private long localMutationVersion;
 
     public static CosmeticSelections instance() {
         if (instance == null) {
@@ -22,13 +23,14 @@ public class CosmeticSelections {
         return instance;
     }
 
-    public void clear() {
+    public synchronized void clear() {
         selectedHatId = "";
         selectedCapeId = "";
         selectedTailId = "";
         selectedWingId = "";
         suppressVanillaCapeForPreview = false;
         fullBrightPreview = false;
+        localMutationVersion++;
     }
 
     public String get(CosmeticTypes type) {
@@ -48,6 +50,29 @@ public class CosmeticSelections {
 
     public void set(CosmeticTypes type, String id) {
         String safeId = id == null || "none".equals(id) ? "" : id;
+        setInternal(type, safeId);
+    }
+
+    public synchronized void setLocal(CosmeticTypes type, String id) {
+        String safeId = id == null || "none".equals(id) ? "" : id;
+        setInternal(type, safeId);
+        localMutationVersion++;
+    }
+
+    public synchronized long localMutationVersion() {
+        return localMutationVersion;
+    }
+
+    public synchronized boolean replaceFromIfLocalVersion(CosmeticSelections source, long expectedVersion) {
+        if (localMutationVersion != expectedVersion) return false;
+        selectedHatId = source.selectedHatId;
+        selectedCapeId = source.selectedCapeId;
+        selectedTailId = source.selectedTailId;
+        selectedWingId = source.selectedWingId;
+        return true;
+    }
+
+    private void setInternal(CosmeticTypes type, String safeId) {
         switch (type) {
             case HAT:
                 selectedHatId = safeId;

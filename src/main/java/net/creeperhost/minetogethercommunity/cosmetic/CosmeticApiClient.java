@@ -32,6 +32,8 @@ public final class CosmeticApiClient {
     }
 
     public static void fetchProfileAsync() {
+        final CosmeticSelections target = CosmeticSelections.instance();
+        final long localVersion = target.localMutationVersion();
         Thread thread = new Thread(new Runnable() {
             @Override
             public void run() {
@@ -42,13 +44,16 @@ public final class CosmeticApiClient {
                         return;
                     }
                     CosmeticSelections selections = fetchSelections(fullHash, true);
-                    copySelections(selections, CosmeticSelections.instance());
-                    loadSelectedAssets(CosmeticSelections.instance());
+                    if (!target.replaceFromIfLocalVersion(selections, localVersion)) {
+                        LOGGER.debug("Ignoring cosmetic profile loaded after a local selection change");
+                        return;
+                    }
+                    loadSelectedAssets(target);
                     LOGGER.info("Loaded cosmetic profile: hat='{}', cape='{}', tail='{}', wing='{}'",
-                            CosmeticSelections.instance().selectedHatId,
-                            CosmeticSelections.instance().selectedCapeId,
-                            CosmeticSelections.instance().selectedTailId,
-                            CosmeticSelections.instance().selectedWingId);
+                            target.selectedHatId,
+                            target.selectedCapeId,
+                            target.selectedTailId,
+                            target.selectedWingId);
                 } catch (Exception e) {
                     LOGGER.error("Failed to fetch cosmetic profile", e);
                 }
@@ -183,13 +188,6 @@ public final class CosmeticApiClient {
         }
 
         return selections;
-    }
-
-    private static void copySelections(CosmeticSelections source, CosmeticSelections target) {
-        target.selectedHatId = source.selectedHatId;
-        target.selectedCapeId = source.selectedCapeId;
-        target.selectedTailId = source.selectedTailId;
-        target.selectedWingId = source.selectedWingId;
     }
 
     private static void loadSelectedAssets(CosmeticSelections selections) {
