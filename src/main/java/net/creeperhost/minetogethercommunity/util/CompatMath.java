@@ -1,7 +1,7 @@
-package net.minecraft.util.math;
+package net.creeperhost.minetogethercommunity.util;
 
-public final class MathHelper {
-    private MathHelper() {
+public final class CompatMath {
+    private CompatMath() {
     }
 
     public static int ceil(float value) {

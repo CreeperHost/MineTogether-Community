@@ -9,6 +9,7 @@ import net.creeperhost.minetogethercommunity.cosmetic.hat.HatRegistry;
 import net.creeperhost.minetogethercommunity.cosmetic.tail.Tail;
 import net.creeperhost.minetogethercommunity.cosmetic.tail.TailPose;
 import net.creeperhost.minetogethercommunity.cosmetic.tail.TailRegistry;
+import net.creeperhost.minetogethercommunity.util.CompatMath;
 import net.creeperhost.minetogethercommunity.cosmetic.wing.Wing;
 import net.creeperhost.minetogethercommunity.cosmetic.wing.WingAnimation;
 import net.creeperhost.minetogethercommunity.cosmetic.wing.WingRegistry;
@@ -18,7 +19,6 @@ import net.minecraft.client.renderer.GlStateManager;
 import net.minecraft.client.renderer.OpenGlHelper;
 import net.minecraft.client.renderer.entity.RenderPlayer;
 import net.minecraft.util.ResourceLocation;
-import net.minecraft.util.math.MathHelper;
 import net.minecraftforge.client.event.RenderPlayerEvent;
 import cpw.mods.fml.common.eventhandler.SubscribeEvent;
 
@@ -116,7 +116,7 @@ public class LegacyCosmeticRenderer {
         WingAnimation animation = wing.animation();
         float speed = flying ? animation.flyingSpeed() : animation.idleSpeed();
         float flapDegrees = flying ? animation.flyingFlapDegrees() : animation.idleFlapDegrees();
-        float flap = MathHelper.sin(ageInTicks * speed) * flapDegrees;
+        float flap = CompatMath.sin(ageInTicks * speed) * flapDegrees;
         float spread = animation.baseSpreadDegrees() + flap * animation.flapScale();
 
         Minecraft.getMinecraft().getTextureManager().bindTexture(wing.texture());
@@ -150,14 +150,14 @@ public class LegacyCosmeticRenderer {
         double cloakY = interpolate(player.field_71096_bN, player.field_71095_bQ, partialTicks) - interpolate(player.prevPosY, player.posY, partialTicks);
         double cloakZ = interpolate(player.field_71097_bO, player.field_71085_bR, partialTicks) - interpolate(player.prevPosZ, player.posZ, partialTicks);
         float bodyYaw = player.prevRenderYawOffset + (player.renderYawOffset - player.prevRenderYawOffset) * partialTicks;
-        double sin = MathHelper.sin(bodyYaw * 0.017453292F);
-        double cos = -MathHelper.cos(bodyYaw * 0.017453292F);
-        float vertical = MathHelper.clamp((float) cloakY * 10.0F, -6.0F, 32.0F);
+        double sin = CompatMath.sin(bodyYaw * 0.017453292F);
+        double cos = -CompatMath.cos(bodyYaw * 0.017453292F);
+        float vertical = CompatMath.clamp((float) cloakY * 10.0F, -6.0F, 32.0F);
         float forward = (float) (cloakX * sin + cloakZ * cos) * 100.0F;
         forward = Math.max(forward, 0.0F);
         float side = (float) (cloakX * cos - cloakZ * sin) * 100.0F;
         float camera = player.prevCameraYaw + (player.cameraYaw - player.prevCameraYaw) * partialTicks;
-        vertical += MathHelper.sin((player.prevDistanceWalkedModified + (player.distanceWalkedModified - player.prevDistanceWalkedModified) * partialTicks) * 6.0F) * 32.0F * camera;
+        vertical += CompatMath.sin((player.prevDistanceWalkedModified + (player.distanceWalkedModified - player.prevDistanceWalkedModified) * partialTicks) * 6.0F) * 32.0F * camera;
 
         if (player.isSneaking()) {
             vertical += 25.0F;
@@ -176,8 +176,8 @@ public class LegacyCosmeticRenderer {
         float walk = player.prevDistanceWalkedModified + (player.distanceWalkedModified - player.prevDistanceWalkedModified) * partialTicks;
         float bob = player.prevCameraYaw + (player.cameraYaw - player.prevCameraYaw) * partialTicks;
         float walkPhase = walk * 6.0F;
-        float walkWave = MathHelper.sin(walkPhase) * bob;
-        float walkCounterWave = MathHelper.cos(walkPhase) * bob;
+        float walkWave = CompatMath.sin(walkPhase) * bob;
+        float walkCounterWave = CompatMath.cos(walkPhase) * bob;
 
         float lift;
         float sideLag = 0.0F;
@@ -188,12 +188,12 @@ public class LegacyCosmeticRenderer {
             double cloakY = interpolate(player.field_71096_bN, player.field_71095_bQ, partialTicks) - interpolate(player.prevPosY, player.posY, partialTicks);
             double cloakZ = interpolate(player.field_71097_bO, player.field_71085_bR, partialTicks) - interpolate(player.prevPosZ, player.posZ, partialTicks);
             float bodyYaw = player.prevRenderYawOffset + (player.renderYawOffset - player.prevRenderYawOffset) * partialTicks;
-            float sin = MathHelper.sin(bodyYaw * 0.017453292F);
-            float back = -MathHelper.cos(bodyYaw * 0.017453292F);
-            float verticalLag = MathHelper.clamp((float) cloakY * 10.0F, -6.0F, 20.0F);
-            float backwardLag = MathHelper.clamp((float) (cloakX * sin + cloakZ * back) * 100.0F, 0.0F, 40.0F);
-            float sidewaysLag = MathHelper.clamp((float) (cloakX * back - cloakZ * sin) * 100.0F, -16.0F, 16.0F);
-            lift = MathHelper.clamp(backwardLag / 260.0F + verticalLag / 500.0F, -0.05F, 0.16F);
+            float sin = CompatMath.sin(bodyYaw * 0.017453292F);
+            float back = -CompatMath.cos(bodyYaw * 0.017453292F);
+            float verticalLag = CompatMath.clamp((float) cloakY * 10.0F, -6.0F, 20.0F);
+            float backwardLag = CompatMath.clamp((float) (cloakX * sin + cloakZ * back) * 100.0F, 0.0F, 40.0F);
+            float sidewaysLag = CompatMath.clamp((float) (cloakX * back - cloakZ * sin) * 100.0F, -16.0F, 16.0F);
+            lift = CompatMath.clamp(backwardLag / 260.0F + verticalLag / 500.0F, -0.05F, 0.16F);
             sideLag = sidewaysLag / 220.0F;
         }
 
@@ -202,16 +202,16 @@ public class LegacyCosmeticRenderer {
         float[] z = new float[6];
         x[0] = lift * 0.28F + walkWave * 0.012F;
         x[1] = lift * 0.24F + walkWave * 0.010F;
-        x[2] = lift * 0.18F + MathHelper.cos(idleSeed - 2.0F) / 110.0F;
-        x[3] = -lift * 0.08F + MathHelper.cos(idleSeed - 3.0F) / 95.0F;
-        x[4] = -lift * 0.10F + MathHelper.cos(idleSeed - 4.0F) / 95.0F;
-        x[5] = -lift * 0.12F + MathHelper.cos(idleSeed - 5.0F) / 95.0F;
+        x[2] = lift * 0.18F + CompatMath.cos(idleSeed - 2.0F) / 110.0F;
+        x[3] = -lift * 0.08F + CompatMath.cos(idleSeed - 3.0F) / 95.0F;
+        x[4] = -lift * 0.10F + CompatMath.cos(idleSeed - 4.0F) / 95.0F;
+        x[5] = -lift * 0.12F + CompatMath.cos(idleSeed - 5.0F) / 95.0F;
 
         for (int i = 0; i < y.length; i++) {
             float delay = i * 0.65F;
             y[i] = sideLag * (0.12F + i * 0.025F)
-                    + MathHelper.cos(idleSeed - delay) / 80.0F
-                    + MathHelper.sin(walkPhase - delay) * bob * 0.022F;
+                    + CompatMath.cos(idleSeed - delay) / 80.0F
+                    + CompatMath.sin(walkPhase - delay) * bob * 0.022F;
         }
         z[3] = walkCounterWave * 0.004F;
         z[4] = walkCounterWave * 0.005F;

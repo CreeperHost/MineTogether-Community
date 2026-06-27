@@ -26,6 +26,7 @@ import net.creeperhost.minetogethercommunity.gui.chat.PublicChatGui;
 import net.creeperhost.minetogethercommunity.oauth.KeycloakOAuth;
 import net.creeperhost.minetogethercommunity.oauth.ServerAuthTest;
 import net.creeperhost.minetogethercommunity.proxy.ClientProxy;
+import net.creeperhost.minetogethercommunity.util.CompatMath;
 import net.minecraft.client.Minecraft;
 import net.minecraft.entity.player.EntityPlayer;
 import net.minecraft.client.gui.ChatLine;
@@ -43,7 +44,6 @@ import net.minecraft.client.renderer.GlStateManager;
 import net.minecraft.client.settings.GameSettings;
 import net.minecraft.client.resources.I18n;
 import net.minecraft.server.integrated.IntegratedServer;
-import net.minecraft.util.math.MathHelper;
 import net.minecraft.util.text.TextFormatting;
 import net.minecraftforge.client.event.ClientChatReceivedEvent;
 import net.minecraftforge.client.event.GuiOpenEvent;
@@ -662,7 +662,7 @@ public class ClientEvents {
         boolean isScrolled = ((Boolean) CHAT_IS_SCROLLED.get(chat)).booleanValue();
         float opacity = mc.gameSettings.chatOpacity * 0.9F + 0.1F;
         float scale = Math.max(0.1F, chat.getChatScale());
-        int chatWidth = MathHelper.ceil(chat.getChatWidth() / scale);
+        int chatWidth = CompatMath.ceil(chat.getChatWidth() / scale);
         int renderedLines = 0;
 
         GlStateManager.pushMatrix();
@@ -697,7 +697,7 @@ public class ClientEvents {
             alpha = 255;
         } else {
             double fade = 1.0D - (double) age / 200.0D;
-            fade = MathHelper.clamp(fade * 10.0D, 0.0D, 1.0D);
+            fade = CompatMath.clamp(fade * 10.0D, 0.0D, 1.0D);
             alpha = (int) (255.0D * fade * fade);
         }
         return (int) (alpha * opacity);
@@ -719,7 +719,7 @@ public class ClientEvents {
     private void drawFocusedChatBackdrop(Minecraft mc, GuiNewChat chat, int screenHeight) {
         float scale = Math.max(0.1F, chat.getChatScale());
         int width = chatContentRightEdge();
-        int height = Math.max(minChatTargetHeight(), MathHelper.ceil(chat.getChatHeight() * scale));
+        int height = Math.max(minChatTargetHeight(), CompatMath.ceil(chat.getChatHeight() * scale));
         int maxY = screenHeight - 40;
         int y = maxY - height;
         Gui.drawRect(0, y, width, maxY, focusedChatBackgroundColor(mc));
@@ -736,7 +736,7 @@ public class ClientEvents {
 
     private int focusedChatBackgroundColor(Minecraft mc) {
         int alpha = (int) (128.0F * (mc.gameSettings.chatOpacity * 0.9F + 0.1F));
-        return MathHelper.clamp(alpha, 0, 255) << 24;
+        return CompatMath.clamp(alpha, 0, 255) << 24;
     }
 
     private void drawLogo(Minecraft mc, int x, int y, int width, int height) {
@@ -810,7 +810,7 @@ public class ClientEvents {
         Minecraft mc = Minecraft.getMinecraft();
         GuiNewChat chat = mc.ingameGUI.getChatGUI();
         float scale = Math.max(0.1F, mc.gameSettings.chatScale);
-        return Math.max(0, MathHelper.ceil(chat.getChatWidth() + (12.0F * scale)));
+        return Math.max(0, CompatMath.ceil(chat.getChatWidth() + (12.0F * scale)));
     }
 
     private int chatTabX() {
@@ -821,7 +821,7 @@ public class ClientEvents {
         Minecraft mc = Minecraft.getMinecraft();
         GuiNewChat chat = mc.ingameGUI.getChatGUI();
         float scale = Math.max(0.1F, mc.gameSettings.chatScale);
-        return Math.max(minChatTargetHeight(), MathHelper.ceil(chat.getChatHeight() * scale));
+        return Math.max(minChatTargetHeight(), CompatMath.ceil(chat.getChatHeight() * scale));
     }
 
     private int minChatTargetHeight() {
@@ -847,8 +847,8 @@ public class ClientEvents {
         int tabs = hasGroupChatStatic() ? 3 : 2;
         int targetHeight = tabs * 12 + 12;
         float scale = Math.max(0.1F, mc.gameSettings.chatScale);
-        int requiredChatHeight = MathHelper.ceil(targetHeight / scale);
-        return MathHelper.clamp((requiredChatHeight - 20) / 160.0F, 0.0F, 1.0F);
+        int requiredChatHeight = CompatMath.ceil(targetHeight / scale);
+        return CompatMath.clamp((requiredChatHeight - 20) / 160.0F, 0.0F, 1.0F);
     }
 
     private void mentionInChat(GuiChat gui, Profile profile) {
@@ -1288,7 +1288,7 @@ public class ClientEvents {
         }
 
         private void setFromMouse(Minecraft mc, int mouseX) {
-            float normalized = MathHelper.clamp((mouseX - (xPosition + 3)) / (float) Math.max(1, width - 6), 0.0F, 1.0F);
+            float normalized = CompatMath.clamp((mouseX - (xPosition + 3)) / (float) Math.max(1, width - 6), 0.0F, 1.0F);
             if (option == GameSettings.Options.CHAT_HEIGHT_FOCUSED) {
                 normalized = Math.max(normalized, minFocusedChatHeightValue(mc));
             }
