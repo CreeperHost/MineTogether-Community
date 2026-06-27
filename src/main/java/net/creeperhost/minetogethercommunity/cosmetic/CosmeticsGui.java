@@ -35,7 +35,7 @@ public class CosmeticsGui implements GuiProvider {
     private static final int TILE_GAP = 6;
     private static final int GRID_COLUMNS = 3;
     private static final int PREVIEW_MAX_SCALE = 58;
-    private static final float PLAYER_PREVIEW_BOTTOM_RATIO = 0.35F;
+    private static final float PLAYER_PREVIEW_BOTTOM_RATIO = 0.98F;
     private static final char[] SPINNER = new char[] {'|', '/', '-', '\\'};
 
     private CosmeticTypes activeTab = CosmeticTypes.HAT;
@@ -834,11 +834,11 @@ public class CosmeticsGui implements GuiProvider {
     private float cardPreviewScale() {
         switch (activeTab) {
             case CAPE:
-                return 0.92F;
+                return 0.88F;
             case TAIL:
-                return 0.68F;
+                return 0.86F;
             case WINGS:
-                return 0.84F;
+                return 0.82F;
             default:
                 return 1.0F;
         }
@@ -847,13 +847,13 @@ public class CosmeticsGui implements GuiProvider {
     private float cardPreviewYOffset() {
         switch (activeTab) {
             case HAT:
-                return -0.20F;
+                return 1.35F;
             case CAPE:
-                return -1.05F;
+                return 0.05F;
             case TAIL:
-                return -1.80F;
+                return -0.16F;
             case WINGS:
-                return -1.10F;
+                return -0.34F;
             default:
                 return -0.40F;
         }
