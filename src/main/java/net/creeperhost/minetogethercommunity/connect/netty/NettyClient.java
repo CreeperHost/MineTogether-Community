@@ -15,7 +15,6 @@ import net.creeperhost.minetogether.connect.lib.netty.AbstractChannelHandler;
 import net.creeperhost.minetogether.connect.lib.netty.CipherCodec;
 import net.creeperhost.minetogether.connect.lib.netty.FrameCodec;
 import net.creeperhost.minetogether.connect.lib.netty.LoggingPacketCodec;
-import net.creeperhost.minetogether.connect.lib.netty.PacketCodec;
 import net.creeperhost.minetogether.connect.lib.netty.ProtocolVersions;
 import net.creeperhost.minetogether.connect.lib.netty.packet.CAccepted;
 import net.creeperhost.minetogether.connect.lib.netty.packet.CBeginRaw;
@@ -341,7 +340,7 @@ public class NettyClient {
                         ChannelPipeline pipeline = ch.pipeline();
                         pipeline.addLast("timeout", new ReadTimeoutHandler(240));
                         pipeline.addLast("mt:frame_codec", new FrameCodec());
-                        pipeline.addLast("mt:packet_codec", new PacketCodec());
+                        pipeline.addLast("mt:packet_codec", new CompatPacketCodec());
                         if (Config.instance().dumpConnectPackets) {
                             pipeline.addLast("mt:logging_codec", new LoggingPacketCodec(LOGGER, true));
                         }
