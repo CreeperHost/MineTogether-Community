@@ -167,7 +167,7 @@ public class PreviewElement extends GuiElement<PreviewElement> {
                 connection = (HttpURLConnection) target.openConnection();
                 connection.setConnectTimeout(3000);
                 connection.setReadTimeout(5000);
-                connection.setRequestProperty("User-Agent", "MineTogetherCommunity/1.7.10");
+                connection.setRequestProperty("User-Agent", "MineTogetherCommunity/1.8.9");
                 String contentType = connection.getContentType();
                 if (contentType != null) {
                     contentType = contentType.split(";", 2)[0].trim().toLowerCase();

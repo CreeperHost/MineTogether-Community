@@ -12,7 +12,6 @@ import net.minecraft.client.gui.GuiListExtended;
 import net.minecraft.client.gui.GuiMultiplayer;
 import net.minecraft.client.resources.I18n;
 import net.minecraft.realms.RealmsSharedConstants;
-import net.minecraft.client.renderer.Tessellator;
 import net.minecraft.util.text.TextFormatting;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -44,7 +43,11 @@ public class FriendServerEntry implements GuiListExtended.IGuiListEntry {
     }
 
     @Override
-    public void drawEntry(int slotIndex, int x, int y, int listWidth, int slotHeight, Tessellator tessellator, int mouseX, int mouseY, boolean selected) {
+    public void setSelected(int slotIndex, int x, int y) {
+    }
+
+    @Override
+    public void drawEntry(int slotIndex, int x, int y, int listWidth, int slotHeight, int mouseX, int mouseY, boolean selected) {
         Minecraft mc = Minecraft.getMinecraft();
         FontRenderer font = mc.fontRendererObj;
         ensurePingStarted();
@@ -83,7 +86,7 @@ public class FriendServerEntry implements GuiListExtended.IGuiListEntry {
         font.drawString(status, statusX, y + 1, 0x808080);
 
         if (mouseX >= statusX && mouseX <= x + listWidth - 4 && mouseY >= y && mouseY <= y + 10 && !remoteServer.getPlayerList().isEmpty()) {
-            owner.func_146793_a(joinPlayerList(remoteServer.getPlayerList()));
+            owner.setHoveringText(joinPlayerList(remoteServer.getPlayerList()));
         }
 
         if (mc.gameSettings.touchscreen || selected) {

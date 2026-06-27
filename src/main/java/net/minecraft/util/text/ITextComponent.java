@@ -17,7 +17,7 @@ public interface ITextComponent extends IChatComponent {
 
     ITextComponent createCopy();
 
-    List<ITextComponent> getSiblings();
+    List<IChatComponent> getSiblings();
 
     final class Serializer {
         private Serializer() {

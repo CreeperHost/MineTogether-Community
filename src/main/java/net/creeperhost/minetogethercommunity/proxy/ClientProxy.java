@@ -18,10 +18,10 @@ import net.creeperhost.minetogethercommunity.cosmetic.render.LegacyCosmeticRende
 import net.creeperhost.minetogethercommunity.util.MTSessionProvider;
 import net.creeperhost.minetogethercommunity.util.DiagnosticLog;
 import net.minecraftforge.common.MinecraftForge;
-import cpw.mods.fml.common.FMLCommonHandler;
 import net.minecraftforge.client.ClientCommandHandler;
-import cpw.mods.fml.common.event.FMLInitializationEvent;
-import cpw.mods.fml.common.event.FMLPreInitializationEvent;
+import net.minecraftforge.fml.common.FMLCommonHandler;
+import net.minecraftforge.fml.common.event.FMLInitializationEvent;
+import net.minecraftforge.fml.common.event.FMLPreInitializationEvent;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 

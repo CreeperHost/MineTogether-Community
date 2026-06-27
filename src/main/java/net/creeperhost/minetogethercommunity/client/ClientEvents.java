@@ -52,14 +52,15 @@ import net.minecraftforge.client.event.ClientChatReceivedEvent;
 import net.minecraftforge.client.event.GuiOpenEvent;
 import net.minecraftforge.client.event.GuiScreenEvent;
 import net.minecraftforge.client.event.RenderGameOverlayEvent;
-import cpw.mods.fml.common.eventhandler.SubscribeEvent;
-import cpw.mods.fml.common.gameevent.InputEvent;
-import cpw.mods.fml.common.gameevent.TickEvent;
+import net.minecraftforge.fml.common.eventhandler.SubscribeEvent;
+import net.minecraftforge.fml.common.gameevent.InputEvent;
+import net.minecraftforge.fml.common.gameevent.TickEvent;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.lwjgl.input.Keyboard;
 
 import java.lang.reflect.Field;
+import java.io.IOException;
 import java.net.MalformedURLException;
 import java.net.URL;
 import java.util.ArrayList;
@@ -1148,7 +1149,7 @@ public class ClientEvents {
         }
 
         @Override
-        protected void keyTyped(char typedChar, int keyCode) {
+        protected void keyTyped(char typedChar, int keyCode) throws IOException {
             ChatTarget target = MineTogetherChat.getTarget();
             if ((keyCode == Keyboard.KEY_RETURN || keyCode == Keyboard.KEY_NUMPADENTER)
                     && LocalConfig.instance().chatEnabled
@@ -1164,7 +1165,7 @@ public class ClientEvents {
         }
 
         @Override
-        protected void mouseClicked(int mouseX, int mouseY, int mouseButton) {
+        protected void mouseClicked(int mouseX, int mouseY, int mouseButton) throws IOException {
             if (handleMineTogetherChatClick(this, mouseX, mouseY, mouseButton)) {
                 return;
             }

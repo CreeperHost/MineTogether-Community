@@ -1,6 +1,6 @@
 package net.creeperhost.minetogethercommunity.compat;
 
-import cpw.mods.fml.common.Loader;
+import net.minecraftforge.fml.common.Loader;
 
 import java.util.function.Supplier;
 

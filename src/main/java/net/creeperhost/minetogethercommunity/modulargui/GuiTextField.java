@@ -28,7 +28,7 @@ public class GuiTextField extends GuiElement<GuiTextField> {
         int textHeight = font().FONT_HEIGHT;
         int textY = y + Math.max(0, (height - textHeight) / 2);
         int fieldWidth = Math.max(1, width - HORIZONTAL_PADDING * 2);
-        field = new net.minecraft.client.gui.GuiTextField(font(), x + HORIZONTAL_PADDING, textY, fieldWidth, textHeight);
+        field = new net.minecraft.client.gui.GuiTextField(0, font(), x + HORIZONTAL_PADDING, textY, fieldWidth, textHeight);
         field.setEnableBackgroundDrawing(false);
         field.setMaxStringLength(maxLength);
         field.setText(text);

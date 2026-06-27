@@ -44,9 +44,8 @@ public class TextComponentTranslation extends ChatComponentTranslation implement
         return getUnformattedTextForChat();
     }
 
-    @SuppressWarnings("unchecked")
-    public List<ITextComponent> getSiblings() {
-        return (List<ITextComponent>) (List<?>) TextComponentCompat.siblings(this);
+    public List<IChatComponent> getSiblings() {
+        return TextComponentCompat.siblings(this);
     }
 
     public TextComponentTranslation createCopy() {

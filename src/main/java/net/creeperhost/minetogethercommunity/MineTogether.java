@@ -11,10 +11,10 @@ import net.creeperhost.minetogethercommunity.util.ModPackInfo;
 import net.creeperhost.minetogethercommunity.util.SignatureVerifier;
 import net.covers1624.quack.net.httpapi.apache.ApacheEngine;
 import net.minecraft.launchwrapper.Launch;
-import cpw.mods.fml.common.Mod;
-import cpw.mods.fml.common.SidedProxy;
-import cpw.mods.fml.common.event.FMLInitializationEvent;
-import cpw.mods.fml.common.event.FMLPreInitializationEvent;
+import net.minecraftforge.fml.common.Mod;
+import net.minecraftforge.fml.common.SidedProxy;
+import net.minecraftforge.fml.common.event.FMLInitializationEvent;
+import net.minecraftforge.fml.common.event.FMLPreInitializationEvent;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
@@ -24,14 +24,14 @@ import java.io.File;
         modid = MineTogether.MOD_ID,
         name = MineTogether.NAME,
         version = MineTogether.VERSION,
-        acceptedMinecraftVersions = "[1.7.10]",
+        acceptedMinecraftVersions = "[1.8.9]",
         acceptableRemoteVersions = "*"
 )
 public class MineTogether {
 
     public static final String MOD_ID = "minetogethercommunity";
     public static final String NAME = "MineTogether Community";
-    public static final String VERSION = "6.3.4-1.7.10";
+    public static final String VERSION = "6.3.4-1.8.9";
 
     private static final Logger LOGGER = LogManager.getLogger(NAME);
 
@@ -51,7 +51,7 @@ public class MineTogether {
             .httpEngine(WEB_ENGINE)
             .addUserAgentSegment("MineTogether-lib/" + MineTogetherLib.VERSION)
             .addUserAgentSegment("MineTogether-Community-mod/" + VERSION)
-            .addUserAgentSegment("Minecraft/1.7.10")
+            .addUserAgentSegment("Minecraft/1.8.9")
             .addUserAgentSegment("Modloader/forge")
             .webAuth(AUTH)
             .build();
@@ -72,7 +72,7 @@ public class MineTogether {
         ModPackInfo.VersionInfo packInfo = ModPackInfo.getInfo();
         setPackIdentifier(packInfo);
         ModPackInfo.waitForInfo(this::setPackIdentifier);
-        LOGGER.info("Initialized MineTogether Community config for Forge 1.7.10 with fingerprint {} and identifier {}.",
+        LOGGER.info("Initialized MineTogether Community config for Forge 1.8.9 with fingerprint {} and identifier {}.",
                 maskedFingerprint(), packInfo.realName);
         proxy.preInit(event);
     }

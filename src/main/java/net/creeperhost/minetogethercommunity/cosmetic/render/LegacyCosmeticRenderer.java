@@ -20,7 +20,7 @@ import net.minecraft.client.renderer.OpenGlHelper;
 import net.minecraft.client.renderer.entity.RenderPlayer;
 import net.minecraft.util.ResourceLocation;
 import net.minecraftforge.client.event.RenderPlayerEvent;
-import cpw.mods.fml.common.eventhandler.SubscribeEvent;
+import net.minecraftforge.fml.common.eventhandler.SubscribeEvent;
 
 public class LegacyCosmeticRenderer {
 
@@ -78,7 +78,7 @@ public class LegacyCosmeticRenderer {
         if (player.isSneaking()) {
             GlStateManager.translate(0.0F, 0.2F, 0.0F);
         }
-        renderer.modelBipedMain.bipedHead.postRender(SCALE);
+        renderer.getMainModel().bipedHead.postRender(SCALE);
         Minecraft.getMinecraft().getTextureManager().bindTexture(hat.texture());
         if (hat.isJsonModel() && hat.jsonModel() != null) {
             GlStateManager.scale(1.01F, 1.01F, 1.01F);
@@ -100,7 +100,7 @@ public class LegacyCosmeticRenderer {
 
         Minecraft.getMinecraft().getTextureManager().bindTexture(tail.texture());
         GlStateManager.pushMatrix();
-        renderer.modelBipedMain.bipedBody.postRender(SCALE);
+        renderer.getMainModel().bipedBody.postRender(SCALE);
         GlStateManager.translate(-8.0F / 16.0F, 2.0F / 16.0F, 2.0F / 16.0F);
         tail.model().render(createTailPose(player, partialTicks, ageInTicks));
         GlStateManager.popMatrix();
@@ -121,7 +121,7 @@ public class LegacyCosmeticRenderer {
 
         Minecraft.getMinecraft().getTextureManager().bindTexture(wing.texture());
         GlStateManager.pushMatrix();
-        renderer.modelBipedMain.bipedBody.postRender(SCALE);
+        renderer.getMainModel().bipedBody.postRender(SCALE);
         GlStateManager.translate(0.0F, -7.0F / 16.0F, 4.2F / 16.0F);
         GlStateManager.scale(0.58F, 0.58F, 0.58F);
         renderWingSide(wing, false, spread);
@@ -146,9 +146,9 @@ public class LegacyCosmeticRenderer {
         GlStateManager.pushMatrix();
         GlStateManager.translate(0.0F, 0.0F, 0.125F);
 
-        double cloakX = interpolate(player.field_71091_bM, player.field_71094_bP, partialTicks) - interpolate(player.prevPosX, player.posX, partialTicks);
-        double cloakY = interpolate(player.field_71096_bN, player.field_71095_bQ, partialTicks) - interpolate(player.prevPosY, player.posY, partialTicks);
-        double cloakZ = interpolate(player.field_71097_bO, player.field_71085_bR, partialTicks) - interpolate(player.prevPosZ, player.posZ, partialTicks);
+        double cloakX = interpolate(player.prevChasingPosX, player.chasingPosX, partialTicks) - interpolate(player.prevPosX, player.posX, partialTicks);
+        double cloakY = interpolate(player.prevChasingPosY, player.chasingPosY, partialTicks) - interpolate(player.prevPosY, player.posY, partialTicks);
+        double cloakZ = interpolate(player.prevChasingPosZ, player.chasingPosZ, partialTicks) - interpolate(player.prevPosZ, player.posZ, partialTicks);
         float bodyYaw = player.prevRenderYawOffset + (player.renderYawOffset - player.prevRenderYawOffset) * partialTicks;
         double sin = CompatMath.sin(bodyYaw * 0.017453292F);
         double cos = -CompatMath.cos(bodyYaw * 0.017453292F);
@@ -167,7 +167,7 @@ public class LegacyCosmeticRenderer {
         GlStateManager.rotate(side / 2.0F, 0.0F, 0.0F, 1.0F);
         GlStateManager.rotate(-side / 2.0F, 0.0F, 1.0F, 0.0F);
         GlStateManager.rotate(180.0F, 0.0F, 1.0F, 0.0F);
-        renderer.modelBipedMain.renderCloak(SCALE);
+        renderer.getMainModel().renderCape(SCALE);
         GlStateManager.popMatrix();
     }
 
@@ -184,9 +184,9 @@ public class LegacyCosmeticRenderer {
         if (player.isRiding()) {
             lift = (float) Math.toRadians(8.0F);
         } else {
-            double cloakX = interpolate(player.field_71091_bM, player.field_71094_bP, partialTicks) - interpolate(player.prevPosX, player.posX, partialTicks);
-            double cloakY = interpolate(player.field_71096_bN, player.field_71095_bQ, partialTicks) - interpolate(player.prevPosY, player.posY, partialTicks);
-            double cloakZ = interpolate(player.field_71097_bO, player.field_71085_bR, partialTicks) - interpolate(player.prevPosZ, player.posZ, partialTicks);
+            double cloakX = interpolate(player.prevChasingPosX, player.chasingPosX, partialTicks) - interpolate(player.prevPosX, player.posX, partialTicks);
+            double cloakY = interpolate(player.prevChasingPosY, player.chasingPosY, partialTicks) - interpolate(player.prevPosY, player.posY, partialTicks);
+            double cloakZ = interpolate(player.prevChasingPosZ, player.chasingPosZ, partialTicks) - interpolate(player.prevPosZ, player.posZ, partialTicks);
             float bodyYaw = player.prevRenderYawOffset + (player.renderYawOffset - player.prevRenderYawOffset) * partialTicks;
             float sin = CompatMath.sin(bodyYaw * 0.017453292F);
             float back = -CompatMath.cos(bodyYaw * 0.017453292F);

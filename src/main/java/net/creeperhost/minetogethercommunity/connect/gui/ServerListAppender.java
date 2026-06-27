@@ -248,8 +248,8 @@ public class ServerListAppender {
                     networkManager = NettyClient.connect(endpoint, token, server.getServerToken(), true);
                     pingConnections.add(networkManager);
                     networkManager.setNetHandler(new StatusHandler(networkManager, server, profile));
-                    networkManager.scheduleOutboundPacket(new C00Handshake(RealmsSharedConstants.NETWORK_PROTOCOL_VERSION, endpoint.getAddress(), endpoint.getProxyPort(), EnumConnectionState.STATUS));
-                    networkManager.scheduleOutboundPacket(new C00PacketServerQuery());
+                    networkManager.sendPacket(new C00Handshake(RealmsSharedConstants.NETWORK_PROTOCOL_VERSION, endpoint.getAddress(), endpoint.getProxyPort(), EnumConnectionState.STATUS));
+                    networkManager.sendPacket(new C00PacketServerQuery());
                 } catch (Exception ex) {
                     LOGGER.warn("Failed to ping MineTogether friend server {}", server.getFriendHash(), ex);
                     markPingFailed(server, ex.getMessage());
@@ -332,7 +332,7 @@ public class ServerListAppender {
                 return;
             }
             receivedInfo = true;
-            ServerStatusResponse response = packetIn.func_149294_c();
+            ServerStatusResponse response = packetIn.getResponse();
             if (response == null) {
                 markPingFailed(server, "empty response");
                 networkManager.closeChannel(new TextComponentTranslation("multiplayer.status.cannot_connect"));
@@ -373,7 +373,7 @@ public class ServerListAppender {
             }
 
             pingStart = Minecraft.getSystemTime();
-            networkManager.scheduleOutboundPacket(new C01PacketPing(pingStart));
+            networkManager.sendPacket(new C01PacketPing(pingStart));
         }
 
         @Override
@@ -394,11 +394,9 @@ public class ServerListAppender {
             }
         }
 
-        @Override
         public void onNetworkTick() {
         }
 
-        @Override
         public void onConnectionStateTransition(EnumConnectionState oldState, EnumConnectionState newState) {
         }
     }

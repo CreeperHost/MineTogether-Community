@@ -3,6 +3,7 @@ package net.creeperhost.minetogethercommunity.gui.chat;
 import net.creeperhost.minetogether.lib.chat.message.Message;
 import net.creeperhost.minetogethercommunity.util.MessageFormatter;
 import net.minecraft.client.gui.FontRenderer;
+import net.minecraft.util.IChatComponent;
 import net.minecraft.util.text.ITextComponent;
 import net.minecraft.util.text.Style;
 import net.minecraft.util.text.TextComponentString;
@@ -48,8 +49,8 @@ final class ChatMessageLines {
 
     private static void appendWrapped(Wrapper wrapper, ITextComponent component) {
         wrapper.append(component.getUnformattedComponentText(), component.getStyle());
-        for (ITextComponent sibling : component.getSiblings()) {
-            appendWrapped(wrapper, sibling);
+        for (IChatComponent sibling : component.getSiblings()) {
+            appendWrapped(wrapper, asTextComponent(sibling));
         }
     }
 
@@ -68,8 +69,8 @@ final class ChatMessageLines {
     private static URL urlAt(FontRenderer font, ITextComponent component, int localX, int[] cursor) {
         URL own = urlAtSegment(font, component.getStyle(), component.getUnformattedComponentText(), localX, cursor);
         if (own != null) return own;
-        for (ITextComponent sibling : component.getSiblings()) {
-            URL siblingUrl = urlAt(font, sibling, localX, cursor);
+        for (IChatComponent sibling : component.getSiblings()) {
+            URL siblingUrl = urlAt(font, asTextComponent(sibling), localX, cursor);
             if (siblingUrl != null) return siblingUrl;
         }
         return null;
@@ -78,11 +79,24 @@ final class ChatMessageLines {
     private static Style styleAt(FontRenderer font, ITextComponent component, int localX, int[] cursor) {
         Style own = styleAtSegment(font, component.getStyle(), component.getUnformattedComponentText(), localX, cursor);
         if (own != null) return own;
-        for (ITextComponent sibling : component.getSiblings()) {
-            Style siblingStyle = styleAt(font, sibling, localX, cursor);
+        for (IChatComponent sibling : component.getSiblings()) {
+            Style siblingStyle = styleAt(font, asTextComponent(sibling), localX, cursor);
             if (siblingStyle != null) return siblingStyle;
         }
         return null;
+    }
+
+    private static ITextComponent asTextComponent(IChatComponent component) {
+        if (component instanceof ITextComponent) {
+            return (ITextComponent) component;
+        }
+        TextComponentString text = new TextComponentString(component == null ? "" : component.getUnformattedTextForChat());
+        if (component != null && component.getChatStyle() != null) {
+            Style style = new Style();
+            style.setParentStyle(component.getChatStyle());
+            text.setStyle(style);
+        }
+        return text;
     }
 
     private static URL urlAtSegment(FontRenderer font, Style style, String text, int localX, int[] cursor) {

@@ -164,9 +164,9 @@ public class PlayerIconElement extends GuiElement<PlayerIconElement> {
                     }
                     Minecraft mc = Minecraft.getMinecraft();
                     SkinManager skinManager = mc.getSkinManager();
-                    skinManager.func_152790_a(gameProfile, new SkinManager.SkinAvailableCallback() {
+                    skinManager.loadProfileTextures(gameProfile, new SkinManager.SkinAvailableCallback() {
                         @Override
-                        public void onSkinAvailable(MinecraftProfileTexture.Type type, ResourceLocation location) {
+                        public void skinAvailable(MinecraftProfileTexture.Type type, ResourceLocation location, MinecraftProfileTexture texture) {
                             if (type == MinecraftProfileTexture.Type.SKIN) {
                                 SkinLoader.this.texture = location;
                                 failedAt = 0L;
@@ -226,7 +226,7 @@ public class PlayerIconElement extends GuiElement<PlayerIconElement> {
                     connection.setConnectTimeout(3000);
                     connection.setReadTimeout(5000);
                     connection.setRequestProperty("Accept", "image/png,image/*");
-                    connection.setRequestProperty("User-Agent", "MineTogetherCommunity/1.7.10");
+                    connection.setRequestProperty("User-Agent", "MineTogetherCommunity/1.8.9");
                     int code = connection.getResponseCode();
                     if (code < 200 || code >= 300) continue;
                     InputStream input = connection.getInputStream();

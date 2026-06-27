@@ -6,7 +6,6 @@ import net.creeperhost.minetogethercommunity.connect.ConnectHost;
 import net.creeperhost.minetogethercommunity.connect.RemoteServer;
 import net.creeperhost.minetogethercommunity.connect.netty.NettyClient;
 import net.creeperhost.minetogethercommunity.util.DiagnosticLog;
-import cpw.mods.fml.client.FMLClientHandler;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiButton;
 import net.minecraft.client.gui.GuiDisconnected;
@@ -22,6 +21,7 @@ import net.minecraft.realms.RealmsSharedConstants;
 import net.minecraft.util.IChatComponent;
 import net.minecraft.util.text.TextComponentString;
 import net.minecraft.util.text.TextComponentTranslation;
+import net.minecraftforge.fml.client.FMLClientHandler;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
@@ -83,8 +83,8 @@ public class FriendConnectScreen extends GuiScreen {
                         return;
                     }
                     networkManager.setNetHandler(new NetHandlerLoginClient(networkManager, minecraft, previousGuiScreen));
-                    networkManager.scheduleOutboundPacket(new C00Handshake(RealmsSharedConstants.NETWORK_PROTOCOL_VERSION, endpoint.getAddress(), endpoint.getProxyPort(), EnumConnectionState.LOGIN));
-                    networkManager.scheduleOutboundPacket(new C00PacketLoginStart(minecraft.getSession().getProfile()));
+                    networkManager.sendPacket(new C00Handshake(RealmsSharedConstants.NETWORK_PROTOCOL_VERSION, endpoint.getAddress(), endpoint.getProxyPort(), EnumConnectionState.LOGIN));
+                    networkManager.sendPacket(new C00PacketLoginStart(minecraft.getSession().getProfile()));
                 } catch (Exception ex) {
                     if (cancel) return;
                     LOGGER.error("Couldn't connect to MineTogether friend server", ex);

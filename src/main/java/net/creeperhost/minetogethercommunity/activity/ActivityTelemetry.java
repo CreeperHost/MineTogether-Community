@@ -9,7 +9,7 @@ import net.creeperhost.minetogethercommunity.MineTogether;
 import net.creeperhost.minetogethercommunity.config.LocalConfig;
 import net.creeperhost.minetogethercommunity.util.ModPackInfo;
 import net.minecraft.client.Minecraft;
-import net.minecraft.client.entity.EntityClientPlayerMP;
+import net.minecraft.client.entity.EntityPlayerSP;
 import net.minecraft.client.multiplayer.ServerData;
 import net.minecraft.item.Item;
 import net.minecraft.item.ItemStack;
@@ -193,8 +193,8 @@ public final class ActivityTelemetry {
 
     private static void scanClientAdvancements() {
         Minecraft mc = Minecraft.getMinecraft();
-        if (!(mc.thePlayer instanceof EntityClientPlayerMP)) return;
-        StatFileWriter stats = ((EntityClientPlayerMP) mc.thePlayer).getStatFileWriter();
+        if (!(mc.thePlayer instanceof EntityPlayerSP)) return;
+        StatFileWriter stats = ((EntityPlayerSP) mc.thePlayer).getStatFileWriter();
         if (stats == null) return;
 
         boolean reportNewUnlocks = advancementSnapshotSeen;
@@ -227,7 +227,7 @@ public final class ActivityTelemetry {
 
     private static String iconItemId(ItemStack stack) {
         if (stack == null || stack.getItem() == null) return "";
-        String name = Item.itemRegistry.getNameForObject(stack.getItem());
+        String name = String.valueOf(Item.itemRegistry.getNameForObject(stack.getItem()));
         return name == null ? stack.getUnlocalizedName() : name;
     }
 
@@ -478,7 +478,7 @@ public final class ActivityTelemetry {
             modpack.packId = info.curseID;
         }
         modpack.websiteId = info.websiteID;
-        modpack.minecraftVersion = "1.7.10";
+        modpack.minecraftVersion = "1.8.9";
         modpack.loader = "forge";
         modpack.modVersion = MineTogether.VERSION;
         return modpack;

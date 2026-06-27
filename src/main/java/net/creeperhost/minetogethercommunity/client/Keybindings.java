@@ -5,7 +5,7 @@ import net.creeperhost.minetogethercommunity.gui.chat.FriendChatGui;
 import net.creeperhost.minetogethercommunity.gui.chat.PublicChatGui;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.settings.KeyBinding;
-import cpw.mods.fml.client.registry.ClientRegistry;
+import net.minecraftforge.fml.client.registry.ClientRegistry;
 import org.lwjgl.input.Keyboard;
 
 public class Keybindings {

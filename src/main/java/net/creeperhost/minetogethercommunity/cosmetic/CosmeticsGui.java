@@ -889,7 +889,7 @@ public class CosmeticsGui implements GuiProvider {
             entity.deathTime = 0;
             entity.attackedAtYaw = 0.0F;
 
-            RenderManager renderManager = RenderManager.instance;
+            RenderManager renderManager = Minecraft.getMinecraft().getRenderManager();
             float previousPlayerViewY = renderManager.playerViewY;
             try {
                 renderManager.playerViewY = 180.0F;
@@ -955,7 +955,7 @@ public class CosmeticsGui implements GuiProvider {
             entity.deathTime = 0;
             entity.attackedAtYaw = 0.0F;
 
-            RenderManager renderManager = RenderManager.instance;
+            RenderManager renderManager = Minecraft.getMinecraft().getRenderManager();
             float previousPlayerViewY = renderManager.playerViewY;
             try {
                 renderManager.playerViewY = 180.0F;

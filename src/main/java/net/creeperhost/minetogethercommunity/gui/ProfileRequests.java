@@ -389,7 +389,7 @@ public class ProfileRequests {
     }
 
     private static String userAgent() {
-        return "MineTogether-Community-mod/" + MineTogether.VERSION + " Minecraft/1.7.10 Modloader/forge";
+        return "MineTogether-Community-mod/" + MineTogether.VERSION + " Minecraft/1.8.9 Modloader/forge";
     }
 
     private static void report(String key, Object... args) {

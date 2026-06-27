@@ -2,9 +2,9 @@
   {
     "modid": "minetogethercommunity",
     "name": "MineTogether Community",
-    "description": "MineTogether chat, friends, connect, and cosmetics for Minecraft 1.7.10.",
+    "description": "MineTogether chat, friends, connect, and cosmetics for Minecraft 1.8.9.",
     "version": "${version}",
-    "mcversion": "1.7.10",
+    "mcversion": "1.8.9",
     "url": "https://minetogether.io/",
     "authorList": ["covers1624", "Gigabit101", "Cloudhunter", "CreeperHost"],
     "credits": "",

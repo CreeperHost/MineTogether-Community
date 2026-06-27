@@ -4,7 +4,7 @@ import net.creeperhost.minetogethercommunity.modulargui.ModularGui;
 import net.creeperhost.minetogethercommunity.orderform.OrderGui;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiScreen;
-import cpw.mods.fml.common.Loader;
+import net.minecraftforge.fml.common.Loader;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 

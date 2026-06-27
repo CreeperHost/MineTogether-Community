@@ -43,6 +43,7 @@ import net.creeperhost.minetogethercommunity.connect.ConnectHandler;
 import net.creeperhost.minetogethercommunity.connect.ConnectHost;
 import net.creeperhost.minetogethercommunity.util.DiagnosticLog;
 import net.minecraft.client.Minecraft;
+import net.minecraft.network.EnumPacketDirection;
 import net.minecraft.network.NetworkManager;
 import net.minecraft.network.NetworkSystem;
 import net.minecraft.server.integrated.IntegratedServer;
@@ -53,7 +54,6 @@ import net.minecraft.util.MessageSerializer;
 import net.minecraft.util.MessageSerializer2;
 import net.minecraft.util.text.TextComponentString;
 import net.minecraft.util.text.TextComponentTranslation;
-import cpw.mods.fml.common.network.internal.FMLNetworkHandler;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
@@ -270,7 +270,7 @@ public class NettyClient {
         final boolean[] connecting = new boolean[] { true };
         final boolean[] rawStarted = new boolean[] { false };
         final Throwable[] error = new Throwable[1];
-        final NetworkManager networkManager = new NetworkManager(true);
+        final NetworkManager networkManager = new NetworkManager(EnumPacketDirection.CLIENTBOUND);
 
         ProxyConnection proxyConnection = new ProxyConnection(endpoint) {
             private boolean loggedRawPacket;
@@ -279,9 +279,9 @@ public class NettyClient {
             protected void buildPipeline(ChannelPipeline pipeline) {
                 pipeline.addLast("mt:raw", new RawCodec());
                 pipeline.addLast("splitter", new MessageDeserializer2());
-                pipeline.addLast("decoder", new MessageDeserializer(NetworkManager.STATISTICS));
+                pipeline.addLast("decoder", new MessageDeserializer(EnumPacketDirection.CLIENTBOUND));
                 pipeline.addLast("prepender", new MessageSerializer2());
-                pipeline.addLast("encoder", new MessageSerializer(NetworkManager.STATISTICS));
+                pipeline.addLast("encoder", new MessageSerializer(EnumPacketDirection.SERVERBOUND));
                 pipeline.addLast("packet_handler", networkManager);
             }
 
@@ -356,7 +356,7 @@ public class NettyClient {
     }
 
     private static void link(final IntegratedServer server, final ConnectHost endpoint, final JWebToken session, final String linkToken) {
-        final NetworkManager networkManager = new NetworkManager(false);
+        final NetworkManager networkManager = new NetworkManager(EnumPacketDirection.SERVERBOUND);
         ProxyConnection connection = new ProxyConnection(endpoint) {
             private boolean loggedRawPacket;
 
@@ -364,9 +364,9 @@ public class NettyClient {
             protected void buildPipeline(ChannelPipeline pipeline) {
                 pipeline.addLast("mt:raw", new RawCodec());
                 pipeline.addLast("splitter", new MessageDeserializer2());
-                pipeline.addLast("decoder", new MessageDeserializer(NetworkManager.STATISTICS));
+                pipeline.addLast("decoder", new MessageDeserializer(EnumPacketDirection.SERVERBOUND));
                 pipeline.addLast("prepender", new MessageSerializer2());
-                pipeline.addLast("encoder", new MessageSerializer(NetworkManager.STATISTICS));
+                pipeline.addLast("encoder", new MessageSerializer(EnumPacketDirection.CLIENTBOUND));
                 pipeline.addLast("packet_handler", networkManager);
             }
 
@@ -437,7 +437,7 @@ public class NettyClient {
     }
 
     private static EventLoopGroup clientEventLoop() {
-        return NetworkManager.eventLoops;
+        return NetworkManager.CLIENT_NIO_EVENTLOOP.getValue();
     }
 
     @SuppressWarnings("unchecked")

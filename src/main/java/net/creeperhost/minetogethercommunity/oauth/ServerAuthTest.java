@@ -45,11 +45,11 @@ public class ServerAuthTest {
                 try {
                     if (cancel) return;
                     InetSocketAddress socketAddress = new InetSocketAddress(InetAddress.getByName(address), port);
-                    networkManager = NetworkManager.provideLanClient(socketAddress.getAddress(), socketAddress.getPort());
+                    networkManager = NetworkManager.createNetworkManagerAndConnect(socketAddress.getAddress(), socketAddress.getPort(), false);
                     networkManager.setNetHandler(new NetHandlerLoginClientOurs(networkManager, mc));
-                    networkManager.scheduleOutboundPacket(new C00Handshake(RealmsSharedConstants.NETWORK_PROTOCOL_VERSION, address, port, EnumConnectionState.LOGIN));
+                    networkManager.sendPacket(new C00Handshake(RealmsSharedConstants.NETWORK_PROTOCOL_VERSION, address, port, EnumConnectionState.LOGIN));
                     UUID uuid = mc.getSession().getProfile().getId();
-                    networkManager.scheduleOutboundPacket(new C00PacketLoginStart(new GameProfile(uuid, mc.getSession().getUsername())));
+                    networkManager.sendPacket(new C00PacketLoginStart(new GameProfile(uuid, mc.getSession().getUsername())));
                 } catch (UnknownHostException ex) {
                     if (!cancel) {
                         LOGGER.error("Could not resolve MineTogether auth server", ex);

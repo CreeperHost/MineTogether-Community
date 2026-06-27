@@ -17,7 +17,7 @@ import java.util.function.Function;
 public class CompatPacketCodec extends ByteToMessageCodec<Packet> {
 
     private static final Logger LOGGER = LogManager.getLogger();
-    // Minecraft 1.7.10 ships Netty 4.0.10, which lacks AttributeKey.valueOf used by MTConnectProxyCommon's PacketCodec.
+    // Older Minecraft Netty builds lack AttributeKey.valueOf used by MTConnectProxyCommon's PacketCodec.
     private static final AttributeKey<Integer> PROTOCOL_VERSION_ATTR = new AttributeKey<Integer>("minetogethercommunity:mtconnect_protocol_version");
 
     public CompatPacketCodec() {

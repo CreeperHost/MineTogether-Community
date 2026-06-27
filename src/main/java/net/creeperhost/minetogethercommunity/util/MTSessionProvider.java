@@ -20,7 +20,7 @@ public class MTSessionProvider implements SessionProvider {
     private static final String UA =
             "MineTogether-lib/" + MineTogetherLib.VERSION +
             " MineTogether-Community-mod/" + MineTogether.VERSION +
-            " Minecraft/1.7.10 Modloader/forge";
+            " Minecraft/1.8.9 Modloader/forge";
 
     private final Session session = Minecraft.getMinecraft().getSession();
     private final UUID uuid = UUIDTypeAdapter.fromString(session.getPlayerID());

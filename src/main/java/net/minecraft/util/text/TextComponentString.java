@@ -44,9 +44,8 @@ public class TextComponentString extends ChatComponentText implements ITextCompo
         return getChatComponentText_TextValue();
     }
 
-    @SuppressWarnings("unchecked")
-    public List<ITextComponent> getSiblings() {
-        return (List<ITextComponent>) (List<?>) TextComponentCompat.siblings(this);
+    public List<IChatComponent> getSiblings() {
+        return TextComponentCompat.siblings(this);
     }
 
     public TextComponentString createCopy() {

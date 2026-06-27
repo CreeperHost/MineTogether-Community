@@ -1,6 +1,8 @@
 package net.creeperhost.minetogethercommunity.cosmetic.tail;
 
 import net.minecraft.client.renderer.Tessellator;
+import net.minecraft.client.renderer.WorldRenderer;
+import net.minecraft.client.renderer.vertex.DefaultVertexFormats;
 
 import java.util.List;
 
@@ -27,13 +29,14 @@ public class TailModel {
     }
 
     public void render(TailPose pose) {
-        Tessellator tessellator = Tessellator.instance;
-        tessellator.startDrawingQuads();
+        Tessellator tessellator = Tessellator.getInstance();
+        WorldRenderer renderer = tessellator.getWorldRenderer();
+        renderer.begin(7, DefaultVertexFormats.POSITION_TEX_NORMAL);
         if (animatedChain) {
-            renderAnimatedChain(tessellator, pose);
+            renderAnimatedChain(renderer, pose);
         } else {
             for (TailElement element : elements) {
-                emitElement(tessellator, element, null, null);
+                emitElement(renderer, element, null, null);
             }
         }
         tessellator.draw();
@@ -43,18 +46,18 @@ public class TailModel {
         return elements;
     }
 
-    private void emitElement(Tessellator tessellator, TailElement element, float[] dynamicOrigin, float[] dynamicAngles) {
+    private void emitElement(WorldRenderer renderer, TailElement element, float[] dynamicOrigin, float[] dynamicAngles) {
         float x0 = element.from()[0], y0 = element.from()[1], z0 = element.from()[2];
         float x1 = element.to()[0], y1 = element.to()[1], z1 = element.to()[2];
-        if (element.south() != null) emitFace(tessellator, element.south(), verts(element, dynamicOrigin, dynamicAngles, new float[][] {{x0, y0, z1}, {x1, y0, z1}, {x1, y1, z1}, {x0, y1, z1}}), normal(element, dynamicAngles, 0, 0, 1));
-        if (element.north() != null) emitFace(tessellator, element.north(), verts(element, dynamicOrigin, dynamicAngles, new float[][] {{x1, y0, z0}, {x0, y0, z0}, {x0, y1, z0}, {x1, y1, z0}}), normal(element, dynamicAngles, 0, 0, -1));
-        if (element.east() != null) emitFace(tessellator, element.east(), verts(element, dynamicOrigin, dynamicAngles, new float[][] {{x1, y0, z1}, {x1, y0, z0}, {x1, y1, z0}, {x1, y1, z1}}), normal(element, dynamicAngles, 1, 0, 0));
-        if (element.west() != null) emitFace(tessellator, element.west(), verts(element, dynamicOrigin, dynamicAngles, new float[][] {{x0, y0, z0}, {x0, y0, z1}, {x0, y1, z1}, {x0, y1, z0}}), normal(element, dynamicAngles, -1, 0, 0));
-        if (element.up() != null) emitFace(tessellator, element.up(), verts(element, dynamicOrigin, dynamicAngles, new float[][] {{x0, y1, z1}, {x1, y1, z1}, {x1, y1, z0}, {x0, y1, z0}}), normal(element, dynamicAngles, 0, 1, 0));
-        if (element.down() != null) emitFace(tessellator, element.down(), verts(element, dynamicOrigin, dynamicAngles, new float[][] {{x0, y0, z0}, {x1, y0, z0}, {x1, y0, z1}, {x0, y0, z1}}), normal(element, dynamicAngles, 0, -1, 0));
+        if (element.south() != null) emitFace(renderer, element.south(), verts(element, dynamicOrigin, dynamicAngles, new float[][] {{x0, y0, z1}, {x1, y0, z1}, {x1, y1, z1}, {x0, y1, z1}}), normal(element, dynamicAngles, 0, 0, 1));
+        if (element.north() != null) emitFace(renderer, element.north(), verts(element, dynamicOrigin, dynamicAngles, new float[][] {{x1, y0, z0}, {x0, y0, z0}, {x0, y1, z0}, {x1, y1, z0}}), normal(element, dynamicAngles, 0, 0, -1));
+        if (element.east() != null) emitFace(renderer, element.east(), verts(element, dynamicOrigin, dynamicAngles, new float[][] {{x1, y0, z1}, {x1, y0, z0}, {x1, y1, z0}, {x1, y1, z1}}), normal(element, dynamicAngles, 1, 0, 0));
+        if (element.west() != null) emitFace(renderer, element.west(), verts(element, dynamicOrigin, dynamicAngles, new float[][] {{x0, y0, z0}, {x0, y0, z1}, {x0, y1, z1}, {x0, y1, z0}}), normal(element, dynamicAngles, -1, 0, 0));
+        if (element.up() != null) emitFace(renderer, element.up(), verts(element, dynamicOrigin, dynamicAngles, new float[][] {{x0, y1, z1}, {x1, y1, z1}, {x1, y1, z0}, {x0, y1, z0}}), normal(element, dynamicAngles, 0, 1, 0));
+        if (element.down() != null) emitFace(renderer, element.down(), verts(element, dynamicOrigin, dynamicAngles, new float[][] {{x0, y0, z0}, {x1, y0, z0}, {x1, y0, z1}, {x0, y0, z1}}), normal(element, dynamicAngles, 0, -1, 0));
     }
 
-    private void renderAnimatedChain(Tessellator tessellator, TailPose pose) {
+    private void renderAnimatedChain(WorldRenderer renderer, TailPose pose) {
         float[] previousStaticOrigin = null;
         float[] previousDynamicOrigin = null;
         float[] previousStaticAngles = null;
@@ -69,7 +72,7 @@ public class TailModel {
                     pose.y(animationIndex) * animationScale,
                     pose.z(animationIndex) * animationScale);
             float[] dynamicOrigin = dynamicOrigin(staticOrigin, previousStaticOrigin, previousDynamicOrigin, previousStaticAngles, previousDynamicAngles);
-            emitElement(tessellator, element, dynamicOrigin, dynamicAngles);
+            emitElement(renderer, element, dynamicOrigin, dynamicAngles);
             previousStaticOrigin = staticOrigin;
             previousDynamicOrigin = dynamicOrigin;
             previousStaticAngles = staticAngles;
@@ -105,13 +108,15 @@ public class TailModel {
         return rotate(x, y, z, elementAngles(element, 0.0F, 0.0F, 0.0F));
     }
 
-    private void emitFace(Tessellator tessellator, TailFace face, float[][] verts, float[] normal) {
+    private void emitFace(WorldRenderer renderer, TailFace face, float[][] verts, float[] normal) {
         float u0 = face.u0() / texW, v0 = face.v0() / texH;
         float u1 = face.u1() / texW, v1 = face.v1() / texH;
         float[][] uvs = {{u0, v0}, {u1, v0}, {u1, v1}, {u0, v1}};
-        tessellator.setNormal(normal[0], normal[1], normal[2]);
         for (int i = 0; i < 4; i++) {
-            tessellator.addVertexWithUV(verts[i][0] / 16.0F, verts[i][1] / 16.0F, verts[i][2] / 16.0F, uvs[i][0], uvs[i][1]);
+            renderer.pos(verts[i][0] / 16.0F, verts[i][1] / 16.0F, verts[i][2] / 16.0F)
+                    .tex(uvs[i][0], uvs[i][1])
+                    .normal(normal[0], normal[1], normal[2])
+                    .endVertex();
         }
     }
 
