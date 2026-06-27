@@ -1,5 +1,7 @@
 package net.creeperhost.minetogethercommunity.client;
 
+import net.creeperhost.minetogethercommunity.util.DiagnosticLog;
+
 import net.creeperhost.minetogether.lib.chat.message.Message;
 import net.creeperhost.minetogether.lib.chat.profile.Profile;
 import net.creeperhost.minetogether.lib.chat.profile.ProfileManager;
@@ -45,6 +47,7 @@ import net.minecraft.client.settings.GameSettings;
 import net.minecraft.client.resources.I18n;
 import net.minecraft.server.integrated.IntegratedServer;
 import net.minecraft.util.text.TextFormatting;
+import net.minecraft.util.text.ITextComponent;
 import net.minecraftforge.client.event.ClientChatReceivedEvent;
 import net.minecraftforge.client.event.GuiOpenEvent;
 import net.minecraftforge.client.event.GuiScreenEvent;
@@ -52,16 +55,20 @@ import net.minecraftforge.client.event.RenderGameOverlayEvent;
 import cpw.mods.fml.common.eventhandler.SubscribeEvent;
 import cpw.mods.fml.common.gameevent.InputEvent;
 import cpw.mods.fml.common.gameevent.TickEvent;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.lwjgl.input.Keyboard;
 
 import java.lang.reflect.Field;
 import java.net.MalformedURLException;
 import java.net.URL;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.function.Supplier;
 
 public class ClientEvents {
 
+    private static final Logger LOGGER = LogManager.getLogger("MineTogether Chat");
     private static final int BUTTON_SETTINGS = -812001;
     private static final int BUTTON_FRIENDS = -812002;
     private static final int BUTTON_CHAT = -812003;
@@ -75,17 +82,19 @@ public class ClientEvents {
     private static final int BUTTON_TARGET_GROUP = -812022;
     private static final int BUTTON_NEW_USER_ACCEPT = -812030;
     private static final int BUTTON_NEW_USER_REJECT = -812031;
+    private static final int CHAT_VANILLA_BASE_Y = 20;
     private static final int VANILLA_BUTTON_SHARE_TO_LAN = 7;
     private static final Field CHAT_INPUT_FIELD = findField(GuiChat.class, "inputField", "field_146415_a");
     private static final Field CHAT_DEFAULT_INPUT_TEXT = findOptionalField(GuiChat.class, "defaultInputFieldText", "field_146409_v");
     private static final Field DRAWN_CHAT_LINES = findField(GuiNewChat.class, "drawnChatLines", "field_146253_i");
     private static final Field CHAT_SCROLL_POS = findField(GuiNewChat.class, "scrollPos", "field_146250_j");
-    private static final Field CHAT_IS_SCROLLED = findField(GuiNewChat.class, "isScrolled", "field_146251_k");
     private static final Field GUI_BUTTON_LIST = findField(GuiScreen.class, "buttonList", "field_146292_n");
 
     private boolean hadWorld;
+    private boolean loggedClientTickDiagnostic;
     private int cosmeticScanTicks;
     private ChatActionPopup chatActionPopup;
+    private long lastChatDrawDiagnostic;
 
     @SubscribeEvent
     public void onKeyInput(InputEvent.KeyInputEvent event) {
@@ -95,7 +104,15 @@ public class ClientEvents {
     @SubscribeEvent
     public void onClientTick(TickEvent.ClientTickEvent event) {
         if (event.phase != TickEvent.Phase.END) return;
-        boolean hasWorld = Minecraft.getMinecraft().theWorld != null;
+        Minecraft minecraft = Minecraft.getMinecraft();
+        boolean hasWorld = minecraft.theWorld != null;
+        if (!loggedClientTickDiagnostic) {
+            loggedClientTickDiagnostic = true;
+            DiagnosticLog.info(LOGGER, "[MT-1710-DIAG] MineTogether client tick active; world={} screen={} chatState={}",
+                    hasWorld ? "<present>" : "<missing>",
+                    minecraft.currentScreen == null ? "<none>" : minecraft.currentScreen.getClass().getName(),
+                    MineTogetherChat.CHAT_STATE == null ? "<missing>" : "<present>");
+        }
         if (hasWorld && !hadWorld) {
             ClientProxy.onClientWorldJoin();
         } else if (!hasWorld && hadWorld) {
@@ -103,20 +120,20 @@ public class ClientEvents {
         }
         hadWorld = hasWorld;
         if (hasWorld) {
-            scanRemoteCosmetics(Minecraft.getMinecraft());
+            scanRemoteCosmetics(minecraft);
         } else {
             cosmeticScanTicks = 0;
         }
         ServerAuthTest.processPackets();
         FriendChatNotifier.tick();
         InGameChatBridge.tick();
-        if (Minecraft.getMinecraft().currentScreen instanceof GuiChat && LocalConfig.instance().chatEnabled) {
-            clampFocusedChatHeight(Minecraft.getMinecraft());
+        if (minecraft.currentScreen instanceof GuiChat && LocalConfig.instance().chatEnabled) {
+            clampFocusedChatHeight(minecraft);
         }
-        if (!(Minecraft.getMinecraft().currentScreen instanceof GuiChat) || MineTogetherChat.getTarget() == ChatTarget.VANILLA) {
+        if (!(minecraft.currentScreen instanceof GuiChat) || MineTogetherChat.getTarget() == ChatTarget.VANILLA) {
             chatActionPopup = null;
         }
-        ServerListAppender.INSTANCE.tick(Minecraft.getMinecraft().currentScreen);
+        ServerListAppender.INSTANCE.tick(minecraft.currentScreen);
         ActivityTelemetry.clientTick();
     }
 
@@ -153,8 +170,9 @@ public class ClientEvents {
 
         GuiNewChat chat = mc.ingameGUI.getChatGUI();
         try {
-            drawFocusedChat(mc, chat, event);
-            event.setCanceled(true);
+            if (drawFocusedChat(mc, chat, event)) {
+                event.setCanceled(true);
+            }
         } catch (IllegalAccessException ignored) {
             drawFocusedChatBackdrop(mc, chat, event.resolution.getScaledHeight());
         }
@@ -508,8 +526,13 @@ public class ClientEvents {
             if (mc.ingameGUI != null) {
                 mc.ingameGUI.getChatGUI().addToSentMessages(trimmed);
             }
-            if (!MineTogetherChat.sendMessageToTarget(target, trimmed)) {
+            boolean sent = MineTogetherChat.sendMessageToTarget(target, trimmed);
+            DiagnosticLog.info(LOGGER, "[MT-1710-DIAG] submitted in-game MineTogether chat target={} sent={} length={}",
+                    target, Boolean.valueOf(sent), Integer.valueOf(trimmed.length()));
+            if (!sent) {
                 MineTogetherChat.localStatus("minetogether.gui.chat.send_failed");
+            } else {
+                InGameChatBridge.tick();
             }
         }
         chatActionPopup = null;
@@ -649,71 +672,84 @@ public class ClientEvents {
         mc.fontRendererObj.drawStringWithShadow(trimmed, x + (width - mc.fontRendererObj.getStringWidth(trimmed)) / 2, y, color);
     }
 
-    private void drawFocusedChat(Minecraft mc, GuiNewChat chat, RenderGameOverlayEvent.Chat event) throws IllegalAccessException {
+    private boolean drawFocusedChat(Minecraft mc, GuiNewChat chat, RenderGameOverlayEvent.Chat event) throws IllegalAccessException {
         drawFocusedChatBackdrop(mc, chat, event.resolution.getScaledHeight());
 
         @SuppressWarnings("unchecked")
         List<ChatLine> lines = (List<ChatLine>) DRAWN_CHAT_LINES.get(chat);
-        if (lines == null || lines.isEmpty()) return;
+        if (lines == null || lines.isEmpty()) {
+            int fallbackLines = drawFocusedChatFallback(mc, chat, event);
+            logFocusedChatDraw("fallback", fallbackLines, chat.getLineCount(), 0, chat.getChatOpen(), event.posX, event.posY);
+            return fallbackLines > 0;
+        }
 
-        int updateCounter = mc.ingameGUI.getUpdateCounter();
         int maxLines = chat.getLineCount();
         int scrollPos = ((Integer) CHAT_SCROLL_POS.get(chat)).intValue();
-        boolean isScrolled = ((Boolean) CHAT_IS_SCROLLED.get(chat)).booleanValue();
+        logFocusedChatDraw("vanilla", estimateFocusedChatLines(mc, chat, lines, maxLines, scrollPos), maxLines, scrollPos, chat.getChatOpen(), event.posX, event.posY);
+        return false;
+    }
+
+    @SuppressWarnings("unchecked")
+    private int drawFocusedChatFallback(Minecraft mc, GuiNewChat chat, RenderGameOverlayEvent.Chat event) {
+        ChatTarget target = MineTogetherChat.getTarget();
+        if (target == ChatTarget.VANILLA) return 0;
+
         float opacity = mc.gameSettings.chatOpacity * 0.9F + 0.1F;
         float scale = Math.max(0.1F, chat.getChatScale());
         int chatWidth = CompatMath.ceil(chat.getChatWidth() / scale);
-        int renderedLines = 0;
+        int maxLines = chat.getLineCount();
+        List<String> drawLines = new ArrayList<String>();
+        List<ITextComponent> messages = InGameChatBridge.focusedHistoryLines(target, maxLines);
+        for (ITextComponent message : messages) {
+            List<String> wrapped = mc.fontRendererObj.listFormattedStringToWidth(message.getFormattedText(), chatWidth);
+            for (int i = wrapped.size() - 1; i >= 0 && drawLines.size() < maxLines; i--) {
+                drawLines.add(wrapped.get(i));
+            }
+            if (drawLines.size() >= maxLines) break;
+        }
+        if (drawLines.isEmpty()) return 0;
 
         GlStateManager.pushMatrix();
         GlStateManager.enableBlend();
         GlStateManager.translate((float) event.posX, (float) event.posY, 0.0F);
-        GlStateManager.translate(2.0F, 8.0F, 0.0F);
+        GlStateManager.translate(2.0F, (float) CHAT_VANILLA_BASE_Y, 0.0F);
         GlStateManager.scale(scale, scale, 1.0F);
-        for (int lineIndex = 0; lineIndex + scrollPos < lines.size() && lineIndex < maxLines; lineIndex++) {
-            ChatLine line = lines.get(lineIndex + scrollPos);
-            if (line == null) continue;
-            int age = updateCounter - line.getUpdatedCounter();
-            if (age >= 200 && !chat.getChatOpen()) continue;
-            int alpha = chatLineAlpha(age, opacity, chat.getChatOpen());
-            renderedLines++;
-            if (alpha <= 3) continue;
-
-            String text = line.getChatComponent().getFormattedText();
+        for (int lineIndex = 0; lineIndex < drawLines.size(); lineIndex++) {
             int y = -lineIndex * 9;
-            GlStateManager.enableBlend();
-            mc.fontRendererObj.drawStringWithShadow(text, 0, y - 8, 0xFFFFFF + (alpha << 24));
+            mc.fontRendererObj.drawStringWithShadow(drawLines.get(lineIndex), 0, y - 8, 0xFFFFFF + ((int) (255.0F * opacity) << 24));
         }
-        drawFocusedChatScrollBar(lines.size(), renderedLines, scrollPos, isScrolled, mc.fontRendererObj.FONT_HEIGHT);
         GlStateManager.disableAlpha();
         GlStateManager.disableBlend();
         GlStateManager.popMatrix();
         GlStateManager.color(1.0F, 1.0F, 1.0F, 1.0F);
+        return drawLines.size();
     }
 
-    private int chatLineAlpha(int age, float opacity, boolean chatOpen) {
-        int alpha;
-        if (chatOpen) {
-            alpha = 255;
-        } else {
-            double fade = 1.0D - (double) age / 200.0D;
-            fade = CompatMath.clamp(fade * 10.0D, 0.0D, 1.0D);
-            alpha = (int) (255.0D * fade * fade);
+    private int estimateFocusedChatLines(Minecraft mc, GuiNewChat chat, List<ChatLine> lines, int maxLines, int scrollPos) {
+        int updateCounter = mc.ingameGUI.getUpdateCounter();
+        int renderedLines = 0;
+        for (int lineIndex = 0; lineIndex + scrollPos < lines.size() && lineIndex < maxLines; lineIndex++) {
+            ChatLine line = lines.get(lineIndex + scrollPos);
+            if (line == null) continue;
+            int age = updateCounter - line.getUpdatedCounter();
+            if (age < 200 || chat.getChatOpen()) {
+                renderedLines++;
+            }
         }
-        return (int) (alpha * opacity);
+        return renderedLines;
     }
 
-    private void drawFocusedChatScrollBar(int totalLines, int renderedLines, int scrollPos, boolean isScrolled, int fontHeight) {
-        if (totalLines <= 0 || renderedLines <= 0 || totalLines == renderedLines) return;
-        GlStateManager.translate(-3.0F, 0.0F, 0.0F);
-        int totalHeight = totalLines * fontHeight + totalLines;
-        int visibleHeight = renderedLines * fontHeight + renderedLines;
-        int barOffset = scrollPos * visibleHeight / totalLines;
-        int barHeight = visibleHeight * visibleHeight / totalHeight;
-        int alpha = barOffset > 0 ? 170 : 96;
-        int color = isScrolled ? 0xCC3333 : 0x3333AA;
-        Gui.drawRect(0, -barOffset, 2, -barOffset - barHeight, color + (alpha << 24));
-        Gui.drawRect(2, -barOffset, 1, -barOffset - barHeight, 0xCCCCCC + (alpha << 24));
+    private void logFocusedChatDraw(String mode, int drawnLines, int maxLines, int scrollPos, boolean chatOpen, int eventX, int eventY) {
+        ChatTarget target = MineTogetherChat.getTarget();
+        if (target == ChatTarget.VANILLA) return;
+        long now = Minecraft.getSystemTime();
+        if (now - lastChatDrawDiagnostic < 2000L) return;
+        lastChatDrawDiagnostic = now;
+        DiagnosticLog.info(LOGGER, "[MT-1710-DIAG] focused chat draw mode={} target={} drawnLines={} maxLines={} scrollPos={} chatOpen={} eventPos={},{} baseY={} bridgeRenderedTarget={} publicHistory={} groupHistory={}",
+                mode, target, Integer.valueOf(drawnLines), Integer.valueOf(maxLines), Integer.valueOf(scrollPos),
+                Boolean.valueOf(chatOpen), Integer.valueOf(eventX), Integer.valueOf(eventY), Integer.valueOf(CHAT_VANILLA_BASE_Y),
+                InGameChatBridge.renderedTarget(),
+                Integer.valueOf(InGameChatBridge.historySize(ChatTarget.PUBLIC)), Integer.valueOf(InGameChatBridge.historySize(ChatTarget.GROUP)));
     }
 
     private void drawFocusedChatBackdrop(Minecraft mc, GuiNewChat chat, int screenHeight) {

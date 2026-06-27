@@ -1,5 +1,7 @@
 package net.creeperhost.minetogethercommunity.chat;
 
+import net.creeperhost.minetogethercommunity.util.DiagnosticLog;
+
 import net.creeperhost.minetogether.lib.chat.ChatState;
 import net.creeperhost.minetogether.lib.chat.MutedUserList;
 import net.creeperhost.minetogether.lib.chat.irc.IrcChannel;
@@ -128,8 +130,40 @@ public class MineTogetherChat {
             localStatus(errorKey);
             return false;
         }
-        channel.sendMessage(text);
-        return true;
+        int before = messageCount(channel);
+        try {
+            channel.sendMessage(text);
+        } catch (RuntimeException ex) {
+            DiagnosticLog.warn(LOGGER, "[MT-1710-DIAG] MineTogether channel send failed channel={} length={}",
+                    channelName(channel), Integer.valueOf(text.length()), ex);
+            localStatus(errorKey);
+            return false;
+        }
+        int after = messageCount(channel);
+        boolean accepted = before < 0 || after < 0 || after > before;
+        DiagnosticLog.info(LOGGER, "[MT-1710-DIAG] MineTogether channel send channel={} accepted={} before={} after={} length={}",
+                channelName(channel), Boolean.valueOf(accepted), Integer.valueOf(before), Integer.valueOf(after), Integer.valueOf(text.length()));
+        if (!accepted) {
+            localStatus(errorKey);
+        }
+        return accepted;
+    }
+
+    private static int messageCount(IrcChannel channel) {
+        try {
+            return channel.getMessages().size();
+        } catch (RuntimeException ex) {
+            DiagnosticLog.debug(LOGGER, "[MT-1710-DIAG] could not inspect MineTogether channel message count channel={}", channelName(channel), ex);
+            return -1;
+        }
+    }
+
+    private static String channelName(IrcChannel channel) {
+        try {
+            return channel.getName();
+        } catch (RuntimeException ex) {
+            return "<unknown>";
+        }
     }
 
     public static void localStatus(String key, Object... args) {

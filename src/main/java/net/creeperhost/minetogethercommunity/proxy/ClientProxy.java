@@ -16,14 +16,20 @@ import net.creeperhost.minetogethercommunity.cosmetic.CosmeticSelections;
 import net.creeperhost.minetogethercommunity.cosmetic.PlayerCosmeticCache;
 import net.creeperhost.minetogethercommunity.cosmetic.render.LegacyCosmeticRenderer;
 import net.creeperhost.minetogethercommunity.util.MTSessionProvider;
+import net.creeperhost.minetogethercommunity.util.DiagnosticLog;
 import net.minecraftforge.common.MinecraftForge;
+import cpw.mods.fml.common.FMLCommonHandler;
 import net.minecraftforge.client.ClientCommandHandler;
 import cpw.mods.fml.common.event.FMLInitializationEvent;
 import cpw.mods.fml.common.event.FMLPreInitializationEvent;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 
 import java.lang.reflect.Method;
 
 public class ClientProxy extends CommonProxy {
+
+    private static final Logger LOGGER = LogManager.getLogger("MineTogether Client");
 
     @Override
     public void preInit(FMLPreInitializationEvent event) {
@@ -53,7 +59,10 @@ public class ClientProxy extends CommonProxy {
 
         MineTogetherChat.init();
         ConnectHandler.init();
-        MinecraftForge.EVENT_BUS.register(new ClientEvents());
+        ClientEvents clientEvents = new ClientEvents();
+        MinecraftForge.EVENT_BUS.register(clientEvents);
+        FMLCommonHandler.instance().bus().register(clientEvents);
+        DiagnosticLog.info(LOGGER, "[MT-1710-DIAG] registered MineTogether client events on Forge and FML buses");
         MinecraftForge.EVENT_BUS.register(new LegacyCosmeticRenderer());
     }
 

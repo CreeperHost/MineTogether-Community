@@ -1,5 +1,7 @@
 package net.creeperhost.minetogethercommunity.chat;
 
+import net.creeperhost.minetogethercommunity.util.DiagnosticLog;
+
 import net.creeperhost.minetogether.lib.chat.irc.IrcChannel;
 import net.creeperhost.minetogether.lib.chat.message.Message;
 import net.creeperhost.minetogether.lib.chat.profile.ProfileManager;
@@ -11,7 +13,10 @@ import net.minecraft.util.IChatComponent;
 import net.minecraft.util.text.ITextComponent;
 import net.minecraft.util.text.Style;
 import net.minecraft.util.text.event.ClickEvent;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 
+import java.lang.reflect.Field;
 import java.util.ArrayList;
 import java.util.EnumMap;
 import java.util.List;
@@ -21,10 +26,14 @@ import java.net.URL;
 
 public class InGameChatBridge {
 
+    private static final Logger LOGGER = LogManager.getLogger("MineTogether Chat");
     private static final int MAX_HISTORY_PER_TARGET = 150;
     private static final Map<ChatTarget, List<PendingMessage>> PENDING = new EnumMap<ChatTarget, List<PendingMessage>>(ChatTarget.class);
     private static final Map<ChatTarget, List<HistoryEntry>> MT_HISTORY = new EnumMap<ChatTarget, List<HistoryEntry>>(ChatTarget.class);
+    private static final Map<ChatTarget, List<Message>> SEEN_MESSAGES = new EnumMap<ChatTarget, List<Message>>(ChatTarget.class);
     private static final List<IChatComponent> VANILLA_HISTORY = new ArrayList<IChatComponent>();
+    private static final Field DRAWN_CHAT_LINES = findField(GuiNewChat.class, "drawnChatLines", "field_146253_i", "i");
+    private static final Field CHAT_LINES = findField(GuiNewChat.class, "chatLines", "field_146252_h", "h");
 
     private static IrcChannel publicChannel;
     private static IrcChannel groupChannel;
@@ -32,6 +41,7 @@ public class InGameChatBridge {
     private static IrcChannel.ChatListener groupListener;
     private static String groupChannelName;
     private static ChatTarget renderedTarget = ChatTarget.VANILLA;
+    private static ChatTarget deferredRenderTarget;
     private static boolean replaying;
     private static int nextMessageId = 1;
 
@@ -42,9 +52,11 @@ public class InGameChatBridge {
         if (MineTogetherChat.CHAT_STATE == null) return;
         bindPublicChannel();
         bindGroupChannel();
+        syncChannelHistory(ChatTarget.PUBLIC, publicChannel);
+        syncChannelHistory(ChatTarget.GROUP, groupChannel);
         flushPending();
         ChatTarget target = MineTogetherChat.getTarget();
-        if (target != renderedTarget) {
+        if (target != renderedTarget || target == deferredRenderTarget) {
             renderTarget(target);
         }
     }
@@ -67,7 +79,11 @@ public class InGameChatBridge {
         synchronized (MT_HISTORY) {
             MT_HISTORY.clear();
         }
+        synchronized (SEEN_MESSAGES) {
+            SEEN_MESSAGES.clear();
+        }
         nextMessageId = 1;
+        deferredRenderTarget = null;
         renderTarget(ChatTarget.VANILLA);
     }
 
@@ -78,10 +94,14 @@ public class InGameChatBridge {
         synchronized (MT_HISTORY) {
             MT_HISTORY.clear();
         }
+        synchronized (SEEN_MESSAGES) {
+            SEEN_MESSAGES.clear();
+        }
         synchronized (VANILLA_HISTORY) {
             VANILLA_HISTORY.clear();
         }
         nextMessageId = 1;
+        deferredRenderTarget = null;
         renderedTarget = ChatTarget.VANILLA;
     }
 
@@ -152,6 +172,26 @@ public class InGameChatBridge {
         }
     }
 
+    public static List<ITextComponent> focusedHistoryLines(ChatTarget target, int maxLines) {
+        List<HistoryEntry> snapshot = mtHistorySnapshot(target);
+        List<ITextComponent> lines = new ArrayList<ITextComponent>();
+        for (int i = snapshot.size() - 1; i >= 0 && lines.size() < maxLines; i--) {
+            lines.add(format(target, snapshot.get(i)));
+        }
+        return lines;
+    }
+
+    public static int historySize(ChatTarget target) {
+        synchronized (MT_HISTORY) {
+            List<HistoryEntry> history = MT_HISTORY.get(target);
+            return history == null ? 0 : history.size();
+        }
+    }
+
+    public static ChatTarget renderedTarget() {
+        return renderedTarget;
+    }
+
     private static void bindPublicChannel() {
         IrcChannel channel = MineTogetherChat.CHAT_STATE.ircClient.getPrimaryChannel();
         if (channel == null || channel == publicChannel) return;
@@ -159,8 +199,10 @@ public class InGameChatBridge {
             publicChannel.removeListener(publicListener);
         }
         publicChannel = channel;
-        publicListener = message -> queue(ChatTarget.PUBLIC, message);
+        publicListener = message -> queueIfNew(ChatTarget.PUBLIC, message, "listener");
         publicChannel.addListener(publicListener);
+        DiagnosticLog.info(LOGGER, "[MT-1710-DIAG] bound in-game public chat bridge to channel {} existingMessages={}",
+                channel.getName(), Integer.valueOf(channel.getMessages().size()));
     }
 
     private static void bindGroupChannel() {
@@ -178,8 +220,10 @@ public class InGameChatBridge {
 
         groupChannelName = newName;
         groupChannel = channel;
-        groupListener = message -> queue(ChatTarget.GROUP, message);
+        groupListener = message -> queueIfNew(ChatTarget.GROUP, message, "listener");
         groupChannel.addListener(groupListener);
+        DiagnosticLog.info(LOGGER, "[MT-1710-DIAG] bound in-game group chat bridge to channel {} existingMessages={}",
+                channel.getName(), Integer.valueOf(channel.getMessages().size()));
     }
 
     private static void unbindGroupChannel() {
@@ -191,8 +235,42 @@ public class InGameChatBridge {
         groupChannelName = null;
     }
 
-    private static void queue(ChatTarget target, Message message) {
-        if (message == null || message.sender != null && message.sender.isMuted()) return;
+    private static void syncChannelHistory(ChatTarget target, IrcChannel channel) {
+        if (channel == null) return;
+        List<Message> snapshot;
+        try {
+            snapshot = new ArrayList<Message>(channel.getMessages());
+        } catch (RuntimeException ex) {
+            DiagnosticLog.debug(LOGGER, "[MT-1710-DIAG] could not snapshot {} chat channel history", target, ex);
+            return;
+        }
+
+        int queued = 0;
+        int first = Math.max(0, snapshot.size() - MAX_HISTORY_PER_TARGET);
+        for (int i = first; i < snapshot.size(); i++) {
+            if (queueIfNew(target, snapshot.get(i), "history")) {
+                queued++;
+            }
+        }
+        if (queued > 0) {
+            DiagnosticLog.info(LOGGER, "[MT-1710-DIAG] queued {} {} in-game chat message(s) from channel history", Integer.valueOf(queued), target);
+        }
+    }
+
+    private static boolean queueIfNew(ChatTarget target, Message message, String source) {
+        if (message == null || message.sender != null && message.sender.isMuted()) return false;
+        synchronized (SEEN_MESSAGES) {
+            List<Message> seen = SEEN_MESSAGES.get(target);
+            if (seen == null) {
+                seen = new ArrayList<Message>();
+                SEEN_MESSAGES.put(target, seen);
+            }
+            if (containsIdentity(seen, message)) {
+                return false;
+            }
+            seen.add(message);
+            trim(seen);
+        }
         synchronized (PENDING) {
             List<PendingMessage> pending = PENDING.get(target);
             if (pending == null) {
@@ -204,6 +282,17 @@ public class InGameChatBridge {
                 pending.remove(0);
             }
         }
+        DiagnosticLog.debug(LOGGER, "[MT-1710-DIAG] queued {} in-game chat message from {}", target, source);
+        return true;
+    }
+
+    private static boolean containsIdentity(List<Message> messages, Message message) {
+        for (Message seen : messages) {
+            if (seen == message) {
+                return true;
+            }
+        }
+        return false;
     }
 
     private static void flushPending() {
@@ -219,42 +308,100 @@ public class InGameChatBridge {
         ChatTarget target = MineTogetherChat.getTarget();
 
         Minecraft mc = Minecraft.getMinecraft();
+        GuiNewChat activeChat = mc.ingameGUI == null ? null : mc.ingameGUI.getChatGUI();
+        int drawnBefore = chatLineCount(activeChat, DRAWN_CHAT_LINES);
+        int storedBefore = chatLineCount(activeChat, CHAT_LINES);
+        int printed = 0;
+        boolean currentTargetNeedsReplay = false;
         for (PendingMessage pending : copy) {
             HistoryEntry entry = addMtHistory(pending.target, pending.message);
-            if (pending.target == target && renderedTarget == target && mc.ingameGUI != null) {
-                mc.ingameGUI.getChatGUI().printChatMessage(format(pending.target, entry));
+            if (pending.target == target && renderedTarget == target && activeChat != null) {
+                activeChat.printChatMessage(format(pending.target, entry));
+                printed++;
+            } else if (pending.target == target) {
+                currentTargetNeedsReplay = true;
             }
         }
+        if (currentTargetNeedsReplay) {
+            deferredRenderTarget = target;
+        }
+        int drawnAfter = chatLineCount(activeChat, DRAWN_CHAT_LINES);
+        int storedAfter = chatLineCount(activeChat, CHAT_LINES);
+        DiagnosticLog.info(LOGGER, "[MT-1710-DIAG] flushed in-game chat pending={} currentTarget={} renderedTarget={} printed={} publicHistory={} groupHistory={} gui={} drawnBefore={} drawnAfter={} storedBefore={} storedAfter={}",
+                Integer.valueOf(copy.size()), target, renderedTarget, Integer.valueOf(printed),
+                Integer.valueOf(historySize(ChatTarget.PUBLIC)), Integer.valueOf(historySize(ChatTarget.GROUP)),
+                activeChat == null ? "<missing>" : "<present>",
+                Integer.valueOf(drawnBefore), Integer.valueOf(drawnAfter), Integer.valueOf(storedBefore), Integer.valueOf(storedAfter));
     }
 
     private static ITextComponent format(ChatTarget target, HistoryEntry entry) {
-        return MessageFormatter.formatInGame(target, entry.message, entry.id);
+        return MessageFormatter.formatInGameLegacy(target, entry.message, entry.id);
     }
 
     private static void renderTarget(ChatTarget target) {
         Minecraft mc = Minecraft.getMinecraft();
         if (mc.ingameGUI == null) {
-            renderedTarget = target;
+            if (deferredRenderTarget != target) {
+                deferredRenderTarget = target;
+                DiagnosticLog.info(LOGGER, "[MT-1710-DIAG] deferred in-game chat replay target={} because ingameGUI is missing", target);
+            }
             return;
         }
 
         GuiNewChat chat = mc.ingameGUI.getChatGUI();
+        int drawnBefore = chatLineCount(chat, DRAWN_CHAT_LINES);
+        int storedBefore = chatLineCount(chat, CHAT_LINES);
         replaying = true;
         try {
-            chat.clearChatMessages();
+            clearVisibleChat(chat);
+            int drawnAfterClear = chatLineCount(chat, DRAWN_CHAT_LINES);
+            int storedAfterClear = chatLineCount(chat, CHAT_LINES);
+            int replayed = 0;
             if (target == ChatTarget.VANILLA) {
                 for (IChatComponent component : vanillaHistorySnapshot()) {
                     chat.printChatMessage(component.createCopy());
+                    replayed++;
                 }
             } else {
                 for (HistoryEntry entry : mtHistorySnapshot(target)) {
                     chat.printChatMessage(format(target, entry));
+                    replayed++;
                 }
             }
             chat.resetScroll();
             renderedTarget = target;
+            deferredRenderTarget = null;
+            DiagnosticLog.info(LOGGER, "[MT-1710-DIAG] replayed in-game chat target={} messages={} publicHistory={} groupHistory={} drawnBefore={} storedBefore={} drawnAfterClear={} storedAfterClear={} drawnAfterReplay={} storedAfterReplay={}",
+                    target, Integer.valueOf(replayed),
+                    Integer.valueOf(historySize(ChatTarget.PUBLIC)), Integer.valueOf(historySize(ChatTarget.GROUP)),
+                    Integer.valueOf(drawnBefore), Integer.valueOf(storedBefore),
+                    Integer.valueOf(drawnAfterClear), Integer.valueOf(storedAfterClear),
+                    Integer.valueOf(chatLineCount(chat, DRAWN_CHAT_LINES)), Integer.valueOf(chatLineCount(chat, CHAT_LINES)));
         } finally {
             replaying = false;
+        }
+    }
+
+    @SuppressWarnings("unchecked")
+    private static void clearVisibleChat(GuiNewChat chat) {
+        try {
+            ((List<Object>) DRAWN_CHAT_LINES.get(chat)).clear();
+            ((List<Object>) CHAT_LINES.get(chat)).clear();
+            chat.resetScroll();
+        } catch (Throwable ex) {
+            DiagnosticLog.warn(LOGGER, "[MT-1710-DIAG] falling back to full chat clear; sent history may be reset", ex);
+            chat.clearChatMessages();
+        }
+    }
+
+    @SuppressWarnings("unchecked")
+    private static int chatLineCount(GuiNewChat chat, Field field) {
+        if (chat == null || field == null) return -1;
+        try {
+            return ((List<Object>) field.get(chat)).size();
+        } catch (Throwable ex) {
+            DiagnosticLog.debug(LOGGER, "[MT-1710-DIAG] could not inspect in-game chat line count", ex);
+            return -1;
         }
     }
 
@@ -302,6 +449,18 @@ public class InGameChatBridge {
         while (list.size() > MAX_HISTORY_PER_TARGET) {
             list.remove(0);
         }
+    }
+
+    private static Field findField(Class<?> owner, String... names) {
+        for (String name : names) {
+            try {
+                Field field = owner.getDeclaredField(name);
+                field.setAccessible(true);
+                return field;
+            } catch (NoSuchFieldException ignored) {
+            }
+        }
+        throw new IllegalStateException("Could not find field on " + owner.getName());
     }
 
     private static class PendingMessage {

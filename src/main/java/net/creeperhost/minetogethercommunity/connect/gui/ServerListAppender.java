@@ -8,6 +8,7 @@ import net.creeperhost.minetogethercommunity.connect.ConnectHandler;
 import net.creeperhost.minetogethercommunity.connect.ConnectHost;
 import net.creeperhost.minetogethercommunity.connect.RemoteServer;
 import net.creeperhost.minetogethercommunity.connect.netty.NettyClient;
+import net.creeperhost.minetogethercommunity.util.DiagnosticLog;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiListExtended;
 import net.minecraft.client.gui.GuiMultiplayer;
@@ -53,6 +54,7 @@ public class ServerListAppender {
     private GuiMultiplayer multiplayerScreen;
     private ServerSelectionList serverList;
     private int tick;
+    private long lastScreenDiagnostic;
 
     private ServerListAppender() {
     }
@@ -67,9 +69,11 @@ public class ServerListAppender {
         remove();
         multiplayerScreen = screen;
         serverList = getServerList(screen);
+        DiagnosticLog.info(LOGGER, "[MT-1710-DIAG] initialized multiplayer friend-server hook: serverList={}", serverList == null ? "<missing>" : serverList.getClass().getName());
         ConnectHandler.clearAndReset();
         ConnectHandler.updateFriendsSearch();
         refreshEntries();
+        logScreenState("init", true);
     }
 
     public void tick(GuiScreen currentScreen) {
@@ -87,6 +91,7 @@ public class ServerListAppender {
         if (tick++ % 20 != 0) return;
         ConnectHandler.updateFriendsSearch();
         refreshEntries();
+        logScreenState("tick", false);
     }
 
     public void remove() {
@@ -96,6 +101,7 @@ public class ServerListAppender {
         multiplayerScreen = null;
         serverList = null;
         tick = 0;
+        lastScreenDiagnostic = 0L;
     }
 
     public void openSelected(GuiMultiplayer screen) {
@@ -110,17 +116,24 @@ public class ServerListAppender {
     }
 
     private void refreshEntries() {
-        if (multiplayerScreen == null || serverList == null) return;
+        if (multiplayerScreen == null || serverList == null) {
+            DiagnosticLog.info(LOGGER, "[MT-1710-DIAG] skipped friend-server refresh because multiplayerScreen={} serverList={}",
+                    multiplayerScreen == null ? "<missing>" : "<present>",
+                    serverList == null ? "<missing>" : "<present>");
+            return;
+        }
 
         boolean dirty = false;
         List<RemoteServer> remoteServers = new ArrayList<RemoteServer>(ConnectHandler.getRemoteServers());
         for (RemoteServer remoteServer : remoteServers) {
-            if (!serverEntries.containsKey(remoteServer)) {
-                Profile profile = ConnectHandler.getServerProfile(remoteServer);
-                if (profile == null || profile.isStale()) {
-                    continue;
-                }
+            Profile profile = ConnectHandler.getServerProfile(remoteServer);
+            FriendServerEntry existing = serverEntries.get(remoteServer);
+            if (existing == null || existing.getFriendProfile() != profile) {
                 serverEntries.put(remoteServer, new FriendServerEntry(multiplayerScreen, remoteServer, profile));
+                DiagnosticLog.info(LOGGER, "[MT-1710-DIAG] added/updated friend-server row: friend={} node={} profile={}",
+                        remoteServer.getFriendHash(),
+                        remoteServer.getNode() == null ? "<auto>" : remoteServer.getNode(),
+                        profile == null ? "<missing>" : profile.isStale() ? "<stale>" : profile.getDisplayName());
                 dirty = true;
             }
         }
@@ -135,6 +148,8 @@ public class ServerListAppender {
 
         if (dirty) {
             appendEntries();
+        } else {
+            ensureFriendRowsPresent();
         }
     }
 
@@ -143,7 +158,19 @@ public class ServerListAppender {
         List<GuiListExtended.IGuiListEntry> entries = getInternetEntries();
         if (entries == null) return;
         removeFriendEntries(entries);
-        entries.addAll(serverEntries.values());
+        entries.addAll(0, serverEntries.values());
+        DiagnosticLog.info(LOGGER, "[MT-1710-DIAG] inserted MineTogether friend-server rows: rows={} vanillaEntriesAfter={}",
+                Integer.valueOf(serverEntries.size()), Integer.valueOf(entries.size()));
+    }
+
+    private void ensureFriendRowsPresent() {
+        if (serverEntries.isEmpty()) return;
+        List<GuiListExtended.IGuiListEntry> entries = getInternetEntries();
+        if (entries == null) return;
+        if (entries.containsAll(serverEntries.values())) return;
+        DiagnosticLog.info(LOGGER, "[MT-1710-DIAG] repairing missing MineTogether friend-server rows: rows={} vanillaEntriesBefore={}",
+                Integer.valueOf(serverEntries.size()), Integer.valueOf(entries.size()));
+        appendEntries();
     }
 
     private void removeEntriesFromList() {
@@ -160,6 +187,36 @@ public class ServerListAppender {
                 iterator.remove();
             }
         }
+    }
+
+    private void logScreenState(String reason, boolean force) {
+        long now = Minecraft.getSystemTime();
+        if (!force && now - lastScreenDiagnostic < 5000L) return;
+        lastScreenDiagnostic = now;
+
+        List<GuiListExtended.IGuiListEntry> entries = getInternetEntries();
+        int internetEntries = entries == null ? -1 : entries.size();
+        int friendRowsInList = 0;
+        if (entries != null) {
+            for (GuiListExtended.IGuiListEntry entry : entries) {
+                if (entry instanceof FriendServerEntry) {
+                    friendRowsInList++;
+                }
+            }
+        }
+
+        int selected = -1;
+        if (serverList != null) {
+            try {
+                selected = serverList.func_148193_k();
+            } catch (RuntimeException ignored) {
+            }
+        }
+
+        DiagnosticLog.info(LOGGER, "[MT-1710-DIAG] multiplayer friend-server screen state reason={} available={} rowCache={} internetEntries={} friendRowsInList={} selected={} connectState={}",
+                reason, Integer.valueOf(ConnectHandler.getAvailableServerCount()), Integer.valueOf(serverEntries.size()),
+                Integer.valueOf(internetEntries), Integer.valueOf(friendRowsInList), Integer.valueOf(selected),
+                ConnectHandler.diagnosticState());
     }
 
     private FriendServerEntry getSelectedFriendEntry(GuiMultiplayer screen) {
@@ -183,6 +240,11 @@ public class ServerListAppender {
                 try {
                     ConnectHost endpoint = ConnectHandler.getSpecificEndpoint(server.getNode());
                     JWebToken token = ConnectHandler.requireSessionToken();
+                    DiagnosticLog.info(LOGGER, "[MT-1710-DIAG] pinging friend-server row friend={} node={} endpoint={}:{}",
+                            server.getFriendHash(),
+                            server.getNode() == null ? "<auto>" : server.getNode(),
+                            endpoint.getAddress(),
+                            Integer.valueOf(endpoint.getProxyPort()));
                     networkManager = NettyClient.connect(endpoint, token, server.getServerToken(), true);
                     pingConnections.add(networkManager);
                     networkManager.setNetHandler(new StatusHandler(networkManager, server, profile));
@@ -204,6 +266,14 @@ public class ServerListAppender {
                 if (manager.isChannelOpen()) {
                     manager.processReceivedPackets();
                 } else {
+                    if (manager.getNetHandler() != null) {
+                        IChatComponent reason = manager.getExitMessage();
+                        if (reason == null) {
+                            reason = new TextComponentTranslation("disconnect.endOfStream");
+                        }
+                        DiagnosticLog.info(LOGGER, "[MT-1710-DIAG] friend-server ping connection closed reason={}", reason.getUnformattedText());
+                        manager.getNetHandler().onDisconnect(reason);
+                    }
                     iterator.remove();
                 }
             }
@@ -268,6 +338,7 @@ public class ServerListAppender {
                 networkManager.closeChannel(new TextComponentTranslation("multiplayer.status.cannot_connect"));
                 return;
             }
+            DiagnosticLog.info(LOGGER, "[MT-1710-DIAG] received friend-server status info friend={}", server.getFriendHash());
 
             server.setMotd(componentText(response.getServerDescription()));
             ServerStatusResponse.MinecraftProtocolVersionIdentifier version = response.getProtocolVersionInfo();
@@ -309,6 +380,8 @@ public class ServerListAppender {
         public void handlePong(S01PacketPong packetIn) {
             server.setPing(Minecraft.getSystemTime() - pingStart);
             completed = true;
+            DiagnosticLog.info(LOGGER, "[MT-1710-DIAG] friend-server ping complete friend={} ping={}ms",
+                    server.getFriendHash(), Long.valueOf(server.getPing()));
             networkManager.closeChannel(new TextComponentTranslation("multiplayer.status.finished"));
         }
 

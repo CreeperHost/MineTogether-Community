@@ -47,6 +47,26 @@ public final class MessageFormatter {
         return root;
     }
 
+    public static ITextComponent formatInGameLegacy(ChatTarget target, Message message, int messageId) {
+        StringBuilder builder = new StringBuilder();
+        appendLegacy(builder, target == ChatTarget.GROUP ? "[MT Group] " : "[MT] ", TextFormatting.AQUA);
+        appendLegacy(builder, "<", arrowColor(message));
+        appendLegacy(builder, senderName(message), userColor(message));
+        appendLegacy(builder, "> ", arrowColor(message));
+        appendLegacyBody(builder, message == null ? null : message.getMessage(), messageColor(message));
+        builder.append(TextFormatting.RESET);
+
+        TextComponentString component = new TextComponentString(builder.toString());
+        int clickNameId = messageClickId(message, messageId);
+        if (clickNameId >= 0) {
+            String marker = CLICK_NAME + ":" + clickNameId;
+            component.setStyle(new Style()
+                    .setClickEvent(new ClickEvent(ClickEvent.Action.SUGGEST_COMMAND, marker))
+                    .setInsertion(marker));
+        }
+        return component;
+    }
+
     public static ITextComponent formatGui(Message message) {
         ITextComponent root = new TextComponentString("");
         root.appendSibling(styled("<", arrowColor(message)));
@@ -58,6 +78,69 @@ public final class MessageFormatter {
 
     private static ITextComponent formatBody(MessageComponent component, TextFormatting color) {
         return formatBody(component, color, -1);
+    }
+
+    private static void appendLegacyBody(StringBuilder builder, MessageComponent component, TextFormatting color) {
+        if (component == null) {
+            appendLegacyBody(builder, "", color);
+            return;
+        }
+
+        for (MessageComponent child : component.iterate()) {
+            TextFormatting childColor = color;
+            if (child instanceof ProfileMessageComponent) {
+                ProfileMessageComponent profileComponent = (ProfileMessageComponent) child;
+                if (profileComponent.profile == MineTogetherChat.getOurProfile()) {
+                    childColor = TextFormatting.RED;
+                }
+            }
+            appendLegacyBody(builder, child.getMessage(), childColor);
+        }
+    }
+
+    private static void appendLegacyBody(StringBuilder builder, String text, TextFormatting color) {
+        if (text == null || text.isEmpty()) {
+            return;
+        }
+
+        Matcher matcher = URL_PATTERN.matcher(text);
+        int lastEnd = 0;
+        while (matcher.find()) {
+            if (matcher.start() > lastEnd) {
+                appendLegacy(builder, text.substring(lastEnd, matcher.start()), color);
+            }
+
+            String matchedUrl = matcher.group();
+            String rawUrl = trimTrailingPunctuation(matchedUrl);
+            String trailing = matchedUrl.substring(rawUrl.length());
+            String openUrl = withScheme(rawUrl);
+            appendLegacy(builder, rawUrl, openUrl == null ? color : TextFormatting.BLUE, openUrl != null);
+            if (!trailing.isEmpty()) {
+                appendLegacy(builder, trailing, color);
+            }
+            lastEnd = matcher.start() + matcher.group().length();
+        }
+
+        if (lastEnd < text.length()) {
+            appendLegacy(builder, text.substring(lastEnd), color);
+        }
+    }
+
+    private static void appendLegacy(StringBuilder builder, String text, TextFormatting color) {
+        appendLegacy(builder, text, color, false);
+    }
+
+    private static void appendLegacy(StringBuilder builder, String text, TextFormatting color, boolean underline) {
+        if (text == null || text.isEmpty()) {
+            return;
+        }
+        if (color != null) {
+            builder.append(color);
+        }
+        if (underline) {
+            builder.append(TextFormatting.UNDERLINE);
+        }
+        builder.append(text).append(TextFormatting.RESET);
     }
 
     private static ITextComponent formatBody(MessageComponent component, TextFormatting color, int messageId) {
@@ -132,7 +215,7 @@ public final class MessageFormatter {
         String name = senderName(message);
         TextComponentString component = new TextComponentString(name);
         Style style = new Style().setColor(userColor(message));
-        if (message.sender != null && message.sender != MineTogetherChat.getOurProfile()) {
+        if (message != null && message.sender != null && message.sender != MineTogetherChat.getOurProfile()) {
             String marker = messageId >= 0 ? CLICK_NAME + ":" + messageId : CLICK_NAME;
             style.setClickEvent(new ClickEvent(ClickEvent.Action.SUGGEST_COMMAND, marker));
             style.setInsertion(marker);
@@ -177,7 +260,7 @@ public final class MessageFormatter {
     }
 
     private static int messageClickId(Message message, int messageId) {
-        return messageId >= 0 && message.sender != null && message.sender != MineTogetherChat.getOurProfile() ? messageId : -1;
+        return messageId >= 0 && message != null && message.sender != null && message.sender != MineTogetherChat.getOurProfile() ? messageId : -1;
     }
 
     private static String withScheme(String url) {
@@ -197,12 +280,14 @@ public final class MessageFormatter {
     }
 
     private static String senderName(Message message) {
+        if (message == null) return "MineTogether";
         if (message.senderName != null) return message.senderName.getMessage();
         String name = MineTogetherChat.displayName(message.sender);
         return name == null || name.trim().isEmpty() ? "MineTogether" : name;
     }
 
     private static TextFormatting messageColor(Message message) {
+        if (message == null) return TextFormatting.WHITE;
         Profile sender = message.sender;
         if (sender != null) {
             if (sender.isBanned()) return TextFormatting.DARK_GRAY;
@@ -212,6 +297,7 @@ public final class MessageFormatter {
     }
 
     private static TextFormatting arrowColor(Message message) {
+        if (message == null) return TextFormatting.WHITE;
         Profile sender = message.sender;
         if (sender != null) {
             if (sender.isPremium()) return TextFormatting.GREEN;
@@ -221,6 +307,7 @@ public final class MessageFormatter {
     }
 
     private static TextFormatting userColor(Message message) {
+        if (message == null) return TextFormatting.AQUA;
         Profile sender = message.sender;
         if (sender == null) return TextFormatting.AQUA;
         Profile ours = MineTogetherChat.getOurProfile();

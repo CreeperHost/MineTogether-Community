@@ -5,6 +5,8 @@ import net.creeperhost.minetogethercommunity.connect.ConnectHandler;
 import net.creeperhost.minetogethercommunity.connect.ConnectHost;
 import net.creeperhost.minetogethercommunity.connect.RemoteServer;
 import net.creeperhost.minetogethercommunity.connect.netty.NettyClient;
+import net.creeperhost.minetogethercommunity.util.DiagnosticLog;
+import cpw.mods.fml.client.FMLClientHandler;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiButton;
 import net.minecraft.client.gui.GuiDisconnected;
@@ -17,6 +19,7 @@ import net.minecraft.network.NetworkManager;
 import net.minecraft.network.handshake.client.C00Handshake;
 import net.minecraft.network.login.client.C00PacketLoginStart;
 import net.minecraft.realms.RealmsSharedConstants;
+import net.minecraft.util.IChatComponent;
 import net.minecraft.util.text.TextComponentString;
 import net.minecraft.util.text.TextComponentTranslation;
 import org.apache.logging.log4j.LogManager;
@@ -35,6 +38,7 @@ public class FriendConnectScreen extends GuiScreen {
     private NetworkManager networkManager;
     private boolean cancel;
     private boolean connectingStarted;
+    private boolean handledDisconnect;
 
     public FriendConnectScreen(GuiScreen previousGuiScreen, RemoteServer remoteServer) {
         this.previousGuiScreen = previousGuiScreen;
@@ -55,6 +59,9 @@ public class FriendConnectScreen extends GuiScreen {
         final Minecraft minecraft = Minecraft.getMinecraft();
         minecraft.loadWorld(null);
         minecraft.setServerData(new ServerData("MineTogether Friend Server", "mtconnect", false));
+        FMLClientHandler.instance().connectToRealmsServer("mtconnect", 0);
+        DiagnosticLog.info(LOGGER, "[MT-1710-DIAG] prepared Forge play-client latch for friend-server connection friend={} node={}",
+                remoteServer.getFriendHash(), remoteServer.getNode() == null ? "<auto>" : remoteServer.getNode());
 
         Thread thread = new Thread("MT Friend Server Connector #" + CONNECTION_ID.incrementAndGet()) {
             @Override
@@ -63,7 +70,14 @@ public class FriendConnectScreen extends GuiScreen {
                     if (cancel) return;
                     ConnectHost endpoint = ConnectHandler.getSpecificEndpoint(remoteServer.getNode());
                     JWebToken token = ConnectHandler.requireSessionToken();
+                    DiagnosticLog.info(LOGGER, "[MT-1710-DIAG] opening friend-server connection friend={} node={} endpoint={}:{}",
+                            remoteServer.getFriendHash(),
+                            remoteServer.getNode() == null ? "<auto>" : remoteServer.getNode(),
+                            endpoint.getAddress(),
+                            Integer.valueOf(endpoint.getProxyPort()));
                     networkManager = NettyClient.connect(endpoint, token, remoteServer.getServerToken(), false);
+                    DiagnosticLog.info(LOGGER, "[MT-1710-DIAG] friend-server raw connection ready friend={} node={}",
+                            remoteServer.getFriendHash(), remoteServer.getNode() == null ? "<auto>" : remoteServer.getNode());
                     if (cancel) {
                         networkManager.closeChannel(new TextComponentString("Aborted"));
                         return;
@@ -97,7 +111,17 @@ public class FriendConnectScreen extends GuiScreen {
         if (networkManager != null) {
             if (networkManager.isChannelOpen()) {
                 networkManager.processReceivedPackets();
-            } else {
+            } else if (!handledDisconnect) {
+                handledDisconnect = true;
+                IChatComponent reason = networkManager.getExitMessage();
+                if (reason == null) {
+                    reason = new TextComponentTranslation("disconnect.endOfStream");
+                }
+                DiagnosticLog.info(LOGGER, "[MT-1710-DIAG] friend-server connection closed friend={} reason={}",
+                        remoteServer.getFriendHash(), reason.getUnformattedText());
+                if (networkManager.getNetHandler() != null) {
+                    networkManager.getNetHandler().onDisconnect(reason);
+                }
             }
         }
     }

@@ -1,8 +1,10 @@
 package net.creeperhost.minetogethercommunity.connect.gui;
 
 import net.creeperhost.minetogether.lib.chat.profile.Profile;
+import net.creeperhost.minetogethercommunity.connect.ConnectHandler;
 import net.creeperhost.minetogethercommunity.chat.MineTogetherChat;
 import net.creeperhost.minetogethercommunity.connect.RemoteServer;
+import net.creeperhost.minetogethercommunity.util.DiagnosticLog;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.FontRenderer;
 import net.minecraft.client.gui.Gui;
@@ -12,15 +14,20 @@ import net.minecraft.client.resources.I18n;
 import net.minecraft.realms.RealmsSharedConstants;
 import net.minecraft.client.renderer.Tessellator;
 import net.minecraft.util.text.TextFormatting;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 
 import java.util.List;
 
 public class FriendServerEntry implements GuiListExtended.IGuiListEntry {
 
+    private static final Logger LOGGER = LogManager.getLogger("MineTogether Connect");
+
     private final GuiMultiplayer owner;
     private final RemoteServer remoteServer;
     private final Profile friendProfile;
     private long lastClickTime;
+    private long lastDrawDiagnostic;
 
     public FriendServerEntry(GuiMultiplayer owner, RemoteServer remoteServer, Profile friendProfile) {
         this.owner = owner;
@@ -32,11 +39,16 @@ public class FriendServerEntry implements GuiListExtended.IGuiListEntry {
         return remoteServer;
     }
 
+    public Profile getFriendProfile() {
+        return friendProfile;
+    }
+
     @Override
     public void drawEntry(int slotIndex, int x, int y, int listWidth, int slotHeight, Tessellator tessellator, int mouseX, int mouseY, boolean selected) {
         Minecraft mc = Minecraft.getMinecraft();
         FontRenderer font = mc.fontRendererObj;
         ensurePingStarted();
+        logDrawDiagnostic(slotIndex, y, listWidth, selected);
 
         String displayName = getDisplayName();
         String title = I18n.format("minetogether.connect.friend.server.title", displayName);
@@ -131,6 +143,19 @@ public class FriendServerEntry implements GuiListExtended.IGuiListEntry {
         }
         String status = remoteServer.getStatus();
         return TextFormatting.GRAY + (status == null || status.trim().isEmpty() ? I18n.format("minetogether.connect.friend.server.ready") : status);
+    }
+
+    private void logDrawDiagnostic(int slotIndex, int y, int listWidth, boolean selected) {
+        long now = Minecraft.getSystemTime();
+        if (now - lastDrawDiagnostic < 5000L) return;
+        lastDrawDiagnostic = now;
+        DiagnosticLog.info(LOGGER, "[MT-1710-DIAG] rendered friend-server row friend={} node={} slot={} y={} width={} selected={} ping={} protocol={} motdSet={} statusSet={}",
+                ConnectHandler.describeFriendHash(remoteServer.getFriendHash()),
+                remoteServer.getNode() == null ? "<auto>" : remoteServer.getNode(),
+                Integer.valueOf(slotIndex), Integer.valueOf(y), Integer.valueOf(listWidth), Boolean.valueOf(selected),
+                Long.valueOf(remoteServer.getPing()), Integer.valueOf(remoteServer.getProtocol()),
+                Boolean.valueOf(remoteServer.getMotd() != null && !remoteServer.getMotd().trim().isEmpty()),
+                Boolean.valueOf(remoteServer.getStatus() != null && !remoteServer.getStatus().trim().isEmpty()));
     }
 
     private String pingText(int slotIndex) {

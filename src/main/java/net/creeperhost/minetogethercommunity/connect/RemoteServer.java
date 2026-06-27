@@ -22,7 +22,7 @@ public class RemoteServer {
     public RemoteServer(String friendHash, String serverToken, String node) {
         this.friendHash = friendHash;
         this.serverToken = serverToken;
-        this.node = node;
+        this.node = normalize(node);
     }
 
     public String getFriendHash() {
@@ -109,11 +109,16 @@ public class RemoteServer {
         if (!(o instanceof RemoteServer)) return false;
         RemoteServer that = (RemoteServer) o;
         return Objects.equals(friendHash, that.friendHash)
-                && Objects.equals(serverToken, that.serverToken);
+                && Objects.equals(serverToken, that.serverToken)
+                && Objects.equals(node, that.node);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(friendHash, serverToken);
+        return Objects.hash(friendHash, serverToken, node);
+    }
+
+    private static String normalize(String value) {
+        return value == null || value.trim().isEmpty() ? null : value;
     }
 }
