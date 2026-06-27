@@ -132,6 +132,9 @@ tasks.matching { it.name == "runClient" }.all { JavaExec task ->
         task.classpath = task.classpath + configurations.devLogin
         String launchTarget = task.mainClass.get()
         if (launchTarget != "net.covers1624.devlogin.DevLogin") {
+            gradle.startParameter.systemPropertiesArgs.each { name, value ->
+                task.jvmArgs(value == null || value.isEmpty() ? "-D${name}" : "-D${name}=${value}")
+            }
             task.args("--launch_target", launchTarget)
             task.mainClass.set("net.covers1624.devlogin.DevLogin")
         }
