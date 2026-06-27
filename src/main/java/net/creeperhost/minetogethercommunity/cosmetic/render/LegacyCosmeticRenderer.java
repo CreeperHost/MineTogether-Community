@@ -17,21 +17,60 @@ import net.minecraft.client.Minecraft;
 import net.minecraft.client.entity.AbstractClientPlayer;
 import net.minecraft.client.renderer.GlStateManager;
 import net.minecraft.client.renderer.OpenGlHelper;
+import net.minecraft.client.renderer.entity.RendererLivingEntity;
 import net.minecraft.client.renderer.entity.RenderPlayer;
+import net.minecraft.client.renderer.entity.layers.LayerCape;
+import net.minecraft.client.renderer.entity.layers.LayerRenderer;
+import net.minecraft.entity.EntityLivingBase;
+import net.minecraft.entity.player.EnumPlayerModelParts;
 import net.minecraft.util.ResourceLocation;
-import net.minecraftforge.client.event.RenderPlayerEvent;
-import net.minecraftforge.fml.common.eventhandler.SubscribeEvent;
 
-public class LegacyCosmeticRenderer {
+import java.lang.reflect.Field;
+import java.util.Iterator;
+import java.util.List;
+import java.util.Map;
+
+public class LegacyCosmeticRenderer implements LayerRenderer<AbstractClientPlayer> {
 
     private static final float SCALE = 0.0625F;
+    private static final Field LAYER_RENDERERS_FIELD = findField(RendererLivingEntity.class, "layerRenderers", "field_177097_h", "h");
 
-    @SubscribeEvent
-    public void onRenderPlayerSpecials(RenderPlayerEvent.Specials.Pre event) {
-        if (!(event.entityPlayer instanceof AbstractClientPlayer)) return;
-        AbstractClientPlayer player = (AbstractClientPlayer) event.entityPlayer;
-        RenderPlayer renderer = event.renderer;
-        float ageInTicks = player.ticksExisted + event.partialRenderTick;
+    private final RenderPlayer renderer;
+
+    private LegacyCosmeticRenderer(RenderPlayer renderer) {
+        this.renderer = renderer;
+    }
+
+    public static void registerLayers() {
+        Map<String, RenderPlayer> skinMap = Minecraft.getMinecraft().getRenderManager().getSkinMap();
+        if (skinMap == null || skinMap.isEmpty()) return;
+        for (RenderPlayer renderer : skinMap.values()) {
+            registerLayer(renderer);
+        }
+    }
+
+    @SuppressWarnings("unchecked")
+    private static void registerLayer(RenderPlayer renderer) {
+        if (renderer == null) return;
+        try {
+            List<LayerRenderer> layers = (List<LayerRenderer>) LAYER_RENDERERS_FIELD.get(renderer);
+            Iterator<LayerRenderer> iterator = layers.iterator();
+            while (iterator.hasNext()) {
+                LayerRenderer layer = iterator.next();
+                if (layer instanceof LegacyCosmeticRenderer || layer instanceof LayerCape) {
+                    iterator.remove();
+                }
+            }
+            layers.add(new LegacyCosmeticRenderer(renderer));
+        } catch (IllegalAccessException ex) {
+            throw new RuntimeException("Unable to register MineTogether cosmetic render layer", ex);
+        }
+    }
+
+    @Override
+    public void doRenderLayer(AbstractClientPlayer player, float limbSwing, float limbSwingAmount, float partialTicks,
+                              float ageInTicks, float netHeadYaw, float headPitch, float scale) {
+        if (player == null || player.isInvisible()) return;
 
         boolean fullBrightPreview = CosmeticSelections.instance().fullBrightPreview;
         float previousLightX = OpenGlHelper.lastBrightnessX;
@@ -41,10 +80,10 @@ public class LegacyCosmeticRenderer {
         }
 
         try {
-            renderCape(event, player, renderer, event.partialRenderTick);
+            renderCape(player, partialTicks);
             GlStateManager.color(1.0F, 1.0F, 1.0F, 1.0F);
             renderHat(player, renderer);
-            renderTail(player, renderer, event.partialRenderTick, ageInTicks);
+            renderTail(player, renderer, partialTicks, ageInTicks);
             renderWing(player, renderer, ageInTicks);
         } finally {
             GlStateManager.color(1.0F, 1.0F, 1.0F, 1.0F);
@@ -54,16 +93,20 @@ public class LegacyCosmeticRenderer {
         }
     }
 
-    private void renderCape(RenderPlayerEvent.Specials.Pre event, AbstractClientPlayer player, RenderPlayer renderer, float partialTicks) {
+    @Override
+    public boolean shouldCombineTextures() {
+        return false;
+    }
+
+    private void renderCape(AbstractClientPlayer player, float partialTicks) {
         ResourceLocation texture = customCapeTexture(player);
         if (texture == null) {
-            if (suppressesVanillaCape(player)) {
-                event.renderCape = false;
+            if (suppressesVanillaCape(player) || !shouldRenderVanillaCape(player)) {
+                return;
             }
-            return;
+            texture = player.getLocationCape();
         }
 
-        event.renderCape = false;
         Minecraft.getMinecraft().getTextureManager().bindTexture(texture);
         renderCapeModel(player, renderer, partialTicks);
     }
@@ -249,6 +292,12 @@ public class LegacyCosmeticRenderer {
         return player == Minecraft.getMinecraft().thePlayer && CosmeticSelections.instance().suppressVanillaCapeForPreview;
     }
 
+    private static boolean shouldRenderVanillaCape(AbstractClientPlayer player) {
+        return player.hasPlayerInfo()
+                && player.getLocationCape() != null
+                && player.isWearing(EnumPlayerModelParts.CAPE);
+    }
+
     private CosmeticSelections selectionsFor(AbstractClientPlayer player) {
         if (player == Minecraft.getMinecraft().thePlayer) {
             return CosmeticSelections.instance();
@@ -259,5 +308,17 @@ public class LegacyCosmeticRenderer {
 
     private static double interpolate(double previous, double current, float partialTicks) {
         return previous + (current - previous) * partialTicks;
+    }
+
+    private static Field findField(Class<?> owner, String... names) {
+        for (String name : names) {
+            try {
+                Field field = owner.getDeclaredField(name);
+                field.setAccessible(true);
+                return field;
+            } catch (NoSuchFieldException ignored) {
+            }
+        }
+        throw new IllegalStateException("Could not find field on " + owner.getName());
     }
 }
