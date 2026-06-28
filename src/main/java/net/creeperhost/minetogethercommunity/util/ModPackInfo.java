@@ -5,7 +5,7 @@ import com.google.gson.GsonBuilder;
 import net.creeperhost.minetogether.lib.web.requests.GetCurseForgeVersionRequest;
 import net.creeperhost.minetogether.lib.web.requests.GetModpacksCHVersionRequest;
 import net.creeperhost.minetogethercommunity.MineTogether;
-import net.creeperhost.minetogethercommunity.config.Config;
+import net.creeperhost.minetogethercommunity.config.LocalConfig;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.commons.lang3.math.NumberUtils;
 import org.apache.logging.log4j.LogManager;
@@ -18,6 +18,7 @@ import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.util.Base64;
 import java.util.HashMap;
+import java.util.Locale;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutorService;
@@ -28,7 +29,7 @@ public class ModPackInfo {
 
     private static final Logger LOGGER = LogManager.getLogger("MineTogether PackInfo");
     private static final Gson GSON = new GsonBuilder().disableHtmlEscaping().create();
-    private static final ExecutorService EXECUTOR = Executors.newSingleThreadExecutor(r -> {
+    public static final ExecutorService EXECUTOR = Executors.newSingleThreadExecutor(r -> {
         Thread thread = new Thread(r, "mt-packinfo-request");
         thread.setDaemon(true);
         return thread;
@@ -40,9 +41,14 @@ public class ModPackInfo {
         initTask = CompletableFuture.supplyAsync(() -> new VersionInfo().init(), EXECUTOR);
     }
 
+    public static void reload() {
+        init();
+        waitForInfo(info -> MineTogether.AUTH.setHeader("Identifier", info.realName));
+    }
+
     public static VersionInfo getInfo() {
         try {
-            return initTask == null ? new VersionInfo() : initTask.get();
+            return initTask == null ? new VersionInfo().init() : initTask.get();
         } catch (Exception ex) {
             LOGGER.warn("Failed to retrieve pack info", ex);
             return new VersionInfo();
@@ -55,42 +61,121 @@ public class ModPackInfo {
         }
     }
 
+    public static boolean shouldPromptForManualSelection() {
+        VersionInfo info = getInfo();
+        LocalConfig config = LocalConfig.instance();
+        return !info.hasConnectPackKey() && !config.connectPackPrompted && !config.connectPackBypass;
+    }
+
     public static class VersionInfo {
-        public String curseID = StringUtils.stripToEmpty(Config.instance().curseProjectID);
+        public String curseID = "";
         public String websiteID = "";
         public String base64FTBID = "";
         public String ftbPackID = "";
         public String realName = "{\"p\":\"-1\"}";
 
         public VersionInfo init() {
-            tryParseLauncherFiles();
+            if (!applyManualOverride()) {
+                tryParseLauncherFiles();
+            }
+
             Map<String, String> json = new HashMap<>();
             if (ftbPackID.isEmpty()) {
                 json.put("p", NumberUtils.isParsable(curseID) ? curseID : "-1");
             } else {
                 json.put("p", ftbPackID);
-                json.put("b", base64FTBID);
+                if (!base64FTBID.isEmpty()) {
+                    json.put("b", base64FTBID);
+                }
             }
             realName = GSON.toJson(json);
             return this;
         }
 
+        private boolean applyManualOverride() {
+            LocalConfig config = LocalConfig.instance();
+            if (config.connectPackBypass) {
+                return true;
+            }
+            if (StringUtils.isBlank(config.connectPackKey)) {
+                return false;
+            }
+
+            String type = StringUtils.stripToEmpty(config.connectPackProjectType).toLowerCase(Locale.ROOT);
+            if ("ftb".equals(type) || !NumberUtils.isParsable(config.connectPackKey)) {
+                base64FTBID = config.connectPackKey;
+                if (!StringUtils.isBlank(config.connectPackProjectId)) {
+                    ftbPackID = "m" + config.connectPackProjectId;
+                }
+            } else {
+                curseID = config.connectPackKey;
+            }
+
+            if (config.connectPackCreeperHostVersionId > 0) {
+                websiteID = String.valueOf(config.connectPackCreeperHostVersionId);
+            }
+            return hasConnectPackKey();
+        }
+
         private void tryParseLauncherFiles() {
+            if (readAuxiliumMetadata()) return;
+
             File versionJson = new File(MineTogether.getGameDir(), "version.json");
             if (versionJson.isFile() && readFTBVersion(versionJson)) return;
 
-            File instanceJson = new File(MineTogether.getGameDir(), "minecraftinstance.json");
-            if (instanceJson.isFile() && readCurseInstance(instanceJson)) return;
+            File instanceJson = new File(MineTogether.getGameDir(), "instance.json");
+            if (instanceJson.isFile() && readInstanceJson(instanceJson)) return;
+
+            File curseJson = new File(MineTogether.getGameDir(), "minecraftinstance.json");
+            if (curseJson.isFile() && readCurseInstance(curseJson)) return;
 
             if (readMultiMc()) return;
 
-            if (NumberUtils.isParsable(curseID)) {
-                fetchWebsiteIDCurse();
+            LOGGER.info("Could not find a supported launcher modpack identity.");
+        }
+
+        private boolean readAuxiliumMetadata() {
+            File auxilium = new File(MineTogether.getConfigDir(), "metadata.json");
+            if (!auxilium.isFile()) return false;
+
+            try (FileReader reader = new FileReader(auxilium)) {
+                Auxilium manifest = GSON.fromJson(reader, Auxilium.class);
+                if (manifest == null || manifest.id <= 0 || manifest.version == null || manifest.version.id <= 0) {
+                    return false;
+                }
+                ftbPackID = "m" + manifest.id;
+                base64FTBID = encodeFTB(manifest.id, manifest.version.id);
+                return fetchWebsiteIDFTB();
+            } catch (Exception ex) {
+                LOGGER.warn("Failed to read FTB Auxilium metadata {}", auxilium, ex);
+                return false;
+            }
+        }
+
+        private boolean readInstanceJson(File file) {
+            try (FileReader reader = new FileReader(file)) {
+                FTBInstanceNew manifest = GSON.fromJson(reader, FTBInstanceNew.class);
+                if (manifest == null || manifest.id <= 0) return false;
+                if (manifest.packType == 0 && manifest.versionId > 0) {
+                    ftbPackID = "m" + manifest.id;
+                    base64FTBID = encodeFTB(manifest.id, manifest.versionId);
+                    return fetchWebsiteIDFTB();
+                }
+                if (manifest.packType == 1) {
+                    curseID = String.valueOf(manifest.id);
+                    return fetchWebsiteIDCurse();
+                }
+                return false;
+            } catch (Exception ex) {
+                LOGGER.warn("Failed to read launcher instance {}", file, ex);
+                return false;
             }
         }
 
         private boolean readMultiMc() {
-            File manifest =  new File(MineTogether.getGameDir().getParentFile(), "instance.cfg");
+            File parent = MineTogether.getGameDir().getParentFile();
+            if (parent == null) return false;
+            File manifest = new File(parent, "instance.cfg");
             if (!manifest.exists()) return false;
 
             try (BufferedReader reader = new BufferedReader(new FileReader(manifest))) {
@@ -134,7 +219,7 @@ public class ModPackInfo {
                 if (!NumberUtils.isParsable(packId)) return false;
                 ftbPackID = "m" + packId;
                 if (!NumberUtils.isParsable(versionId)) return true;
-                base64FTBID = Base64.getEncoder().encodeToString((packId + versionId).getBytes(StandardCharsets.UTF_8));
+                base64FTBID = encodeFTB(packId, versionId);
                 return fetchWebsiteIDFTB();
             }
             return false;
@@ -145,7 +230,7 @@ public class ModPackInfo {
                 ModpackVersionManifest manifest = GSON.fromJson(reader, ModpackVersionManifest.class);
                 if (manifest == null || manifest.parent <= 0 || manifest.id <= 0) return false;
                 ftbPackID = "m" + manifest.parent;
-                base64FTBID = Base64.getEncoder().encodeToString((String.valueOf(manifest.parent) + manifest.id).getBytes(StandardCharsets.UTF_8));
+                base64FTBID = encodeFTB(manifest.parent, manifest.id);
                 return fetchWebsiteIDFTB();
             } catch (Exception ex) {
                 LOGGER.warn("Failed to read FTB version manifest {}", file, ex);
@@ -165,12 +250,22 @@ public class ModPackInfo {
             }
         }
 
+        public boolean hasConnectPackKey() {
+            return !StringUtils.isBlank(base64FTBID) || !StringUtils.isBlank(curseID);
+        }
+
+        public String getConnectPackKey() {
+            if (!StringUtils.isBlank(base64FTBID)) return base64FTBID;
+            if (!StringUtils.isBlank(curseID)) return curseID;
+            return null;
+        }
+
         private boolean fetchWebsiteIDCurse() {
             try {
                 if (!NumberUtils.isParsable(curseID)) return false;
-                String resolvedID = MineTogether.API.execute(new GetCurseForgeVersionRequest(curseID)).apiResponse().id;
-                if (resolvedID.isEmpty()) return false;
-                websiteID = resolvedID;
+                GetCurseForgeVersionRequest.Response response = MineTogether.API.execute(new GetCurseForgeVersionRequest(curseID)).apiResponse();
+                if (response.getStatus().equals("error") || response.id.isEmpty()) return false;
+                websiteID = response.id;
                 return true;
             } catch (IOException ex) {
                 LOGGER.warn("Failed to resolve CurseForge pack id {}", curseID, ex);
@@ -192,12 +287,33 @@ public class ModPackInfo {
         }
     }
 
+    private static String encodeFTB(Object packId, Object versionId) {
+        return Base64.getEncoder().encodeToString((String.valueOf(packId) + versionId).getBytes(StandardCharsets.UTF_8));
+    }
+
     public static class ModpackVersionManifest {
         public long id;
         public long parent;
     }
 
+    public static class FTBInstanceNew {
+        public long id = -1;
+        public long packType = -1;
+        public long versionId = -1;
+    }
+
     public static class CurseInstance {
         public long projectID = -1;
+    }
+
+    public static class Auxilium {
+        public long id = -1;
+        public AuxiliumVersion version;
+    }
+
+    public static class AuxiliumVersion {
+        public long id = -1;
+        public String name = "";
+        public String type = "";
     }
 }
