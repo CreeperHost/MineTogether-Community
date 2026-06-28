@@ -30,6 +30,15 @@ public class LocalConfig {
     public Set<String> firstConnect = new HashSet<>();
     public ChatTarget selectedTab = ChatTarget.PUBLIC;
     public boolean activityTelemetry = true;
+    public boolean connectPackPrompted = false;
+    public boolean connectPackBypass = false;
+    public String connectPackKey = "";
+    public String connectPackDisplayName = "";
+    public String connectPackProjectType = "";
+    public String connectPackProjectId = "";
+    public String connectPackProjectVersion = "";
+    public String connectPackMinecraftVersion = "";
+    public int connectPackCreeperHostVersionId = -1;
 
     public static synchronized LocalConfig instance() {
         if (INSTANCE == null) {
@@ -73,6 +82,12 @@ public class LocalConfig {
         if (config.selectedTab == null) {
             config.selectedTab = ChatTarget.PUBLIC;
         }
+        if (config.connectPackKey == null) config.connectPackKey = "";
+        if (config.connectPackDisplayName == null) config.connectPackDisplayName = "";
+        if (config.connectPackProjectType == null) config.connectPackProjectType = "";
+        if (config.connectPackProjectId == null) config.connectPackProjectId = "";
+        if (config.connectPackProjectVersion == null) config.connectPackProjectVersion = "";
+        if (config.connectPackMinecraftVersion == null) config.connectPackMinecraftVersion = "";
         return config;
     }
 }

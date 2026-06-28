@@ -1,7 +1,9 @@
 package net.creeperhost.minetogethercommunity.connect;
 
+import net.creeperhost.minetogether.connect.lib.netty.packet.CFriendServers;
 import net.minecraft.realms.RealmsSharedConstants;
 
+import java.lang.reflect.Field;
 import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
@@ -11,6 +13,8 @@ public class RemoteServer {
     private final String friendHash;
     private final String serverToken;
     private final String node;
+    private final String modpackKey;
+    private final PackCompatibility compatibility;
     private String motd = "";
     private String status = "";
     private String version = RealmsSharedConstants.VERSION_STRING;
@@ -20,9 +24,23 @@ public class RemoteServer {
     private List<String> playerList = Collections.emptyList();
 
     public RemoteServer(String friendHash, String serverToken, String node) {
+        this(friendHash, serverToken, node, null, PackCompatibility.UNKNOWN);
+    }
+
+    public RemoteServer(String friendHash, String serverToken, String node, String modpackKey, PackCompatibility compatibility) {
         this.friendHash = friendHash;
         this.serverToken = serverToken;
         this.node = node;
+        this.modpackKey = modpackKey;
+        this.compatibility = compatibility == null ? PackCompatibility.UNKNOWN : compatibility;
+    }
+
+    public static RemoteServer fromEntry(CFriendServers.ServerEntry entry) {
+        return new RemoteServer(entry.friend, entry.serverToken, entry.node, readStringField(entry, "modpackKey"), readCompatibility(entry));
+    }
+
+    public boolean shouldWarnBeforeJoin() {
+        return compatibility != PackCompatibility.SAME;
     }
 
     public String getFriendHash() {
@@ -35,6 +53,14 @@ public class RemoteServer {
 
     public String getNode() {
         return node;
+    }
+
+    public String getModpackKey() {
+        return modpackKey;
+    }
+
+    public PackCompatibility getCompatibility() {
+        return compatibility;
     }
 
     public String getMotd() {
@@ -103,6 +129,28 @@ public class RemoteServer {
         playerList = Collections.emptyList();
     }
 
+    private static String readStringField(Object source, String fieldName) {
+        try {
+            Field field = source.getClass().getField(fieldName);
+            Object value = field.get(source);
+            return value instanceof String && !((String) value).isEmpty() ? (String) value : null;
+        } catch (ReflectiveOperationException ignored) {
+            return null;
+        }
+    }
+
+    private static PackCompatibility readCompatibility(Object source) {
+        try {
+            Field field = source.getClass().getField("compatibility");
+            Object value = field.get(source);
+            if (value != null) {
+                return PackCompatibility.valueOf(String.valueOf(value));
+            }
+        } catch (IllegalArgumentException | ReflectiveOperationException ignored) {
+        }
+        return PackCompatibility.UNKNOWN;
+    }
+
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;
@@ -115,5 +163,11 @@ public class RemoteServer {
     @Override
     public int hashCode() {
         return Objects.hash(friendHash, serverToken);
+    }
+
+    public enum PackCompatibility {
+        SAME,
+        DIFFERENT,
+        UNKNOWN
     }
 }

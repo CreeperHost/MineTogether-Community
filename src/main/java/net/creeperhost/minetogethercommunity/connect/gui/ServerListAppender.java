@@ -100,7 +100,12 @@ public class ServerListAppender {
     public void openSelected(GuiMultiplayer screen) {
         FriendServerEntry entry = getSelectedFriendEntry(screen);
         if (entry != null) {
-            Minecraft.getMinecraft().displayGuiScreen(new FriendConnectScreen(screen, entry.getRemoteServer()));
+            RemoteServer server = entry.getRemoteServer();
+            if (server.shouldWarnBeforeJoin()) {
+                Minecraft.getMinecraft().displayGuiScreen(new ConnectPackWarningScreen.Screen(screen, server));
+            } else {
+                Minecraft.getMinecraft().displayGuiScreen(new FriendConnectScreen(screen, server));
+            }
         }
     }
 
@@ -114,11 +119,9 @@ public class ServerListAppender {
         boolean dirty = false;
         List<RemoteServer> remoteServers = new ArrayList<RemoteServer>(ConnectHandler.getRemoteServers());
         for (RemoteServer remoteServer : remoteServers) {
-            if (!serverEntries.containsKey(remoteServer)) {
-                Profile profile = ConnectHandler.getServerProfile(remoteServer);
-                if (profile == null || profile.isStale()) {
-                    continue;
-                }
+            Profile profile = ConnectHandler.getServerProfile(remoteServer);
+            FriendServerEntry existing = serverEntries.get(remoteServer);
+            if (existing == null || existing.getFriendProfile() != profile) {
                 serverEntries.put(remoteServer, new FriendServerEntry(multiplayerScreen, remoteServer, profile));
                 dirty = true;
             }
@@ -134,6 +137,8 @@ public class ServerListAppender {
 
         if (dirty) {
             appendEntries();
+        } else {
+            ensureFriendRowsPresent();
         }
     }
 
@@ -143,6 +148,14 @@ public class ServerListAppender {
         if (entries == null) return;
         removeFriendEntries(entries);
         entries.addAll(serverEntries.values());
+    }
+
+    private void ensureFriendRowsPresent() {
+        if (serverEntries.isEmpty()) return;
+        List<GuiListExtended.IGuiListEntry> entries = getInternetEntries();
+        if (entries == null) return;
+        if (entries.containsAll(serverEntries.values())) return;
+        appendEntries();
     }
 
     private void removeEntriesFromList() {

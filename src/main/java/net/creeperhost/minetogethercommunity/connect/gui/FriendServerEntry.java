@@ -31,6 +31,10 @@ public class FriendServerEntry implements GuiListExtended.IGuiListEntry {
         return remoteServer;
     }
 
+    public Profile getFriendProfile() {
+        return friendProfile;
+    }
+
     @Override
     public void updatePosition(int slotIndex, int x, int y, float partialTicks) {
     }

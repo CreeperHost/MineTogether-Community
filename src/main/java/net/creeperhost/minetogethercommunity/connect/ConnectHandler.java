@@ -281,7 +281,8 @@ public class ConnectHandler {
                 ProfileManager profileManager = MineTogetherChat.CHAT_STATE == null ? null : MineTogetherChat.CHAT_STATE.profileManager;
                 Set<RemoteServer> keep = new HashSet<>();
                 for (CFriendServers.ServerEntry entry : searchResult) {
-                    RemoteServer server = new RemoteServer(entry.friend, entry.serverToken, entry.node);
+                    RemoteServer server = RemoteServer.fromEntry(entry);
+                    ConnectPackResolver.prefetch(server.getModpackKey());
                     keep.add(server);
                     Profile profile = AVAILABLE_SERVER_MAP.get(server);
                     if (profileManager != null && (profile == null || profile.isStale())) {
@@ -354,12 +355,7 @@ public class ConnectHandler {
     }
 
     private static String getModpackKey() {
-        ModPackInfo.VersionInfo info = ModPackInfo.getInfo();
-        String modpackKey = StringUtils.stripToEmpty(info.base64FTBID);
-        if (modpackKey.isEmpty()) {
-            modpackKey = StringUtils.stripToEmpty(info.curseID);
-        }
-        return modpackKey.isEmpty() ? null : modpackKey;
+        return ModPackInfo.getInfo().getConnectPackKey();
     }
 
     private static Field findField(Class<?> owner, String deobfName, String srgName) {
