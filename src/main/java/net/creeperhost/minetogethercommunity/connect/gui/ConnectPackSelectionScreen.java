@@ -33,9 +33,11 @@ public class ConnectPackSelectionScreen implements GuiProvider {
     private List<ConnectPackResolver.SearchResult> results = new ArrayList<ConnectPackResolver.SearchResult>();
     private CompletableFuture<List<ConnectPackResolver.SearchResult>> activeSearch;
     private CompletableFuture<ConnectPackResolver.ManualSelection> activeSelection;
+    private CompletableFuture<Boolean> detectedPackCheck;
     private GuiList<ConnectPackResolver.SearchResult> resultList;
     private GuiTextField searchField;
     private String searchQuery = "";
+    private boolean detectedPackAvailable;
 
     private ConnectPackSelectionScreen(GuiScreen parent) {
         this.parent = parent;
@@ -102,8 +104,8 @@ public class ConnectPackSelectionScreen implements GuiProvider {
 
         int buttonTop = resultTop + 138;
         int buttonWidth = (width - 8) / 3;
-        new GuiButton(root, () -> I18n.format("minetogether.connect.pack_select.detected"))
-                .setEnabled(() -> !isBusy())
+        new GuiButton(root, () -> I18n.format(detectedPackAvailable ? "minetogether.connect.pack_select.detected" : "minetogether.connect.pack_select.no_detected"))
+                .setEnabled(() -> !isBusy() && detectedPackAvailable)
                 .setBounds(left, buttonTop, buttonWidth, 16)
                 .onPress(this::clearManualSelection);
         new GuiButton(root, () -> I18n.format("minetogether.connect.pack_select.custom"))
@@ -115,11 +117,21 @@ public class ConnectPackSelectionScreen implements GuiProvider {
                 .onPress(() -> close(gui));
 
         refreshResultList();
+        startDetectedPackCheck();
         return root;
     }
 
     @Override
     public void tick(ModularGui gui) {
+        if (detectedPackCheck != null && detectedPackCheck.isDone()) {
+            try {
+                detectedPackAvailable = detectedPackCheck.join();
+            } catch (Throwable ignored) {
+                detectedPackAvailable = false;
+            }
+            detectedPackCheck = null;
+        }
+
         if (activeSearch != null && activeSearch.isDone()) {
             try {
                 results = activeSearch.join();
@@ -149,6 +161,15 @@ public class ConnectPackSelectionScreen implements GuiProvider {
             activeSelection = null;
             refreshResultList();
         }
+    }
+
+    private void startDetectedPackCheck() {
+        if (detectedPackCheck != null) return;
+        String manualKey = LocalConfig.instance().connectPackKey;
+        detectedPackAvailable = !LocalConfig.instance().connectPackBypass
+                && (manualKey == null || manualKey.isEmpty())
+                && ModPackInfo.getInfo().hasConnectPackKey();
+        detectedPackCheck = ModPackInfo.detectLauncherInfo().thenApply(ModPackInfo.VersionInfo::hasConnectPackKey);
     }
 
     private void startSearch() {
