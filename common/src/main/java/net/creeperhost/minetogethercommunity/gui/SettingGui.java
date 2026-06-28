@@ -8,6 +8,7 @@ import net.creeperhost.minetogethercommunity.activity.GetProfileVisibilityReques
 import net.creeperhost.minetogethercommunity.activity.PutProfileVisibilityRequest;
 import net.creeperhost.minetogethercommunity.config.Config;
 import net.creeperhost.minetogethercommunity.config.LocalConfig;
+import net.creeperhost.minetogethercommunity.connect.gui.ConnectPackSelectionScreen;
 import net.creeperhost.minetogether.lib.chat.profile.Profile;
 import net.creeperhost.minetogethercommunity.cosmetic.CosmeticsGui;
 import net.creeperhost.minetogethercommunity.oauth.KeycloakOAuth;
@@ -74,7 +75,7 @@ public class SettingGui implements GuiProvider {
                 .constrain(RIGHT, relative(root.get(RIGHT), -10));
 
         GuiElement<?> settings = new GuiElement<>(root)
-                .constrain(TOP, midPoint(root.get(TOP), root.get(BOTTOM), -67))
+                .constrain(TOP, midPoint(root.get(TOP), root.get(BOTTOM), -76))
                 .constrain(LEFT, dynamic(() -> buttonPanelPos(root)))
                 .constrain(WIDTH, literal(panelWidth))
                 .constrain(HEIGHT, literal(0));
@@ -188,9 +189,17 @@ public class SettingGui implements GuiProvider {
                 .constrain(HEIGHT, literal(buttonHeight));
 
         // Back — full width
+        // Row 6: Modpack Identity
+        GuiButton modpack = MTStyle.Flat.button(settings, Component.translatable("minetogether:gui.settings.button.modpack"))
+                .onPress(() -> gui.mc().setScreen(new ConnectPackSelectionScreen.Screen(gui.getScreen())))
+                .constrain(TOP, relative(profileScreen.get(BOTTOM), 4))
+                .constrain(LEFT, match(settings.get(LEFT)))
+                .constrain(RIGHT, match(settings.get(RIGHT)))
+                .constrain(HEIGHT, literal(buttonHeight));
+
         GuiButton back = MTStyle.Flat.button(settings, Component.translatable("minetogether:gui.button.back"))
                 .onPress(() -> gui.mc().setScreen(gui.getParentScreen()))
-                .constrain(TOP, relative(profileScreen.get(BOTTOM), 16))
+                .constrain(TOP, relative(modpack.get(BOTTOM), 16))
                 .constrain(LEFT, match(settings.get(LEFT)))
                 .constrain(RIGHT, match(settings.get(RIGHT)))
                 .constrain(HEIGHT, literal(buttonHeight));

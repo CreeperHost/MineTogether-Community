@@ -4,6 +4,7 @@ import dev.architectury.event.events.client.ClientGuiEvent;
 import dev.architectury.hooks.client.screen.ScreenAccess;
 import dev.architectury.hooks.client.screen.ScreenHooks;
 import net.creeperhost.minetogethercommunity.config.Config;
+import net.creeperhost.minetogethercommunity.connect.gui.ConnectPackSelectionScreen;
 import net.creeperhost.minetogethercommunity.connect.gui.GuiShareToFriends;
 import net.creeperhost.polylib.client.screen.ButtonHelper;
 import net.minecraft.client.Minecraft;
@@ -14,6 +15,7 @@ import net.minecraft.client.gui.components.events.GuiEventListener;
 import net.minecraft.client.gui.narration.NarratableEntry;
 import net.minecraft.client.gui.screens.PauseScreen;
 import net.minecraft.client.gui.screens.Screen;
+import net.minecraft.client.gui.screens.TitleScreen;
 import net.minecraft.client.server.IntegratedServer;
 import net.minecraft.network.chat.Component;
 
@@ -31,6 +33,11 @@ public class MineTogetherConnect {
     }
 
     private static void onScreenOpen(Screen screen, ScreenAccess screenAccess) {
+        if (screen instanceof TitleScreen) {
+            ConnectPackSelectionScreen.promptIfNeeded(screen);
+            return;
+        }
+
         if (!(screen instanceof PauseScreen)) return;
 
         IntegratedServer integratedServer = Minecraft.getInstance().getSingleplayerServer();

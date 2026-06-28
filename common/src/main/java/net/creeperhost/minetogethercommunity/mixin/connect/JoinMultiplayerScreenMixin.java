@@ -1,6 +1,7 @@
 package net.creeperhost.minetogethercommunity.mixin.connect;
 
 import net.creeperhost.minetogethercommunity.connect.ConnectHandler;
+import net.creeperhost.minetogethercommunity.connect.gui.ConnectPackWarningScreen;
 import net.creeperhost.minetogethercommunity.connect.gui.FriendConnectScreen;
 import net.creeperhost.minetogethercommunity.connect.gui.FriendServerEntry;
 import net.creeperhost.minetogethercommunity.connect.gui.ServerListAppender;
@@ -43,9 +44,21 @@ public abstract class JoinMultiplayerScreenMixin {
     public void joinSelectedServer(CallbackInfo ci) {
         ServerSelectionList.Entry entry = this.serverSelectionList.getSelected();
         if (entry instanceof FriendServerEntry friendServer) {
-            FriendConnectScreen.startConnecting(getThis(), Minecraft.getInstance(), friendServer.remoteServer, friendServer.getServerData());
+            if (friendServer.remoteServer.shouldWarnBeforeJoin()) {
+                showPackWarning(friendServer);
+            } else {
+                startConnecting(friendServer);
+            }
             ci.cancel();
         }
+    }
+
+    private void showPackWarning(FriendServerEntry friendServer) {
+        Minecraft.getInstance().setScreen(new ConnectPackWarningScreen.Screen(getThis(), friendServer.remoteServer, friendServer.getServerData()));
+    }
+
+    private void startConnecting(FriendServerEntry friendServer) {
+        FriendConnectScreen.startConnecting(getThis(), Minecraft.getInstance(), friendServer.remoteServer, friendServer.getServerData());
     }
 
     @Inject (at = @At ("TAIL"), method = "tick()V")
