@@ -107,7 +107,12 @@ public class ServerListAppender {
     public void openSelected(GuiMultiplayer screen) {
         FriendServerEntry entry = getSelectedFriendEntry(screen);
         if (entry != null) {
-            Minecraft.getMinecraft().displayGuiScreen(new FriendConnectScreen(screen, entry.getRemoteServer()));
+            RemoteServer server = entry.getRemoteServer();
+            if (server.shouldWarnBeforeJoin()) {
+                Minecraft.getMinecraft().displayGuiScreen(new ConnectPackWarningScreen.Screen(screen, server));
+            } else {
+                Minecraft.getMinecraft().displayGuiScreen(new FriendConnectScreen(screen, server));
+            }
         }
     }
 
