@@ -335,7 +335,7 @@ public class InGameChatBridge {
     }
 
     private static ITextComponent format(ChatTarget target, HistoryEntry entry) {
-        return MessageFormatter.formatInGameLegacy(target, entry.message, entry.id);
+        return MessageFormatter.formatInGame(target, entry.message, entry.id);
     }
 
     private static void renderTarget(ChatTarget target) {

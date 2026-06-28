@@ -59,6 +59,7 @@ import cpw.mods.fml.common.gameevent.TickEvent;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.lwjgl.input.Keyboard;
+import org.lwjgl.input.Mouse;
 
 import java.lang.reflect.Field;
 import java.net.MalformedURLException;
@@ -399,7 +400,7 @@ public class ClientEvents {
             chatActionPopup.draw(event.mouseX, event.mouseY);
             return;
         }
-        PreviewElement.URLInfo info = InGameChatBridge.getUrlUnderMouse(event.mouseX, event.mouseY);
+        PreviewElement.URLInfo info = InGameChatBridge.getUrlUnderMouse(Mouse.getX(), Mouse.getY());
         if (info != null) {
             PreviewElement.renderPreview(Minecraft.getMinecraft(), info, event.mouseX, event.mouseY,
                     event.gui.width, event.gui.height, 80, false);
@@ -435,7 +436,7 @@ public class ClientEvents {
         if (Minecraft.getMinecraft().gameSettings.hideGUI) return;
 
         int chatRight = chatContentRightEdge();
-        int y = gui.height - 38;
+        int y = chatOptionSliderY(gui);
         int sliderWidth = Math.max(44, chatRight / 3);
         event.buttonList.add(new CompactChatSlider(BUTTON_CHAT_WIDTH, 0, y, sliderWidth, GameSettings.Options.CHAT_WIDTH));
         event.buttonList.add(new CompactChatSlider(BUTTON_CHAT_HEIGHT, sliderWidth + 2, y, sliderWidth, GameSettings.Options.CHAT_HEIGHT_FOCUSED));
@@ -456,11 +457,15 @@ public class ClientEvents {
 
     private boolean isOverChatOptionSliders(GuiScreen gui, int mouseX, int mouseY) {
         int chatRight = chatContentRightEdge();
-        int y = gui.height - 38;
+        int y = chatOptionSliderY(gui);
         int sliderWidth = Math.max(44, chatRight / 3);
         int thirdWidth = Math.max(44, chatRight - (sliderWidth * 2) - 4);
         int sliderRight = (sliderWidth * 2) + 4 + thirdWidth;
         return mouseY >= y && mouseY < y + 7 && mouseX >= 0 && mouseX < sliderRight;
+    }
+
+    private int chatOptionSliderY(GuiScreen gui) {
+        return gui.height - 25;
     }
 
     private boolean handleMineTogetherChatClick(GuiChat gui, int mouseX, int mouseY, int mouseButton) {
@@ -489,12 +494,19 @@ public class ClientEvents {
             return false;
         }
 
+        boolean overFocusedChat = isOverFocusedChat(gui, mouseX, mouseY);
+        int rawMouseX = Mouse.getX();
+        int rawMouseY = Mouse.getY();
         Message message = mouseButton == 1 || mouseButton == 0 && GuiScreen.isShiftKeyDown()
-                ? InGameChatBridge.getMessageUnderMouse(mouseX, mouseY)
-                : InGameChatBridge.getClickedMessage(mouseX, mouseY);
-        PreviewElement.URLInfo info = InGameChatBridge.getUrlUnderMouse(mouseX, mouseY);
+                ? InGameChatBridge.getMessageUnderMouse(rawMouseX, rawMouseY)
+                : InGameChatBridge.getClickedMessage(rawMouseX, rawMouseY);
+        PreviewElement.URLInfo info = InGameChatBridge.getUrlUnderMouse(rawMouseX, rawMouseY);
         URL url = info == null ? null : info.getUrl();
         if (!isActionableMessage(message) && url == null) {
+            if (overFocusedChat) {
+                refocusChatInput();
+                return true;
+            }
             return false;
         }
 
@@ -516,6 +528,15 @@ public class ClientEvents {
         chatActionPopup = new ChatActionPopup(message, url, mouseX, mouseY, gui.width, gui.height);
         refocusChatInput();
         return true;
+    }
+
+    private boolean isOverFocusedChat(GuiScreen gui, int mouseX, int mouseY) {
+        if (gui == null) return false;
+        int chatBottom = gui.height - 40;
+        int bottom = focusedChatBackdropBottom(gui.height);
+        int top = chatBottom - chatFocusedHeight();
+        return mouseX >= 0 && mouseX < chatContentRightEdge()
+                && mouseY >= top && mouseY < bottom;
     }
 
     private boolean submitMineTogetherChat(ChatTarget target, String text) {
@@ -555,7 +576,6 @@ public class ClientEvents {
         ChatLayout layout = chatLayout(gui);
         boolean groupChat = hasGroupChat();
         int chatRight = chatContentRightEdge();
-        int sliderY = gui.height - 38;
         int sliderWidth = Math.max(44, chatRight / 3);
         int thirdWidth = Math.max(44, chatRight - (sliderWidth * 2) - 4);
         for (GuiButton button : buttons) {
@@ -581,13 +601,13 @@ public class ClientEvents {
                     button.enabled = true;
                     break;
                 case BUTTON_CHAT_WIDTH:
-                    setButtonBounds(button, 0, sliderY, sliderWidth, 7);
+                    setButtonBounds(button, 0, chatOptionSliderY(gui), sliderWidth, 7);
                     break;
                 case BUTTON_CHAT_HEIGHT:
-                    setButtonBounds(button, sliderWidth + 2, sliderY, sliderWidth, 7);
+                    setButtonBounds(button, sliderWidth + 2, chatOptionSliderY(gui), sliderWidth, 7);
                     break;
                 case BUTTON_CHAT_SCALE:
-                    setButtonBounds(button, (sliderWidth * 2) + 4, sliderY, thirdWidth, 7);
+                    setButtonBounds(button, (sliderWidth * 2) + 4, chatOptionSliderY(gui), thirdWidth, 7);
                     break;
                 default:
                     break;
@@ -677,8 +697,6 @@ public class ClientEvents {
     }
 
     private boolean drawFocusedChat(Minecraft mc, GuiNewChat chat, RenderGameOverlayEvent.Chat event) throws IllegalAccessException {
-        drawFocusedChatBackdrop(mc, chat, event.resolution.getScaledHeight());
-
         @SuppressWarnings("unchecked")
         List<ChatLine> lines = (List<ChatLine>) DRAWN_CHAT_LINES.get(chat);
         if (lines == null || lines.isEmpty()) {
@@ -689,8 +707,47 @@ public class ClientEvents {
 
         int maxLines = chat.getLineCount();
         int scrollPos = ((Integer) CHAT_SCROLL_POS.get(chat)).intValue();
-        logFocusedChatDraw("vanilla", estimateFocusedChatLines(mc, chat, lines, maxLines, scrollPos), maxLines, scrollPos, chat.getChatOpen(), event.posX, event.posY);
-        return false;
+        int drawnLines = drawFocusedChatLines(mc, chat, event, lines, maxLines, scrollPos);
+        logFocusedChatDraw("custom", drawnLines, maxLines, scrollPos, chat.getChatOpen(), event.posX, event.posY);
+        return drawnLines > 0;
+    }
+
+    private int drawFocusedChatLines(Minecraft mc, GuiNewChat chat, RenderGameOverlayEvent.Chat event, List<ChatLine> lines, int maxLines, int scrollPos) {
+        if (MineTogetherChat.getTarget() == ChatTarget.VANILLA) return 0;
+        if (lines == null || lines.isEmpty()) return 0;
+
+        float opacity = mc.gameSettings.chatOpacity * 0.9F + 0.1F;
+        float scale = Math.max(0.1F, chat.getChatScale());
+        int updateCounter = mc.ingameGUI.getUpdateCounter();
+        int drawn = estimateFocusedChatLines(mc, chat, lines, maxLines, scrollPos);
+        if (drawn <= 0) return 0;
+
+        drawFocusedChatBackdrop(mc, chat, event.resolution.getScaledHeight());
+        GlStateManager.pushMatrix();
+        GlStateManager.enableBlend();
+        GlStateManager.translate((float) event.posX, (float) event.posY, 0.0F);
+        GlStateManager.translate(2.0F, (float) CHAT_VANILLA_BASE_Y, 0.0F);
+        GlStateManager.scale(scale, scale, 1.0F);
+        for (int lineIndex = 0; lineIndex + scrollPos < lines.size() && lineIndex < maxLines; lineIndex++) {
+            ChatLine line = lines.get(lineIndex + scrollPos);
+            if (line == null) continue;
+            int age = updateCounter - line.getUpdatedCounter();
+            if (age >= 200 && !chat.getChatOpen()) continue;
+
+            double fade = chat.getChatOpen() ? 1.0D : 1.0D - (age / 200.0D);
+            fade = CompatMath.clamp((float) fade, 0.0F, 1.0F);
+            fade *= fade;
+            int alpha = (int) (255.0D * fade * opacity);
+            if (alpha <= 3) continue;
+
+            String text = line.getChatComponent() == null ? "" : line.getChatComponent().getFormattedText();
+            mc.fontRendererObj.drawStringWithShadow(text, 0, -lineIndex * 9 - 8, 0xFFFFFF + (alpha << 24));
+        }
+        GlStateManager.disableAlpha();
+        GlStateManager.disableBlend();
+        GlStateManager.popMatrix();
+        GlStateManager.color(1.0F, 1.0F, 1.0F, 1.0F);
+        return drawn;
     }
 
     @SuppressWarnings("unchecked")
@@ -713,6 +770,7 @@ public class ClientEvents {
         }
         if (drawLines.isEmpty()) return 0;
 
+        drawFocusedChatBackdrop(mc, chat, event.resolution.getScaledHeight());
         GlStateManager.pushMatrix();
         GlStateManager.enableBlend();
         GlStateManager.translate((float) event.posX, (float) event.posY, 0.0F);
@@ -758,11 +816,12 @@ public class ClientEvents {
 
     private void drawFocusedChatBackdrop(Minecraft mc, GuiNewChat chat, int screenHeight) {
         float scale = Math.max(0.1F, chat.getChatScale());
-        int width = chatContentRightEdge();
+        int width = focusedChatBackdropRightEdge();
         int height = Math.max(minChatTargetHeight(), CompatMath.ceil(chat.getChatHeight() * scale));
-        int maxY = screenHeight - 40;
-        int y = maxY - height;
-        Gui.drawRect(0, y, width, maxY, focusedChatBackgroundColor(mc));
+        int chatBottom = screenHeight - 40;
+        int bottom = focusedChatBackdropBottom(screenHeight);
+        int y = chatBottom - height;
+        Gui.drawRect(0, y, width, bottom, focusedChatBackgroundColor(mc));
     }
 
     private void drawFocusedChatLogo(Minecraft mc, int x, int y, int height) {
@@ -855,6 +914,14 @@ public class ClientEvents {
 
     private int chatTabX() {
         return chatContentRightEdge();
+    }
+
+    private int focusedChatBackdropRightEdge() {
+        return chatTabX() + 12;
+    }
+
+    private int focusedChatBackdropBottom(int screenHeight) {
+        return LocalConfig.instance().chatSettingsSliders ? screenHeight - 25 : screenHeight - 40;
     }
 
     private int chatFocusedHeight() {
