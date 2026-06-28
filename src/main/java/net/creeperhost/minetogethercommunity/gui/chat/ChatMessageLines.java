@@ -6,6 +6,7 @@ import net.minecraft.client.gui.FontRenderer;
 import net.minecraft.util.text.ITextComponent;
 import net.minecraft.util.text.Style;
 import net.minecraft.util.text.TextComponentString;
+import net.minecraft.util.text.TextFormatting;
 import net.minecraft.util.text.event.ClickEvent;
 
 import java.net.MalformedURLException;
@@ -44,6 +45,22 @@ final class ChatMessageLines {
         appendWrapped(wrapper, component);
         wrapper.finish();
         return lines;
+    }
+
+    // Match getFormattedText() without copying the whole component tree.
+    private static String formattedText(ITextComponent component) {
+        StringBuilder builder = new StringBuilder();
+        appendFormatted(builder, component);
+        return builder.toString();
+    }
+
+    private static void appendFormatted(StringBuilder builder, ITextComponent component) {
+        builder.append(component.getChatStyle().getFormattingCode());
+        builder.append(component.getUnformattedComponentText());
+        builder.append(TextFormatting.RESET);
+        for (ITextComponent sibling : component.getSiblings()) {
+            appendFormatted(builder, sibling);
+        }
     }
 
     private static void appendWrapped(Wrapper wrapper, ITextComponent component) {
@@ -117,7 +134,7 @@ final class ChatMessageLines {
         private Line(Message message, ITextComponent component) {
             this.message = message;
             this.component = component;
-            this.text = component == null ? "" : component.getFormattedText();
+            this.text = component == null ? "" : formattedText(component);
         }
     }
 

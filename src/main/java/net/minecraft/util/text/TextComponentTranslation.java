@@ -26,17 +26,17 @@ public class TextComponentTranslation extends ChatComponentTranslation implement
     }
 
     public ITextComponent appendText(String text) {
-        TextComponentCompat.siblings(this).add(new TextComponentString(text));
+        super.appendSibling(new TextComponentString(text));
         return this;
     }
 
     public ITextComponent appendSibling(ITextComponent component) {
-        TextComponentCompat.siblings(this).add(component);
+        super.appendSibling(component);
         return this;
     }
 
     public ITextComponent appendSibling(IChatComponent component) {
-        TextComponentCompat.siblings(this).add(component);
+        super.appendSibling(component);
         return this;
     }
 
@@ -46,13 +46,13 @@ public class TextComponentTranslation extends ChatComponentTranslation implement
 
     @SuppressWarnings("unchecked")
     public List<ITextComponent> getSiblings() {
-        return (List<ITextComponent>) (List<?>) TextComponentCompat.siblings(this);
+        return (List<ITextComponent>) (List<?>) super.getSiblings();
     }
 
     public TextComponentTranslation createCopy() {
         TextComponentTranslation copy = new TextComponentTranslation(getKey(), getFormatArgs());
         copy.setChatStyle(getChatStyle().createDeepCopy());
-        for (Object sibling : TextComponentCompat.siblings(this)) {
+        for (Object sibling : super.getSiblings()) {
             copy.appendSibling(((IChatComponent) sibling).createCopy());
         }
         return copy;

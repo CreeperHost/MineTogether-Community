@@ -211,6 +211,33 @@ public class PublicChatGui implements GuiProvider {
 
         private int scrollFromBottom;
 
+        // Avoid rebuilding wrapped lines several times per frame.
+        private List<ChatMessageLines.Line> cachedLines;
+        private int cacheWidth = Integer.MIN_VALUE;
+        private long cacheSignature = Long.MIN_VALUE;
+
+        private List<ChatMessageLines.Line> allLines() {
+            List<Message> messages = recentMessages();
+            int wrapWidth = width - 10;
+            long signature = contentSignature(messages);
+            if (cachedLines == null || wrapWidth != cacheWidth || signature != cacheSignature) {
+                cachedLines = ChatMessageLines.build(font(), messages, wrapWidth);
+                cacheWidth = wrapWidth;
+                cacheSignature = signature;
+            }
+            return cachedLines;
+        }
+
+        private long contentSignature(List<Message> messages) {
+            long sig = 1L;
+            for (Message message : messages) {
+                sig = sig * 1000003L + System.identityHashCode(message.getMessage());
+                String name = message.senderName == null ? null : message.senderName.getMessage();
+                sig = sig * 1000003L + (name == null ? 0 : name.hashCode());
+            }
+            return sig;
+        }
+
         public ChatMessagePanel(GuiElement<?> parent) {
             super(parent);
         }
@@ -374,7 +401,7 @@ public class PublicChatGui implements GuiProvider {
         }
 
         private List<ChatMessageLines.Line> visibleLines() {
-            List<ChatMessageLines.Line> all = ChatMessageLines.build(font(), recentMessages(), width - 10);
+            List<ChatMessageLines.Line> all = allLines();
             int maxLines = Math.max(1, (height - 8) / 10);
             int maxScroll = Math.max(0, all.size() - maxLines);
             if (scrollFromBottom > maxScroll) scrollFromBottom = maxScroll;
@@ -385,11 +412,11 @@ public class PublicChatGui implements GuiProvider {
 
         private int maxLineScroll() {
             int maxLines = Math.max(1, (height - 8) / 10);
-            return Math.max(0, ChatMessageLines.build(font(), recentMessages(), width - 10).size() - maxLines);
+            return Math.max(0, allLines().size() - maxLines);
         }
 
         private void drawScrollBar(int mouseX, int mouseY) {
-            List<ChatMessageLines.Line> all = ChatMessageLines.build(font(), recentMessages(), width - 10);
+            List<ChatMessageLines.Line> all = allLines();
             int maxLines = Math.max(1, (height - 8) / 10);
             int maxScroll = Math.max(0, all.size() - maxLines);
             if (maxScroll <= 0) return;
