@@ -191,7 +191,7 @@ public class ModPackInfo {
                     //FTB pack
                     if (manifest.packType == 0)
                     {
-                        ftbPackID = "m" + manifest.versionId;
+                        ftbPackID = "m" + manifest.id;
                         base64FTBID = Base64.getEncoder().encodeToString((String.valueOf(manifest.id) + manifest.versionId).getBytes(StandardCharsets.UTF_8));
                         GetModpacksCHVersionRequest.Response response = MineTogether.API.execute(new GetModpacksCHVersionRequest(base64FTBID)).apiResponse();
                         if (response.getStatus().equals("error") || response.id.isEmpty()) {
