@@ -30,10 +30,12 @@ public class ConnectPackSelectionScreen implements GuiProvider {
     private List<ConnectPackResolver.SearchResult> results = List.of();
     private @Nullable CompletableFuture<List<ConnectPackResolver.SearchResult>> activeSearch;
     private @Nullable CompletableFuture<ConnectPackResolver.ManualSelection> activeSelection;
+    private @Nullable CompletableFuture<Boolean> detectedPackCheck;
     private @Nullable GuiList<ConnectPackResolver.SearchResult> resultList;
     private @Nullable GuiTextField searchField;
     private final @Nullable net.minecraft.client.gui.screens.Screen parent;
     private String searchQuery = "";
+    private boolean detectedPackAvailable;
 
     private ConnectPackSelectionScreen(@Nullable net.minecraft.client.gui.screens.Screen parent) {
         this.parent = parent;
@@ -131,9 +133,11 @@ public class ConnectPackSelectionScreen implements GuiProvider {
                 .constrain(RIGHT, match(bounds.get(RIGHT)))
                 .constrain(HEIGHT, literal(10));
 
-        MTStyle.Flat.button(root, Component.translatable("minetogether.connect.pack_select.detected"))
+        MTStyle.Flat.button(root, () -> Component.translatable(detectedPackAvailable
+                        ? "minetogether.connect.pack_select.detected"
+                        : "minetogether.connect.pack_select.no_detected"))
                 .onPress(this::clearManualSelection)
-                .setDisabled(this::isBusy)
+                .setDisabled(() -> isBusy() || !detectedPackAvailable)
                 .constrain(TOP, relative(statusText.get(BOTTOM), 10))
                 .constrain(LEFT, match(bounds.get(LEFT)))
                 .constrain(RIGHT, dynamic(() -> bounds.xMin() + ((bounds.xSize() - 8) / 3)).precise())
@@ -155,10 +159,20 @@ public class ConnectPackSelectionScreen implements GuiProvider {
                 .constrain(HEIGHT, literal(16));
 
         refreshResultList();
+        startDetectedPackCheck();
         gui.onTick(this::tick);
     }
 
     private void tick() {
+        if (detectedPackCheck != null && detectedPackCheck.isDone()) {
+            try {
+                detectedPackAvailable = detectedPackCheck.join();
+            } catch (Throwable ignored) {
+                detectedPackAvailable = false;
+            }
+            detectedPackCheck = null;
+        }
+
         if (activeSearch != null && activeSearch.isDone()) {
             try {
                 results = activeSearch.join();
@@ -188,6 +202,15 @@ public class ConnectPackSelectionScreen implements GuiProvider {
             activeSelection = null;
             refreshResultList();
         }
+    }
+
+    private void startDetectedPackCheck() {
+        if (detectedPackCheck != null) return;
+        String manualKey = LocalConfig.instance().connectPackKey;
+        detectedPackAvailable = !LocalConfig.instance().connectPackBypass
+                && (manualKey == null || manualKey.isEmpty())
+                && ModPackInfo.getInfo().hasConnectPackKey();
+        detectedPackCheck = ModPackInfo.detectLauncherInfo().thenApply(ModPackInfo.VersionInfo::hasConnectPackKey);
     }
 
     private void startSearch() {

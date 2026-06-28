@@ -73,6 +73,10 @@ public class ModPackInfo {
         return !info.hasConnectPackKey() && !config.connectPackPrompted && !config.connectPackBypass;
     }
 
+    public static CompletableFuture<VersionInfo> detectLauncherInfo() {
+        return CompletableFuture.supplyAsync(() -> new VersionInfo(false).init(), EXECUTOR);
+    }
+
     public static class ModpackVersionManifest {
 
         public long id;
@@ -108,17 +112,26 @@ public class ModPackInfo {
     }
 
     public static class VersionInfo {
+        private final boolean allowManualOverride;
         public String curseID = "";
         public String websiteID = "";
         public String base64FTBID = "";
         public String ftbPackID = "";
         public String realName = "{\"p\": \"-1\"}";
 
+        public VersionInfo() {
+            this(true);
+        }
+
+        private VersionInfo(boolean allowManualOverride) {
+            this.allowManualOverride = allowManualOverride;
+        }
+
         public VersionInfo init() {
             Path versionJson = Platform.getGameFolder().resolve("version.json");
             Path versionJsonNew = Platform.getGameFolder().resolve("instance.json");
 
-            if (!applyManualOverride() && !readAuxiliumMetadata()) {
+            if (!(allowManualOverride && applyManualOverride()) && !readAuxiliumMetadata()) {
                 if (!readVersionJson(versionJson)) {
                     if (!readNewFTB(versionJsonNew)) {
                         if (curseID.isEmpty()) {
