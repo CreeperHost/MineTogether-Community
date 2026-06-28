@@ -13,6 +13,7 @@ import net.creeperhost.minetogethercommunity.chat.FriendChatNotifier;
 import net.creeperhost.minetogethercommunity.chat.InGameChatBridge;
 import net.creeperhost.minetogethercommunity.chat.MineTogetherChat;
 import net.creeperhost.minetogethercommunity.connect.ConnectHandler;
+import net.creeperhost.minetogethercommunity.connect.gui.ConnectPackSelectionScreen;
 import net.creeperhost.minetogethercommunity.connect.gui.GuiShareToFriends;
 import net.creeperhost.minetogethercommunity.connect.gui.ServerListAppender;
 import net.creeperhost.minetogethercommunity.config.Config;
@@ -197,8 +198,11 @@ public class ClientEvents {
                 ChatStatistics.pollStats();
                 addNewUserButtons(event, gui);
             }
-        } else if (gui instanceof GuiMainMenu && LocalConfig.instance().mainMenuButtons) {
-            addMenuButtons(event, gui);
+        } else if (gui instanceof GuiMainMenu) {
+            ConnectPackSelectionScreen.promptIfNeeded(gui);
+            if (LocalConfig.instance().mainMenuButtons) {
+                addMenuButtons(event, gui);
+            }
         } else if (gui instanceof GuiIngameMenu) {
             replaceIssueTrackerButton(event);
             if (Config.instance().pauseScreenButtons) {

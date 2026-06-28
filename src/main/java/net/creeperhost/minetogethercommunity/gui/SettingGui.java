@@ -6,6 +6,7 @@ import net.creeperhost.minetogethercommunity.activity.ActivityTelemetry;
 import net.creeperhost.minetogethercommunity.chat.MineTogetherChat;
 import net.creeperhost.minetogethercommunity.config.Config;
 import net.creeperhost.minetogethercommunity.config.LocalConfig;
+import net.creeperhost.minetogethercommunity.connect.gui.ConnectPackSelectionScreen;
 import net.creeperhost.minetogethercommunity.cosmetic.CosmeticsGui;
 import net.creeperhost.minetogethercommunity.gui.chat.FriendChatGui;
 import net.creeperhost.minetogethercommunity.gui.chat.MTStyle;
@@ -54,7 +55,7 @@ public class SettingGui implements GuiProvider {
                 .setBounds(10, 10, screenWidth - 20, 8);
 
         int panelLeft = buttonPanelLeft(screenWidth);
-        int panelTop = screenHeight / 2 - 67;
+        int panelTop = screenHeight / 2 - 76;
         int halfWidth = (PANEL_WIDTH - 4) / 2;
         int rightLeft = panelLeft + halfWidth + 4;
 
@@ -122,6 +123,11 @@ public class SettingGui implements GuiProvider {
                 .setBounds(rightLeft, y, halfWidth, BUTTON_HEIGHT)
                 .setEnabled(() -> gui.mc().thePlayer != null)
                 .onPress(() -> gui.mc().displayGuiScreen(new CosmeticsGui.Screen(gui.getScreen())));
+
+        y += BUTTON_HEIGHT + ROW_GAP;
+        new GuiButton(root, () -> I18n.format("minetogether.gui.settings.button.modpack"))
+                .setBounds(panelLeft, y, PANEL_WIDTH, BUTTON_HEIGHT)
+                .onPress(() -> gui.mc().displayGuiScreen(new ConnectPackSelectionScreen.Screen(gui.getScreen())));
 
         y += BUTTON_HEIGHT + 16;
         new GuiButton(root, () -> I18n.format("minetogether.gui.button.back"))

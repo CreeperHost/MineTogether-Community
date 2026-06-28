@@ -305,7 +305,8 @@ public class ConnectHandler {
                         skippedNullEntries++;
                         continue;
                     }
-                    RemoteServer server = new RemoteServer(entry.friend, entry.serverToken, entry.node);
+                    RemoteServer server = RemoteServer.fromEntry(entry);
+                    ConnectPackResolver.prefetch(server.getModpackKey());
                     keep.add(server);
                     Profile profile = AVAILABLE_SERVER_MAP.get(server);
                     if (profileManager != null && (profile == null || profile.isStale())) {
@@ -402,7 +403,7 @@ public class ConnectHandler {
                 for (CFriendServers.ServerEntry entry : nodeResult) {
                     if (entry == null) continue;
                     CFriendServers.ServerEntry normalized = withFallbackNode(entry, server.name);
-                    results.put(new RemoteServer(normalized.friend, normalized.serverToken, normalized.node), normalized);
+                    results.put(RemoteServer.fromEntry(normalized), normalized);
                 }
             } catch (Throwable ex) {
                 DiagnosticLog.warn(LOGGER, "[MT-1710-DIAG] friend-server search failed for Connect node {}", server.name, ex);
@@ -500,12 +501,8 @@ public class ConnectHandler {
 
     private static ModpackIdentity getModpackIdentity() {
         ModPackInfo.VersionInfo info = ModPackInfo.getInfo();
-        String modpackKey = StringUtils.stripToEmpty(info.base64FTBID);
-        String source = "ftb";
-        if (modpackKey.isEmpty()) {
-            modpackKey = StringUtils.stripToEmpty(info.curseID);
-            source = "curse";
-        }
+        String modpackKey = StringUtils.stripToEmpty(info.getConnectPackKey());
+        String source = StringUtils.isBlank(info.base64FTBID) ? "curse" : "ftb";
         if (modpackKey.isEmpty()) {
             source = "none";
             modpackKey = null;
