@@ -14,7 +14,7 @@ import java.util.UUID;
 @Mixin(targets = "dev.ftb.mods.ftbquests.client.FTBQuestsNetClient", remap = false)
 public class FTBQuestsNetClientMixin {
 
-    @Inject(method = "objectCompleted", at = @At("TAIL"))
+    @Inject(method = "objectCompleted", at = @At("TAIL"), require = 0)
     private static void mt$onObjectCompleted(UUID teamId, long id, Date completedAt, CallbackInfo ci) {
         FTBQuestsCompat.onObjectCompleted(id);
     }
