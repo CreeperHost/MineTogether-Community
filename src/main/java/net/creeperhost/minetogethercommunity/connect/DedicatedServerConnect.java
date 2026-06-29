@@ -49,6 +49,9 @@ public class DedicatedServerConnect {
     private static final String CONSOLE_CYAN = "\u001B[36m";
     private static final String CONSOLE_RESET = "\u001B[0m";
     private static final String CONNECT_JOIN_ADVERT = "Connected via MineTogether by CreeperHost. Need managed 24/7 Minecraft hosting? https://www.creeperhost.net";
+    private static final long RECONNECT_INITIAL_DELAY_MS = 5000L;
+    private static final long RECONNECT_MAX_DELAY_MS = 60000L;
+    private static final Object RECONNECT_LOCK = new Object();
 
     private static final ExecutorService EXECUTOR = Executors.newSingleThreadExecutor(runnable -> {
         Thread thread = new Thread(runnable, "MT Dedicated Connect");
@@ -62,6 +65,8 @@ public class DedicatedServerConnect {
     private static volatile Future<?> activeTask;
     private static volatile HostNettyClient.HostConnection publishedServer;
     private static volatile boolean stopping;
+    private static volatile boolean reconnectScheduled;
+    private static volatile int reconnectAttempts;
 
     public static void serverStarted(MinecraftServer server) {
         if (server == null || !server.isDedicatedServer()) {
@@ -84,6 +89,8 @@ public class DedicatedServerConnect {
         }
 
         stopping = false;
+        reconnectScheduled = false;
+        reconnectAttempts = 0;
         CONNECT_CONNECTIONS.clear();
         ADVERTISED_PLAYERS.clear();
         activeTask = EXECUTOR.submit(() -> runServerConnect(server));
@@ -96,6 +103,8 @@ public class DedicatedServerConnect {
             task.cancel(true);
             activeTask = null;
         }
+        reconnectScheduled = false;
+        reconnectAttempts = 0;
         HostNettyClient.HostConnection connection = publishedServer;
         if (connection != null) {
             connection.disconnect();
@@ -132,6 +141,7 @@ public class DedicatedServerConnect {
                     new HostNettyClient.HostListener() {
                         @Override
                         public void onAccepted() {
+                            reconnectAttempts = 0;
                             LOGGER.info("Dedicated server is published on MineTogether Connect.");
                         }
 
@@ -139,14 +149,18 @@ public class DedicatedServerConnect {
                         public void onDisconnected(String message) {
                             LOGGER.error("Dedicated server MineTogether Connect publish failed: {}", message);
                             publishedServer = null;
+                            scheduleReconnect(server, message);
                         }
 
                         @Override
                         public void onChannelInactive(boolean disconnectRequested) {
                             if (!disconnectRequested) {
                                 LOGGER.warn("Dedicated server MineTogether Connect proxy connection closed.");
+                                publishedServer = null;
+                                scheduleReconnect(server, "proxy connection closed");
+                            } else {
+                                publishedServer = null;
                             }
-                            publishedServer = null;
                         }
 
                         @Override
@@ -168,9 +182,52 @@ public class DedicatedServerConnect {
         } catch (Throwable ex) {
             if (!stopping) {
                 LOGGER.error("Dedicated server MineTogether Connect failed to start.", ex);
+                scheduleReconnect(server, ex.getMessage());
             }
             publishedServer = null;
         }
+    }
+
+    private static void scheduleReconnect(MinecraftServer server, String reason) {
+        if (stopping) return;
+
+        synchronized (RECONNECT_LOCK) {
+            if (reconnectScheduled) return;
+
+            reconnectScheduled = true;
+            int attempt = ++reconnectAttempts;
+            long delay = reconnectDelay(attempt);
+            if (reason == null || reason.trim().isEmpty()) {
+                LOGGER.info("Retrying dedicated server MineTogether Connect publish in {} seconds.", Long.valueOf(delay / 1000L));
+            } else {
+                LOGGER.info("Retrying dedicated server MineTogether Connect publish in {} seconds after: {}", Long.valueOf(delay / 1000L), reason);
+            }
+
+            activeTask = EXECUTOR.submit(() -> {
+                try {
+                    Thread.sleep(delay);
+                } catch (InterruptedException ex) {
+                    Thread.currentThread().interrupt();
+                    return;
+                }
+
+                synchronized (RECONNECT_LOCK) {
+                    reconnectScheduled = false;
+                }
+
+                if (!stopping) {
+                    runServerConnect(server);
+                }
+            });
+        }
+    }
+
+    private static long reconnectDelay(int attempt) {
+        long delay = RECONNECT_INITIAL_DELAY_MS;
+        for (int i = 1; i < attempt && delay < RECONNECT_MAX_DELAY_MS; i++) {
+            delay = Math.min(delay * 2L, RECONNECT_MAX_DELAY_MS);
+        }
+        return delay;
     }
 
     private static JWebToken loadCachedToken() {
