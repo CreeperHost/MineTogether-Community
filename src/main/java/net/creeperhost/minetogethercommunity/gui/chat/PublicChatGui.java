@@ -210,6 +210,60 @@ public class PublicChatGui implements GuiProvider {
     private class ChatMessagePanel extends GuiElement<ChatMessagePanel> {
 
         private int scrollFromBottom;
+        private List<ChatMessageLines.Line> cachedLines;
+        private int cacheWidth = Integer.MIN_VALUE;
+        private long cacheSignature = Long.MIN_VALUE;
+
+        private List<ChatMessageLines.Line> allLines() {
+            List<Message> messages = recentMessages();
+            int wrapWidth = width - 10;
+            long signature = contentSignature(messages);
+            if (cachedLines == null || wrapWidth != cacheWidth || signature != cacheSignature) {
+                cachedLines = ChatMessageLines.build(font(), messages, wrapWidth);
+                cacheWidth = wrapWidth;
+                cacheSignature = signature;
+            }
+            return cachedLines;
+        }
+
+        private long contentSignature(List<Message> messages) {
+            long sig = 1L;
+            Profile ours = MineTogetherChat.getOurProfile();
+            sig = sig * 1000003L + System.identityHashCode(ours);
+            for (Message message : messages) {
+                sig = sig * 1000003L + System.identityHashCode(message);
+                sig = sig * 1000003L + System.identityHashCode(message.getMessage());
+                sig = appendSignature(sig, message.getMessage() == null ? null : message.getMessage().getMessage());
+                sig = appendSignature(sig, message.senderName == null ? null : message.senderName.getMessage());
+                sig = appendProfileSignature(sig, message.sender, ours);
+            }
+            return sig;
+        }
+
+        private long appendProfileSignature(long sig, Profile profile, Profile ours) {
+            sig = sig * 1000003L + System.identityHashCode(profile);
+            if (profile == null) return sig;
+            sig = appendSignature(sig, MineTogetherChat.displayName(profile));
+            sig = appendSignature(sig, profile.getDisplayName());
+            sig = appendSignature(sig, profile.hasFriendName() ? profile.getFriendName() : null);
+            sig = sig * 1000003L + (profile.isFriend() ? 1 : 0);
+            sig = sig * 1000003L + (profile.isPremium() ? 1 : 0);
+            sig = sig * 1000003L + (profile.isBanned() ? 1 : 0);
+            sig = sig * 1000003L + (isOnSamePack(ours, profile) ? 1 : 0);
+            return sig;
+        }
+
+        private long appendSignature(long sig, String value) {
+            return sig * 1000003L + (value == null ? 0 : value.hashCode());
+        }
+
+        private boolean isOnSamePack(Profile ours, Profile sender) {
+            try {
+                return ours != null && sender != null && ours.isOnSamePack(sender);
+            } catch (Throwable ignored) {
+                return false;
+            }
+        }
 
         public ChatMessagePanel(GuiElement<?> parent) {
             super(parent);
@@ -374,7 +428,7 @@ public class PublicChatGui implements GuiProvider {
         }
 
         private List<ChatMessageLines.Line> visibleLines() {
-            List<ChatMessageLines.Line> all = ChatMessageLines.build(font(), recentMessages(), width - 10);
+            List<ChatMessageLines.Line> all = allLines();
             int maxLines = Math.max(1, (height - 8) / 10);
             int maxScroll = Math.max(0, all.size() - maxLines);
             if (scrollFromBottom > maxScroll) scrollFromBottom = maxScroll;
@@ -385,11 +439,11 @@ public class PublicChatGui implements GuiProvider {
 
         private int maxLineScroll() {
             int maxLines = Math.max(1, (height - 8) / 10);
-            return Math.max(0, ChatMessageLines.build(font(), recentMessages(), width - 10).size() - maxLines);
+            return Math.max(0, allLines().size() - maxLines);
         }
 
         private void drawScrollBar(int mouseX, int mouseY) {
-            List<ChatMessageLines.Line> all = ChatMessageLines.build(font(), recentMessages(), width - 10);
+            List<ChatMessageLines.Line> all = allLines();
             int maxLines = Math.max(1, (height - 8) / 10);
             int maxScroll = Math.max(0, all.size() - maxLines);
             if (maxScroll <= 0) return;

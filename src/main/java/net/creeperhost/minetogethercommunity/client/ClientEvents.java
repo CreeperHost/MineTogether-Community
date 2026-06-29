@@ -207,9 +207,9 @@ public class ClientEvents {
         }
 
         Message message = button == 1 || button == 0 && GuiScreen.isShiftKeyDown()
-                ? InGameChatBridge.getMessageUnderMouse(mouseX, mouseY)
-                : InGameChatBridge.getClickedMessage(mouseX, mouseY);
-        PreviewElement.URLInfo urlInfo = InGameChatBridge.getUrlUnderMouse(mouseX, mouseY);
+                ? InGameChatBridge.getMessageUnderMouse(rawMouseX, rawMouseY)
+                : InGameChatBridge.getClickedMessage(rawMouseX, rawMouseY);
+        PreviewElement.URLInfo urlInfo = InGameChatBridge.getUrlUnderMouse(rawMouseX, rawMouseY);
         URL clickedUrl = urlInfo == null ? null : urlInfo.getUrl();
         if (!isActionableMessage(message) && clickedUrl == null) return;
 
@@ -450,7 +450,7 @@ public class ClientEvents {
             chatActionPopup.draw(event.getMouseX(), event.getMouseY());
             return;
         }
-        PreviewElement.URLInfo info = InGameChatBridge.getUrlUnderMouse(event.getMouseX(), event.getMouseY());
+        PreviewElement.URLInfo info = InGameChatBridge.getUrlUnderMouse(Mouse.getX(), Mouse.getY());
         if (info != null) {
             PreviewElement.renderPreview(Minecraft.getMinecraft(), info, event.getMouseX(), event.getMouseY(),
                     event.getGui().width, event.getGui().height, 80, false);
