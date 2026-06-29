@@ -15,6 +15,7 @@ import net.minecraft.util.Mth;
 import org.spongepowered.asm.mixin.Final;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.Shadow;
+import org.spongepowered.asm.mixin.Unique;
 import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.Redirect;
@@ -25,6 +26,9 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
  */
 @Mixin(ChatComponent.class)
 abstract class ChatComponentMixin {
+
+    @Unique
+    private static boolean minetogethercommunity$redirectingRender;
 
     @Final
     @Shadow
@@ -50,9 +54,28 @@ abstract class ChatComponentMixin {
 
     @Inject(
             method = "render",
-            at = @At("HEAD")
+            at = @At("HEAD"),
+            cancellable = true
     )
-    private void onRender(GuiGraphics graphics, int i, int mouseX, int mouseY, boolean bl, CallbackInfo ci) {
+    private void onRender(GuiGraphics graphics, int i, int mouseX, int mouseY, CallbackInfo ci) {
+        ChatComponent selectedChat = minetogethercommunity$selectedChat();
+        if (selectedChat != null
+                && selectedChat != (Object) this
+                && !minetogethercommunity$redirectingRender
+                && LocalConfig.instance().chatEnabled
+                && !Minecraft.getInstance().options.hideGui
+                && MineTogetherChat.getTarget() != ChatTarget.VANILLA
+                && (Object) this == MineTogetherChat.vanillaChat) {
+            minetogethercommunity$redirectingRender = true;
+            try {
+                selectedChat.render(graphics, i, mouseX, mouseY);
+            } finally {
+                minetogethercommunity$redirectingRender = false;
+            }
+            ci.cancel();
+            return;
+        }
+
         // Don't render our additional background blackout if chat is not enabled, or chat is not focused.
         if (!LocalConfig.instance().chatEnabled || Minecraft.getInstance().options.hideGui || !isChatFocused()) return;
 
@@ -75,6 +98,14 @@ abstract class ChatComponentMixin {
         }
     }
 
+    @Unique
+    private static ChatComponent minetogethercommunity$selectedChat() {
+        return switch (MineTogetherChat.getTarget()) {
+            case VANILLA -> MineTogetherChat.vanillaChat;
+            case PUBLIC -> MineTogetherChat.publicChat;
+            case GROUP -> MineTogetherChat.groupChat;
+        };
+    }
     @Redirect(
             method = "render",
             at = @At(

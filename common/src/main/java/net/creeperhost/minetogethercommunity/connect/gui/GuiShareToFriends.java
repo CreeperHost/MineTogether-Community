@@ -1,6 +1,7 @@
 package net.creeperhost.minetogethercommunity.connect.gui;
 
 import com.google.common.util.concurrent.ThreadFactoryBuilder;
+import net.creeperhost.minetogethercommunity.MineTogetherClient;
 import net.creeperhost.minetogethercommunity.chat.gui.MTStyle;
 import net.creeperhost.minetogethercommunity.connect.ConnectHandler;
 import net.creeperhost.minetogethercommunity.connect.netty.NettyClient;
@@ -8,6 +9,7 @@ import net.creeperhost.minetogethercommunity.gui.LoadingSpinner;
 import net.creeperhost.minetogethercommunity.gui.MTTextures;
 import net.creeperhost.minetogether.session.JWebToken;
 import net.creeperhost.minetogether.session.MineTogetherSession;
+import net.creeperhost.minetogethercommunity.orderform.OrderGui;
 import net.creeperhost.polylib.client.modulargui.ModularGui;
 import net.creeperhost.polylib.client.modulargui.ModularGuiScreen;
 import net.creeperhost.polylib.client.modulargui.elements.*;
@@ -203,9 +205,10 @@ public class GuiShareToFriends implements GuiProvider {
 
     private void handleOrderLink(ModularGui gui) {
         //TODO, MT Partners Integration to open order GUI
-        // Also the text will need to change if the in-game order page is not available.
+        //If MT Partners is installed use that screen, If not use ours
 //        gui.mc().setScreen(new OrderGui.Screen(gui.getScreen(), true));
-        openLink(gui, "https://www.creeperhost.net/mcm/order");
+//        openLink(gui, "https://www.creeperhost.net/mcm/order");
+        MineTogetherClient.openOrderUI(gui);
     }
 
     private int getPlayersSetting() {

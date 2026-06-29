@@ -95,10 +95,40 @@ public class LocalConfig {
     @Comment ("Shift-Click user to mention")
     public boolean shiftClickMention = true;
 
-    @Comment ("INTERNAL: Marker for tracking first connections.")
+    @Comment ("Marker for tracking first connections.")
     public Set<String> firstConnect = new HashSet<>();
 
     @Comment ("Stores the currently selected chat TAB. Either VANILLA or PUBLIC.")
     public ChatTarget selectedTab = ChatTarget.PUBLIC;
+
+    @Comment ("If activity telemetry (advancements, quest completions, playtime) is enabled.")
+    public boolean activityTelemetry = true;
+
+    @Comment ("If manual modpack selection has already been offered for this instance.")
+    public boolean connectPackPrompted = false;
+
+    @Comment ("If this instance should keep using the custom / unknown modpack path.")
+    public boolean connectPackBypass = false;
+
+    @Comment ("The manually selected modpack key. CurseForge project id, or base64 FTB project + version.")
+    public String connectPackKey = "";
+
+    @Comment ("Display name for the manually selected modpack.")
+    public String connectPackDisplayName = "";
+
+    @Comment ("Source type for the manually selected modpack.")
+    public String connectPackProjectType = "";
+
+    @Comment ("Source project id for the manually selected modpack.")
+    public String connectPackProjectId = "";
+
+    @Comment ("Source project version for the manually selected modpack.")
+    public String connectPackProjectVersion = "";
+
+    @Comment ("Minecraft version for the manually selected modpack.")
+    public String connectPackMinecraftVersion = "";
+
+    @Comment ("CreeperHost version id used only for display/context.")
+    public int connectPackCreeperHostVersionId = -1;
 
 }

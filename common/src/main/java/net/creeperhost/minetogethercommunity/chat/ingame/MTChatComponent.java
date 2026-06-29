@@ -50,6 +50,8 @@ public class MTChatComponent extends ChatComponent {
     private final List<InGameDisplayableMessage> processedMessages = new ArrayList<>();
     @Nullable
     private IrcChannel channel;
+    @Nullable
+    private IrcChannel.ChatListener listener;
 
     @Nullable
     private Message clickedMessage;
@@ -62,11 +64,31 @@ public class MTChatComponent extends ChatComponent {
     }
 
     public void attach(IrcChannel channel) {
-        // Bail if we are already bound. IrcChannel's are
-        if (this.channel != null) return;
+        if (this.channel == channel) return;
+
+        if (this.channel != null) {
+            assert listener != null;
+            this.channel.removeListener(listener);
+            listener = null;
+        }
+
+        synchronized (pendingMessages) {
+            pendingMessages.clear();
+        }
+        synchronized (processedMessages) {
+            for (InGameDisplayableMessage message : processedMessages) {
+                message.onDead();
+            }
+            processedMessages.clear();
+        }
+        trimmedMessages.clear();
+        resetChatScroll();
 
         this.channel = channel;
-        channel.addListener(message -> {
+        synchronized (pendingMessages) {
+            pendingMessages.addAll(channel.getMessages());
+        }
+        listener = channel.addListener(message -> {
             synchronized (pendingMessages) {
                 pendingMessages.add(message);
             }
@@ -84,6 +106,7 @@ public class MTChatComponent extends ChatComponent {
             }
         }
     }
+
 
     @Override
     public void render(GuiGraphics graphics, int i, int j, int k) {
@@ -118,9 +141,11 @@ public class MTChatComponent extends ChatComponent {
         trimmedMessages.clear();
         resetChatScroll();
 
-        for (InGameDisplayableMessage message : processedMessages) {
-            message.format();
-            message.display();
+        synchronized (processedMessages) {
+            for (InGameDisplayableMessage message : processedMessages) {
+                message.format();
+                message.display();
+            }
         }
     }
 
@@ -136,10 +161,12 @@ public class MTChatComponent extends ChatComponent {
         synchronized (pendingMessages) {
             pendingMessages.clear();
         }
-        for (InGameDisplayableMessage message : processedMessages) {
-            message.onDead();
+        synchronized (processedMessages) {
+            for (InGameDisplayableMessage message : processedMessages) {
+                message.onDead();
+            }
+            processedMessages.clear();
         }
-        processedMessages.clear();
         trimmedMessages.clear();
     }
 
@@ -153,19 +180,21 @@ public class MTChatComponent extends ChatComponent {
     }
 
     private void addMessage(Message message) {
-        InGameDisplayableMessage newMessage = new InGameDisplayableMessage(message);
-        processedMessages.add(newMessage);
-        newMessage.display();
+        synchronized (processedMessages) {
+            InGameDisplayableMessage newMessage = new InGameDisplayableMessage(message);
+            processedMessages.add(newMessage);
+            newMessage.display();
 
-        if (isChatFocused() && chatScrollbarPos > 0) {
-            newMessageSinceScroll = true;
-            scrollChat(1);
-        }
+            if (isChatFocused() && chatScrollbarPos > 0) {
+                newMessageSinceScroll = true;
+                scrollChat(1);
+            }
 
-        while (processedMessages.size() > MAX_MESSAGE_HISTORY) {
-            InGameDisplayableMessage toRemove = processedMessages.remove(0);
-            trimmedMessages.removeAll(toRemove.getTrimmedLines());
-            toRemove.onDead();
+            while (processedMessages.size() > MAX_MESSAGE_HISTORY) {
+                InGameDisplayableMessage toRemove = processedMessages.remove(0);
+                trimmedMessages.removeAll(toRemove.getTrimmedLines());
+                toRemove.onDead();
+            }
         }
     }
 
@@ -181,34 +210,36 @@ public class MTChatComponent extends ChatComponent {
      * @param signature The message signature, If a previous message exists with this signature it will be removed before the new message is added.
      */
     public void localMessage(@Nullable Component message, MessageSignature signature) {
-        LocalMessage oldMessage = FastStream.of(processedMessages)
-                .filter(e -> e instanceof LocalMessage msg && msg.signature.equals(signature))
-                .map(e -> (LocalMessage) e)
-                .findFirst()
-                .orElse(null);
+        synchronized (processedMessages) {
+            LocalMessage oldMessage = FastStream.of(processedMessages)
+                    .filter(e -> e instanceof LocalMessage msg && msg.signature.equals(signature))
+                    .map(e -> (LocalMessage) e)
+                    .findFirst()
+                    .orElse(null);
 
-        if (oldMessage != null) {
-            processedMessages.remove(oldMessage);
-            if (oldMessage.line != null) {
-                trimmedMessages.remove(oldMessage.line);
+            if (oldMessage != null) {
+                processedMessages.remove(oldMessage);
+                if (oldMessage.line != null) {
+                    trimmedMessages.remove(oldMessage.line);
+                }
             }
-        }
 
-        if (message == null) return;
+            if (message == null) return;
 
-        InGameDisplayableMessage newMessage = new LocalMessage(message, signature);
-        processedMessages.add(newMessage);
-        newMessage.display();
+            InGameDisplayableMessage newMessage = new LocalMessage(message, signature);
+            processedMessages.add(newMessage);
+            newMessage.display();
 
-        if (isChatFocused() && chatScrollbarPos > 0) {
-            newMessageSinceScroll = true;
-            scrollChat(1);
-        }
+            if (isChatFocused() && chatScrollbarPos > 0) {
+                newMessageSinceScroll = true;
+                scrollChat(1);
+            }
 
-        while (processedMessages.size() > MAX_MESSAGE_HISTORY) {
-            InGameDisplayableMessage toRemove = processedMessages.remove(0);
-            trimmedMessages.removeAll(toRemove.getTrimmedLines());
-            toRemove.onDead();
+            while (processedMessages.size() > MAX_MESSAGE_HISTORY) {
+                InGameDisplayableMessage toRemove = processedMessages.remove(0);
+                trimmedMessages.removeAll(toRemove.getTrimmedLines());
+                toRemove.onDead();
+            }
         }
     }
 
@@ -232,7 +263,6 @@ public class MTChatComponent extends ChatComponent {
 
         MineTogetherChat.vanillaChat.addMessage(component, messageSignature, i, guiMessageTag, bl);
     }
-
     @Override
     public void deleteMessage(MessageSignature messageSignature) {
         assert !internalUpdate; // We don't use this to add messages.
@@ -338,9 +368,11 @@ public class MTChatComponent extends ChatComponent {
     private InGameDisplayableMessage findMessageForTrimmedMessage(GuiMessage.Line trimmedMessage) {
         // Little slow, realistically we should have a lookup map, but would be a pain to maintain.
         // This searches from the most recent chat message to the oldest.
-        for (InGameDisplayableMessage processedMessage : processedMessages) {
-            if (processedMessage.getTrimmedLines().contains(trimmedMessage)) {
-                return processedMessage;
+        synchronized (processedMessages) {
+            for (InGameDisplayableMessage processedMessage : processedMessages) {
+                if (processedMessage.getTrimmedLines().contains(trimmedMessage)) {
+                    return processedMessage;
+                }
             }
         }
         return null;
