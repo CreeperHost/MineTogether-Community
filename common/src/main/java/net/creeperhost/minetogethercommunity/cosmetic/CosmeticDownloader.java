@@ -5,7 +5,7 @@ import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
 import com.mojang.blaze3d.platform.NativeImage;
-import dev.architectury.platform.Platform;
+import net.creeperhost.minetogethercommunity.MineTogetherPlatform;
 import net.creeperhost.minetogethercommunity.cosmetic.cape.Cape;
 import net.creeperhost.minetogethercommunity.cosmetic.hat.Hat;
 import net.creeperhost.minetogethercommunity.cosmetic.hat.HatModelType;
@@ -16,7 +16,7 @@ import net.creeperhost.minetogethercommunity.cosmetic.wing.Wing;
 import net.creeperhost.minetogethercommunity.cosmetic.wing.WingAnimation;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.renderer.texture.DynamicTexture;
-import net.minecraft.resources.ResourceLocation;
+import net.minecraft.resources.Identifier;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.jetbrains.annotations.Nullable;
@@ -42,10 +42,10 @@ import java.util.concurrent.CopyOnWriteArrayList;
  * Manages cosmetic asset lifecycle in two distinct phases:
  *
  * <ol>
- *   <li><b>Catalog fetch</b> — {@link #startCatalogFetch()} downloads lightweight metadata
+ *   <li><b>Catalog fetch</b> â€” {@link #startCatalogFetch()} downloads lightweight metadata
  *       (id, name, locked state, etc.) for every available cosmetic, paginated from the
  *       catalog API. This is fast and starts immediately when the player enters a world.</li>
- *   <li><b>On-demand asset download</b> — {@link #ensureAssetLoaded(String, String)} fetches
+ *   <li><b>On-demand asset download</b> â€” {@link #ensureAssetLoaded(String, String)} fetches
  *       the actual 3-D model / texture for a single cosmetic, triggered when a player is seen
  *       wearing it or when the user selects it in the GUI.</li>
  * </ol>
@@ -61,7 +61,7 @@ public class CosmeticDownloader {
     private static final String CDN_BASE_URL = "https://cosmetic.cdn.minetogether.io";
     private static final int PAGE_LIMIT = 100;
 
-    // ── Singleton ──────────────────────────────────────────────────────────────
+    // â”€â”€ Singleton â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
     private static volatile CosmeticDownloader INSTANCE;
 
@@ -70,7 +70,7 @@ public class CosmeticDownloader {
             synchronized (CosmeticDownloader.class) {
                 if (INSTANCE == null) {
                     INSTANCE = new CosmeticDownloader(
-                            Platform.getGameFolder().resolve("local/minetogether/cosmetics")
+                            MineTogetherPlatform.getGameFolder().resolve("local/minetogether/cosmetics")
                     );
                 }
             }
@@ -78,14 +78,14 @@ public class CosmeticDownloader {
         return INSTANCE;
     }
 
-    // ── State ──────────────────────────────────────────────────────────────────
+    // â”€â”€ State â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
     private final Path cacheBase;
 
-    /** Shared HTTP client — reused across all download threads. */
+    /** Shared HTTP client â€” reused across all download threads. */
     private final HttpClient httpClient;
 
-    // Catalog (lightweight metadata — populated eagerly by startCatalogFetch)
+    // Catalog (lightweight metadata â€” populated eagerly by startCatalogFetch)
     private final List<CosmeticItem> hatCatalogList  = new CopyOnWriteArrayList<>();
     private final List<CosmeticItem> capeCatalogList = new CopyOnWriteArrayList<>();
     private final List<CosmeticItem> tailCatalogList = new CopyOnWriteArrayList<>();
@@ -95,7 +95,7 @@ public class CosmeticDownloader {
     private final ConcurrentHashMap<String, CosmeticItem> tailCatalogById = new ConcurrentHashMap<>();
     private final ConcurrentHashMap<String, CosmeticItem> wingCatalogById = new ConcurrentHashMap<>();
 
-    // Loaded assets (heavy — populated lazily by ensureAssetLoaded)
+    // Loaded assets (heavy â€” populated lazily by ensureAssetLoaded)
     private final ConcurrentHashMap<String, Hat>  loadedHats  = new ConcurrentHashMap<>();
     private final ConcurrentHashMap<String, Cape> loadedCapes = new ConcurrentHashMap<>();
     private final ConcurrentHashMap<String, Tail> loadedTails = new ConcurrentHashMap<>();
@@ -108,7 +108,7 @@ public class CosmeticDownloader {
     private volatile boolean catalogLoading = false;
     private volatile boolean catalogLoaded  = false;
 
-    // ── Constructor ────────────────────────────────────────────────────────────
+    // â”€â”€ Constructor â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
     private CosmeticDownloader(Path cacheBase) {
         this.cacheBase = cacheBase;
@@ -117,10 +117,10 @@ public class CosmeticDownloader {
                 .build();
     }
 
-    // ── Public API ─────────────────────────────────────────────────────────────
+    // â”€â”€ Public API â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
     /**
-     * Starts an asynchronous fetch of the cosmetic catalog (metadata only — no assets).
+     * Starts an asynchronous fetch of the cosmetic catalog (metadata only â€” no assets).
      * Idempotent: safe to call multiple times; only the first call has any effect.
      */
     public void startCatalogFetch() {
@@ -147,7 +147,7 @@ public class CosmeticDownloader {
         if ("cape".equals(slot) && loadedCapes.containsKey(id)) return;
         if ("tail".equals(slot) && loadedTails.containsKey(id)) return;
         if ("wing".equals(slot) && loadedWings.containsKey(id)) return;
-        // Claim the download slot — only one thread proceeds per id
+        // Claim the download slot â€” only one thread proceeds per id
         if (!loadingAssetIds.add(id)) return;
 
         Thread t = new Thread(() -> {
@@ -170,7 +170,7 @@ public class CosmeticDownloader {
         t.start();
     }
 
-    // ── Catalog accessors ──────────────────────────────────────────────────────
+    // â”€â”€ Catalog accessors â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
     public List<CosmeticItem> getHatCatalog() {
         return Collections.unmodifiableList(hatCatalogList);
@@ -194,7 +194,7 @@ public class CosmeticDownloader {
     /** @return {@code true} once the catalog fetch has completed (success or failure). */
     public boolean isCatalogLoaded()  { return catalogLoaded; }
 
-    // ── Asset accessors ────────────────────────────────────────────────────────
+    // â”€â”€ Asset accessors â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
     /**
      * Returns the fully loaded {@link Hat} for the given id, or {@code null} if not yet
@@ -222,7 +222,7 @@ public class CosmeticDownloader {
         return loadingAssetIds.contains(id);
     }
 
-    // ── Internal: catalog fetch ────────────────────────────────────────────────
+    // â”€â”€ Internal: catalog fetch â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
     private void fetchCatalog() {
         try {
@@ -356,7 +356,7 @@ public class CosmeticDownloader {
         }
     }
 
-    // ── Internal: on-demand asset download ────────────────────────────────────
+    // â”€â”€ Internal: on-demand asset download â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
     /**
      * Downloads the {@code .tc2} asset for a hat, parses it via {@link TechneLoader}, and
@@ -421,13 +421,13 @@ public class CosmeticDownloader {
         var elements = TailModelParser.parse(modelRoot);
         int texW = modelRoot.has("texture_size") ? modelRoot.getAsJsonArray("texture_size").get(0).getAsInt() : 64;
         int texH = modelRoot.has("texture_size") ? modelRoot.getAsJsonArray("texture_size").get(1).getAsInt() : 32;
-        ResourceLocation location = textureLocation("hat", id);
+        Identifier location = textureLocation("hat", id);
         LOGGER.info("JSON hat '{}' parsed: {} elements, texSize={}x{}", id, elements.size(), texW, texH);
 
         Minecraft.getInstance().execute(() -> {
             try {
                 NativeImage img = NativeImage.read(new java.io.ByteArrayInputStream(pngData));
-                DynamicTexture tex = new DynamicTexture(img);
+                DynamicTexture tex = new DynamicTexture(location::toString, img);
                 Minecraft.getInstance().getTextureManager().register(location, tex);
 
                 TailModel model = new TailModel(elements, texW, texH);
@@ -462,12 +462,12 @@ public class CosmeticDownloader {
                 .orElseThrow(() -> new IOException("No .png file in metadata for cape '" + id + "'"));
 
         byte[] data = Files.readAllBytes(itemDir.resolve(pngFile));
-        ResourceLocation location = textureLocation("cape", id);
+        Identifier location = textureLocation("cape", id);
 
         Minecraft.getInstance().execute(() -> {
             try {
                 NativeImage img = NativeImage.read(new java.io.ByteArrayInputStream(data));
-                DynamicTexture tex = new DynamicTexture(img);
+                DynamicTexture tex = new DynamicTexture(location::toString, img);
                 Minecraft.getInstance().getTextureManager().register(location, tex);
                 Cape cape = new Cape(id, item.displayName(), item.author(), item.mod(),
                         item.locked(), item.howToUnlock(), location, img.getWidth(), img.getHeight());
@@ -516,12 +516,12 @@ public class CosmeticDownloader {
         int texH = modelRoot.has("texture_size") ? modelRoot.getAsJsonArray("texture_size").get(1).getAsInt() : 32;
         LOGGER.info("Tail '{}' parsed: {} elements, texSize={}x{}", id, elements.size(), texW, texH);
 
-        ResourceLocation location = textureLocation("tail", id);
+        Identifier location = textureLocation("tail", id);
 
         Minecraft.getInstance().execute(() -> {
             try {
                 NativeImage img = NativeImage.read(new java.io.ByteArrayInputStream(pngData));
-                DynamicTexture tex = new DynamicTexture(img);
+                DynamicTexture tex = new DynamicTexture(location::toString, img);
                 Minecraft.getInstance().getTextureManager().register(location, tex);
 
                 var model = new net.creeperhost.minetogethercommunity.cosmetic.tail.TailModel(elements, texW, texH);
@@ -574,12 +574,12 @@ public class CosmeticDownloader {
         WingAnimation animation = parseWingAnimation(animationData);
         LOGGER.info("Wing '{}' parsed: {} elements, texSize={}x{}", id, elements.size(), texW, texH);
 
-        ResourceLocation location = textureLocation("wing", id);
+        Identifier location = textureLocation("wing", id);
 
         Minecraft.getInstance().execute(() -> {
             try {
                 NativeImage img = NativeImage.read(new java.io.ByteArrayInputStream(pngData));
-                DynamicTexture tex = new DynamicTexture(img);
+                DynamicTexture tex = new DynamicTexture(location::toString, img);
                 Minecraft.getInstance().getTextureManager().register(location, tex);
 
                 TailModel model = new TailModel(elements, texW, texH);
@@ -608,7 +608,7 @@ public class CosmeticDownloader {
         }
     }
 
-    // ── Internal: CDN helpers ──────────────────────────────────────────────────
+    // â”€â”€ Internal: CDN helpers â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
     /**
      * Fetches {@code metadata.json} from the CDN, then downloads any listed files that are
@@ -680,9 +680,9 @@ public class CosmeticDownloader {
         return resp.body();
     }
 
-    private static ResourceLocation textureLocation(String slot, String id) {
+    private static Identifier textureLocation(String slot, String id) {
         String safeId = id.toLowerCase(Locale.ROOT).replaceAll("[^a-z0-9/._-]", "_");
-        return ResourceLocation.fromNamespaceAndPath("minetogethercommunity", slot + "/" + safeId);
+        return Identifier.fromNamespaceAndPath("minetogethercommunity", slot + "/" + safeId);
     }
 
     private static CosmeticItem catalogItemOrFallback(ConcurrentHashMap<String, CosmeticItem> catalog, String id) {

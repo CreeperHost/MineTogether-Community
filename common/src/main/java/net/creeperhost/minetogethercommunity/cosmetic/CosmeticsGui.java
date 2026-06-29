@@ -1,7 +1,5 @@
 package net.creeperhost.minetogethercommunity.cosmetic;
 
-import com.mojang.blaze3d.platform.Lighting;
-import com.mojang.blaze3d.systems.RenderSystem;
 import net.creeperhost.minetogethercommunity.chat.gui.MTStyle;
 import net.creeperhost.minetogethercommunity.cosmetic.cape.CapeRegistry;
 import net.creeperhost.minetogethercommunity.cosmetic.hat.HatRegistry;
@@ -17,12 +15,16 @@ import net.creeperhost.polylib.client.modulargui.lib.geometry.GuiParent;
 import net.creeperhost.polylib.client.modulargui.lib.geometry.Rectangle;
 import net.minecraft.ChatFormatting;
 import net.minecraft.client.Minecraft;
-import net.minecraft.client.renderer.entity.EntityRenderDispatcher;
+import net.minecraft.client.renderer.entity.EntityRenderer;
+import net.minecraft.client.renderer.entity.state.EntityRenderState;
+import net.minecraft.client.renderer.entity.state.LivingEntityRenderState;
 import net.minecraft.network.chat.Component;
 import net.minecraft.world.entity.LivingEntity;
+import net.minecraft.world.entity.Pose;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 import org.joml.Quaternionf;
+import org.joml.Vector3f;
 
 import java.util.List;
 import java.util.Locale;
@@ -39,6 +41,7 @@ public class CosmeticsGui implements GuiProvider {
     private static final int TAB_HEIGHT = 18;
     private static final int TILE_GAP = 6;
     private static final int GRID_COLUMNS = 3;
+    private static final float RIGHT_PREVIEW_MAX_SCALE = 58.0F;
 
     /** Spinner frames cycled in the preview panel while a cosmetic asset is downloading. */
     private static final char[] SPINNER = {'|', '/', '-', '\\'};
@@ -609,24 +612,26 @@ public class CosmeticsGui implements GuiProvider {
                 entity.yHeadRotO = entity.getYRot();
 
                 float scale = Math.min((float) (height / entity.getBbHeight()) * 1.45F, 46.0F);
-                float xPos = (float) (x + (width / 2D));
-                float yOffset = switch (activeTab[0]) {
-                    case HAT -> 1.30F;
+                float cardYOffset = switch (activeTab[0]) {
+                    case HAT -> 1.38F;
                     case TAIL, WINGS -> -0.05F;
                     default -> 0.20F;
                 };
-                float yPos = (float) (y + height + scale * yOffset);
+                float offsetY = (float) ((height / 2.0D) / scale + cardYOffset - (entity.getBbHeight() / 2.0F));
                 Quaternionf entityRotation = new Quaternionf().rotateZ((float) Math.PI);
                 Quaternionf cameraRotation = new Quaternionf();
 
                 render.pushScissorRect(x, y, width, height);
                 try {
-                    renderBrightEntityInInventory(render, xPos, yPos, scale, entityRotation, cameraRotation, entity);
+                    renderBrightEntityInInventory(render, scale, offsetY, entityRotation, cameraRotation, entity,
+                            (int) Math.floor(x),
+                            (int) Math.floor(y),
+                            (int) Math.ceil(x + width),
+                            (int) Math.ceil(y + height));
                 } finally {
                     render.popScissor();
                 }
             } finally {
-                Lighting.setupFor3DItems();
                 selections.selectedHatId = previousHat;
                 selections.selectedCapeId = previousCape;
                 selections.selectedTailId = previousTail;
@@ -1015,28 +1020,35 @@ public class CosmeticsGui implements GuiProvider {
 
     // ── Player preview renderer ────────────────────────────────────────────────
 
-    private static void renderBrightEntityInInventory(GuiRender render, double x, double y, double scale, Quaternionf pose, @Nullable Quaternionf cameraOrientation, LivingEntity entity) {
-        render.pose().pushPose();
-        render.pose().translate(x, y, 50.0D);
-        render.pose().scale((float) scale, (float) scale, (float) -scale);
-        render.pose().mulPose(pose);
-        RenderSystem.setShaderColor(1.0F, 1.0F, 1.0F, 1.0F);
-        RenderSystem.enableDepthTest();
-        RenderSystem.defaultBlendFunc();
-        Lighting.setupLevel();
+    private static void renderBrightEntityInInventory(GuiRender render, double scale, float offsetY, Quaternionf pose, @Nullable Quaternionf cameraOrientation, LivingEntity entity, int x0, int y0, int x1, int y1) {
+        EntityRenderer<? super LivingEntity, ?> renderer = Minecraft.getInstance().getEntityRenderDispatcher().getRenderer(entity);
+        EntityRenderState renderState = renderer.createRenderState(entity, 1.0F);
+        renderState.shadowPieces.clear();
+        renderState.outlineColor = 0;
 
-        EntityRenderDispatcher dispatcher = Minecraft.getInstance().getEntityRenderDispatcher();
-        if (cameraOrientation != null) {
-            dispatcher.overrideCameraOrientation(cameraOrientation.conjugate(new Quaternionf()));
+        if (renderState instanceof LivingEntityRenderState livingRenderState) {
+            if (livingRenderState.pose != Pose.FALL_FLYING) {
+                livingRenderState.xRot = entity.getXRot();
+            } else {
+                livingRenderState.xRot = 0.0F;
+            }
+            livingRenderState.boundingBoxWidth /= livingRenderState.scale;
+            livingRenderState.boundingBoxHeight /= livingRenderState.scale;
+            livingRenderState.scale = 1.0F;
         }
 
-        dispatcher.setRenderShadow(false);
-        RenderSystem.runAsFancy(() -> dispatcher.render(entity, 0.0D, 0.0D, 0.0D, 0.0F, 1.0F, render.pose(), render.buffers(), 15728880));
-        render.flush();
-        RenderSystem.setShaderColor(1.0F, 1.0F, 1.0F, 1.0F);
-        dispatcher.setRenderShadow(true);
-        render.pose().popPose();
-        Lighting.setupFor3DItems();
+        Vector3f translation = new Vector3f(0.0F, renderState.boundingBoxHeight / 2.0F + offsetY, 0.0F);
+        render.graphics().entity(
+                renderState,
+                (float) scale,
+                translation,
+                new Quaternionf(pose),
+                cameraOrientation == null ? null : new Quaternionf(cameraOrientation),
+                x0,
+                y0,
+                x1,
+                y1
+        );
     }
 
     private static class OffsetFollowRenderer extends GuiElement<OffsetFollowRenderer> implements BackgroundRender {
@@ -1055,9 +1067,17 @@ public class CosmeticsGui implements GuiProvider {
         public void renderBehind(GuiRender render, double mouseX, double mouseY, float partialTicks) {
             if (entity == null) return;
             Rectangle rect = getRectangle();
-            float scale = Math.min((float) (rect.height() / entity.getBbHeight()), 58.0F);
+            double horizontalPadding = 10.0D;
+            double bottomPadding = 8.0D;
+            double renderTop = rect.y();
+            double renderBottom = rect.y() + rect.height();
+            float availableHeight = (float) Math.max(1.0D, rect.height() - bottomPadding);
+            float availableWidth = (float) Math.max(1.0D, rect.width() - horizontalPadding * 2.0D);
+            float scale = Math.min(availableHeight / (entity.getBbHeight() + 1.0F), availableWidth / Math.max(entity.getBbWidth(), 2.25F));
+            scale = Math.min(scale, RIGHT_PREVIEW_MAX_SCALE);
             float xPos = (float) (rect.x() + (rect.width() / 2D));
-            float yPos = (float) (rect.y() + rect.height() - 8.0D);
+            float yPos = (float) (renderBottom - bottomPadding);
+            float offsetY = (float) (((yPos - (rect.y() + rect.height() / 2.0D)) / scale) - (entity.getBbHeight() / 2.0F));
             int eyeOffset = (int) (entity.getEyeHeight() * scale);
             double effectiveMouseX = trackingEnabled[0] ? mouseX : xPos;
             double effectiveMouseY = trackingEnabled[0] ? mouseY : (yPos - eyeOffset);
@@ -1083,10 +1103,13 @@ public class CosmeticsGui implements GuiProvider {
 
             try {
                 CosmeticSelections.instance().fullBrightPreview = true;
-                renderBrightEntityInInventory(render, xPos, yPos, scale, quaternionf, quaternionf1, entity);
+                renderBrightEntityInInventory(render, scale, offsetY, quaternionf, quaternionf1, entity,
+                        (int) Math.floor(rect.x() + horizontalPadding),
+                        (int) Math.floor(renderTop),
+                        (int) Math.ceil(rect.x() + rect.width() - horizontalPadding),
+                        (int) Math.ceil(renderBottom));
             } finally {
                 CosmeticSelections.instance().fullBrightPreview = previousFullBrightPreview;
-                Lighting.setupFor3DItems();
                 entity.yBodyRot = prevBodyRot;
                 entity.setYRot(prevYRot);
                 entity.setXRot(prevXRot);

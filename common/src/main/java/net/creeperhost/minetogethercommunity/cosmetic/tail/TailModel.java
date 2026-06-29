@@ -40,6 +40,14 @@ public class TailModel {
     }
 
     public void render(PoseStack poseStack, VertexConsumer consumer, int packedLight, TailPose tailPose) {
+        render(poseStack.last(), consumer, packedLight, tailPose, CosmeticSelections.instance().fullBrightPreview);
+    }
+
+    public void render(PoseStack.Pose pose, VertexConsumer consumer, int packedLight) {
+        render(pose, consumer, packedLight, TailPose.none(), CosmeticSelections.instance().fullBrightPreview);
+    }
+
+    public void render(PoseStack.Pose pose, VertexConsumer consumer, int packedLight, TailPose tailPose, boolean fullBright) {
         if (!loggedOnce) {
             loggedOnce = true;
             LOGGER.info("[TailModel] render called: {} elements, texSize={}x{}", elements.size(), (int) texW, (int) texH);
@@ -50,9 +58,8 @@ public class TailModel {
             }
         }
 
-        PoseStack.Pose pose = poseStack.last();
         if (animatedChain) {
-            renderAnimatedChain(pose, consumer, packedLight, tailPose);
+            renderAnimatedChain(pose, consumer, packedLight, tailPose, fullBright);
             return;
         }
 
@@ -62,26 +69,26 @@ public class TailModel {
 
             if (el.south() != null) emitFace(pose, consumer, packedLight, el.south(),
                     rotate(el, new float[][]{{x0, y0, z1}, {x1, y0, z1}, {x1, y1, z1}, {x0, y1, z1}}),
-                    normal(el, 0, 0, 1));
+                    normal(el, 0, 0, 1), fullBright);
             if (el.north() != null) emitFace(pose, consumer, packedLight, el.north(),
                     rotate(el, new float[][]{{x1, y0, z0}, {x0, y0, z0}, {x0, y1, z0}, {x1, y1, z0}}),
-                    normal(el, 0, 0, -1));
+                    normal(el, 0, 0, -1), fullBright);
             if (el.east() != null) emitFace(pose, consumer, packedLight, el.east(),
                     rotate(el, new float[][]{{x1, y0, z1}, {x1, y0, z0}, {x1, y1, z0}, {x1, y1, z1}}),
-                    normal(el, 1, 0, 0));
+                    normal(el, 1, 0, 0), fullBright);
             if (el.west() != null) emitFace(pose, consumer, packedLight, el.west(),
                     rotate(el, new float[][]{{x0, y0, z0}, {x0, y0, z1}, {x0, y1, z1}, {x0, y1, z0}}),
-                    normal(el, -1, 0, 0));
+                    normal(el, -1, 0, 0), fullBright);
             if (el.up() != null) emitFace(pose, consumer, packedLight, el.up(),
                     rotate(el, new float[][]{{x0, y1, z1}, {x1, y1, z1}, {x1, y1, z0}, {x0, y1, z0}}),
-                    normal(el, 0, 1, 0));
+                    normal(el, 0, 1, 0), fullBright);
             if (el.down() != null) emitFace(pose, consumer, packedLight, el.down(),
                     rotate(el, new float[][]{{x0, y0, z0}, {x1, y0, z0}, {x1, y0, z1}, {x0, y0, z1}}),
-                    normal(el, 0, -1, 0));
+                    normal(el, 0, -1, 0), fullBright);
         }
     }
 
-    private void renderAnimatedChain(PoseStack.Pose pose, VertexConsumer consumer, int packedLight, TailPose tailPose) {
+    private void renderAnimatedChain(PoseStack.Pose pose, VertexConsumer consumer, int packedLight, TailPose tailPose, boolean fullBright) {
         float[] previousStaticOrigin = null;
         float[] previousDynamicOrigin = null;
         float[] previousStaticAngles = null;
@@ -104,22 +111,22 @@ public class TailModel {
 
             if (el.south() != null) emitFace(pose, consumer, packedLight, el.south(),
                     chainVerts(new float[][]{{x0, y0, z1}, {x1, y0, z1}, {x1, y1, z1}, {x0, y1, z1}}, staticOrigin, dynamicOrigin, dynamicAngles),
-                    rotate(0, 0, 1, dynamicAngles));
+                    rotate(0, 0, 1, dynamicAngles), fullBright);
             if (el.north() != null) emitFace(pose, consumer, packedLight, el.north(),
                     chainVerts(new float[][]{{x1, y0, z0}, {x0, y0, z0}, {x0, y1, z0}, {x1, y1, z0}}, staticOrigin, dynamicOrigin, dynamicAngles),
-                    rotate(0, 0, -1, dynamicAngles));
+                    rotate(0, 0, -1, dynamicAngles), fullBright);
             if (el.east() != null) emitFace(pose, consumer, packedLight, el.east(),
                     chainVerts(new float[][]{{x1, y0, z1}, {x1, y0, z0}, {x1, y1, z0}, {x1, y1, z1}}, staticOrigin, dynamicOrigin, dynamicAngles),
-                    rotate(1, 0, 0, dynamicAngles));
+                    rotate(1, 0, 0, dynamicAngles), fullBright);
             if (el.west() != null) emitFace(pose, consumer, packedLight, el.west(),
                     chainVerts(new float[][]{{x0, y0, z0}, {x0, y0, z1}, {x0, y1, z1}, {x0, y1, z0}}, staticOrigin, dynamicOrigin, dynamicAngles),
-                    rotate(-1, 0, 0, dynamicAngles));
+                    rotate(-1, 0, 0, dynamicAngles), fullBright);
             if (el.up() != null) emitFace(pose, consumer, packedLight, el.up(),
                     chainVerts(new float[][]{{x0, y1, z1}, {x1, y1, z1}, {x1, y1, z0}, {x0, y1, z0}}, staticOrigin, dynamicOrigin, dynamicAngles),
-                    rotate(0, 1, 0, dynamicAngles));
+                    rotate(0, 1, 0, dynamicAngles), fullBright);
             if (el.down() != null) emitFace(pose, consumer, packedLight, el.down(),
                     chainVerts(new float[][]{{x0, y0, z0}, {x1, y0, z0}, {x1, y0, z1}, {x0, y0, z1}}, staticOrigin, dynamicOrigin, dynamicAngles),
-                    rotate(0, -1, 0, dynamicAngles));
+                    rotate(0, -1, 0, dynamicAngles), fullBright);
 
             previousStaticOrigin = staticOrigin;
             previousDynamicOrigin = dynamicOrigin;
@@ -279,17 +286,18 @@ public class TailModel {
 
     private void emitFace(PoseStack.Pose pose, VertexConsumer consumer, int packedLight,
                            TailFace face, float[][] verts, float nx, float ny, float nz) {
-        emitFace(pose, consumer, packedLight, face, verts, new float[]{nx, ny, nz});
+        emitFace(pose, consumer, packedLight, face, verts, new float[]{nx, ny, nz}, CosmeticSelections.instance().fullBrightPreview);
     }
 
     private void emitFace(PoseStack.Pose pose, VertexConsumer consumer, int packedLight,
-                           TailFace face, float[][] verts, float[] normal) {
+                           TailFace face, float[][] verts, float[] normal, boolean fullBright) {
         float u0 = face.u0() / texW, v0 = face.v0() / texH;
         float u1 = face.u1() / texW, v1 = face.v1() / texH;
         float[][] uvs = {{u0, v0}, {u1, v0}, {u1, v1}, {u0, v1}};
 
-        Vector3f transformedNormal = CosmeticSelections.instance().fullBrightPreview
-                ? new Vector3f(0.0F, 1.0F, 0.0F)
+        // The GUI entity pipeline still applies diffuse lighting; its brightest preview direction is -Y.
+        Vector3f transformedNormal = fullBright
+                ? new Vector3f(0.0F, -1.0F, 0.0F)
                 : pose.normal().transform(new Vector3f(normal[0], normal[1], normal[2]));
         for (int i = 0; i < 4; i++) {
             consumer.addVertex(pose.pose(), verts[i][0] / 16.0F, verts[i][1] / 16.0F, verts[i][2] / 16.0F)

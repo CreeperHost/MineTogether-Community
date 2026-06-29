@@ -4,18 +4,12 @@ import com.google.common.cache.Cache;
 import com.google.common.cache.CacheBuilder;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.util.concurrent.ThreadFactoryBuilder;
-import com.mojang.blaze3d.platform.NativeImage;
-import com.mojang.blaze3d.platform.TextureUtil;
-import com.mojang.blaze3d.systems.RenderSystem;
-import com.mojang.blaze3d.vertex.*;
 import net.creeperhost.minetogethercommunity.chat.gui.MessageElement;
 import net.creeperhost.minetogether.lib.chat.message.Message;
-import net.creeperhost.minetogethercommunity.util.MessageFormatter;
 import net.creeperhost.polylib.client.modulargui.elements.GuiElement;
 import net.creeperhost.polylib.client.modulargui.elements.GuiList;
 import net.creeperhost.polylib.client.modulargui.lib.GuiRender;
 import net.creeperhost.polylib.client.modulargui.lib.geometry.GuiParent;
-import net.minecraft.client.renderer.GameRenderer;
 import net.minecraft.network.chat.Component;
 import net.minecraft.network.chat.HoverEvent;
 import net.minecraft.network.chat.Style;
@@ -28,7 +22,6 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
-import org.joml.Matrix4f;
 
 import javax.imageio.ImageIO;
 import java.awt.image.BufferedImage;
@@ -155,8 +148,8 @@ public class PreviewElement extends GuiElement<PreviewElement> {
     public static URL urlFromStyle(@Nullable Style style) {
         if (style == null) return null;
         HoverEvent event = style.getHoverEvent();
-        if (event == null || event.getAction() != MessageFormatter.SHOW_URL_PREVIEW) return null;
-        Component value = event.getValue(MessageFormatter.SHOW_URL_PREVIEW);
+        if (!(event instanceof HoverEvent.ShowText showText)) return null;
+        Component value = showText.value();
         try {
             return URI.create(value.getString()).toURL();
         } catch (Throwable ex) {
@@ -185,9 +178,8 @@ public class PreviewElement extends GuiElement<PreviewElement> {
     public record URLInfo(URL url, boolean admin){}
 
     private static class ImageLoader {
-        @Nullable
-        private NativeImage image = null;
-        private int glTexture = -1;
+        private int width = 1;
+        private int height = 1;
         private volatile boolean loaded = false;
 
         private void load(URL url, boolean ogRedirect) {
@@ -201,17 +193,12 @@ public class PreviewElement extends GuiElement<PreviewElement> {
 
                 if (SUPPORTED_IMAGES.contains(entity.getContentType().getValue())) {
                     BufferedImage bufferedImage = ImageIO.read(entity.getContent());
-                    image = new NativeImage(NativeImage.Format.RGBA, bufferedImage.getWidth(), bufferedImage.getHeight(), false);
-                    for (int x = 0; x < bufferedImage.getWidth(); x++) {
-                        for (int y = 0; y < bufferedImage.getHeight(); y++) {
-                            int argb = bufferedImage.getRGB(x, y);
-                            int a = argb >>> 24;
-                            int r = argb >> 16 & 0xFF;
-                            int g = argb >> 8 & 0xFF;
-                            int b = argb & 0xFF;
-                            image.setPixelRGBA(x, y, a << 24 | b << 16 | g << 8 | r);
-                        }
+                    if (bufferedImage == null) {
+                        INVALID_URLS.add(url);
+                        return;
                     }
+                    width = Math.max(1, bufferedImage.getWidth());
+                    height = Math.max(1, bufferedImage.getHeight());
                     loaded = true;
                     return;
                 }
@@ -247,40 +234,19 @@ public class PreviewElement extends GuiElement<PreviewElement> {
         }
 
         private int width() {
-            return image.getWidth();
+            return width;
         }
 
         private int height() {
-            return image.getHeight();
+            return height;
         }
 
         public void render(GuiRender render, double x, double y, double width, double height) {
-            if (glTexture == -1) {
-                glTexture = TextureUtil.generateTextureId();
-                TextureUtil.prepareImage(glTexture, 0, image.getWidth(), image.getHeight());
-                image.upload(0, 0, 0, 0, 0, image.getWidth(), image.getHeight(), false, true);
-            }
-
-            double x2 = x + width;
-            double y2 = y + height;
-            RenderSystem.setShaderTexture(0, glTexture);
-            RenderSystem.setShader(GameRenderer::getPositionTexShader);
-            Matrix4f matrix4f = render.pose().last().pose();
-
-            BufferBuilder bufferBuilder = Tesselator.getInstance().begin(VertexFormat.Mode.QUADS, DefaultVertexFormat.POSITION_TEX);
-            bufferBuilder.addVertex(matrix4f, (float) x, (float) y, (float) 0).setUv(0, 0);
-            bufferBuilder.addVertex(matrix4f, (float) x, (float) y2, (float) 0).setUv(0, 1);
-            bufferBuilder.addVertex(matrix4f, (float) x2, (float) y2, (float) 0).setUv(1, 1);
-            bufferBuilder.addVertex(matrix4f, (float) x2, (float) y, (float) 0).setUv(1, 0);
-            BufferUploader.drawWithShader(bufferBuilder.build());
+            render.borderRect(x, y, x + width, y + height, 1, 0xFF505050, 0xFF151515);
+            render.drawCenteredString(Component.translatable("minetogether:gui.chat.preview"), x + (width / 2D), y + ((height - render.font().lineHeight) / 2D), 0xFFFFFFFF);
         }
 
         public void close() {
-            if (glTexture != -1) {
-                TextureUtil.releaseTextureId(glTexture);
-                glTexture = -1;
-            }
-            if (image != null) image.close();
         }
     }
 }

@@ -10,7 +10,7 @@ import net.creeperhost.minetogethercommunity.cosmetic.hat.HatCuboid;
 import net.creeperhost.minetogethercommunity.cosmetic.hat.HatModelType;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.renderer.texture.DynamicTexture;
-import net.minecraft.resources.ResourceLocation;
+import net.minecraft.resources.Identifier;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
@@ -91,9 +91,6 @@ public class TechneLoader {
                     float[] size = parseVec3(shape.get("Size").getAsString());
                     int[] texOff = parseVec2i(shape.get("TextureOffset").getAsString());
 
-                    // Store raw Techne values unchanged.
-                    // HatLayer applies scale(-1,-1,1) which exactly replicates the iChunUtil
-                    // rendering convention, so no coordinate transformation is needed here.
                     // Position = the ModelRenderer rotation pivot (setRotationPoint).
                     // Offset   = the box corner relative to that pivot (addBox x/y/z args).
                     cuboids.add(new HatCuboid(
@@ -106,13 +103,13 @@ public class TechneLoader {
             }
         }
 
-        ResourceLocation texLoc = ResourceLocation.fromNamespaceAndPath(MOD_ID, "dynamic/hats/" + id);
+        Identifier texLoc = Identifier.fromNamespaceAndPath(MOD_ID, "dynamic/hats/" + id);
 
         final byte[] finalTexBytes = textureBytes;
         Minecraft.getInstance().execute(() -> {
             try {
                 NativeImage img = NativeImage.read(new ByteArrayInputStream(finalTexBytes));
-                Minecraft.getInstance().getTextureManager().register(texLoc, new DynamicTexture(img));
+                Minecraft.getInstance().getTextureManager().register(texLoc, new DynamicTexture(texLoc::toString, img));
             } catch (IOException e) {
                 LOGGER.warn("Failed to load texture for hat: {}", displayName, e);
             }

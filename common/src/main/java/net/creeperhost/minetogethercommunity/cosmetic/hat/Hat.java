@@ -2,7 +2,7 @@ package net.creeperhost.minetogethercommunity.cosmetic.hat;
 
 import net.creeperhost.minetogethercommunity.cosmetic.tail.TailElement;
 import net.creeperhost.minetogethercommunity.cosmetic.tail.TailModel;
-import net.minecraft.resources.ResourceLocation;
+import net.minecraft.resources.Identifier;
 import org.jetbrains.annotations.Nullable;
 
 import java.util.List;
@@ -14,7 +14,7 @@ public record Hat(
         String mod,
         boolean locked,
         String howToUnlock,
-        ResourceLocation texture,
+        Identifier texture,
         int texWidth,
         int texHeight,
         HatModelType type,

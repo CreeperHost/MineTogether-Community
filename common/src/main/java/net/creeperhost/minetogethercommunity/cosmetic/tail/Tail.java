@@ -1,6 +1,6 @@
 package net.creeperhost.minetogethercommunity.cosmetic.tail;
 
-import net.minecraft.resources.ResourceLocation;
+import net.minecraft.resources.Identifier;
 import org.jetbrains.annotations.Nullable;
 
 import java.util.List;
@@ -12,7 +12,7 @@ public record Tail(
         String mod,
         boolean locked,
         @Nullable String howToUnlock,
-        ResourceLocation texture,
+        Identifier texture,
         int texWidth,
         int texHeight,
         List<TailElement> elements,

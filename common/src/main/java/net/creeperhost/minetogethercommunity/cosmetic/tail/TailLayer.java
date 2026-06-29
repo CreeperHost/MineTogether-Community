@@ -1,41 +1,32 @@
 package net.creeperhost.minetogethercommunity.cosmetic.tail;
 
 import com.mojang.blaze3d.vertex.PoseStack;
-import net.creeperhost.minetogethercommunity.cosmetic.CosmeticSelections;
-import net.creeperhost.minetogethercommunity.cosmetic.PlayerCosmeticCache;
-import net.minecraft.client.Minecraft;
-import net.minecraft.client.model.PlayerModel;
-import net.minecraft.client.player.AbstractClientPlayer;
-import net.minecraft.client.renderer.MultiBufferSource;
-import net.minecraft.client.renderer.LightTexture;
-import net.minecraft.client.renderer.RenderType;
+import net.creeperhost.minetogethercommunity.cosmetic.renderstate.MineTogetherCosmeticRenderState;
+import net.minecraft.client.model.player.PlayerModel;
+import net.minecraft.client.renderer.SubmitNodeCollector;
 import net.minecraft.client.renderer.entity.RenderLayerParent;
 import net.minecraft.client.renderer.entity.layers.RenderLayer;
+import net.minecraft.client.renderer.entity.state.AvatarRenderState;
+import net.minecraft.client.renderer.rendertype.RenderTypes;
+import net.minecraft.util.LightCoordsUtil;
 import net.minecraft.util.Mth;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
-public class TailLayer<T extends AbstractClientPlayer> extends RenderLayer<T, PlayerModel<T>> {
-
+public class TailLayer extends RenderLayer<AvatarRenderState, PlayerModel> {
     private static final Logger LOGGER = LogManager.getLogger();
 
-    public TailLayer(RenderLayerParent<T, PlayerModel<T>> renderer) {
+    public TailLayer(RenderLayerParent<AvatarRenderState, PlayerModel> renderer) {
         super(renderer);
     }
 
     @Override
-    public void render(PoseStack poseStack, MultiBufferSource bufferSource, int packedLight, T player,
-                       float limbSwing, float limbSwingAmount, float partialTicks,
-                       float ageInTicks, float netHeadYaw, float headPitch) {
-        String tailId;
-        if (player == Minecraft.getInstance().player) {
-            tailId = CosmeticSelections.instance().selectedTailId;
-        } else {
-            CosmeticSelections cs = PlayerCosmeticCache.get(player.getUUID());
-            if (cs == null) return;
-            tailId = cs.selectedTailId;
-        }
-        if (tailId == null || tailId.isEmpty()) return;
+    public void submit(PoseStack poseStack, SubmitNodeCollector submitNodeCollector, int lightCoords, AvatarRenderState state, float yRot, float xRot) {
+        if (state.isInvisible) return;
+
+        MineTogetherCosmeticRenderState cosmeticState = (MineTogetherCosmeticRenderState) state;
+        String tailId = cosmeticState.minetogether$tailId();
+        if (tailId.isEmpty()) return;
 
         Tail tail = TailRegistry.getLoaded(tailId);
         if (tail == null) {
@@ -46,47 +37,38 @@ public class TailLayer<T extends AbstractClientPlayer> extends RenderLayer<T, Pl
         LOGGER.debug("[TailLayer] rendering tail='{}' elements={}", tailId, tail.elements().size());
         poseStack.pushPose();
 
-        // Position in body-local space: centered on x, at hip level on y,
-        // starting at the back face on z.  All offsets in model-pixel units.
-        // Block-model origin (8, 8, 0) maps to body-local (0, 12, 2).
         getParentModel().body.translateAndRotate(poseStack);
-        // All values in model-pixel units (same scale as entity model coords).
-        // x: centre tail at block-model x=8 → -8; y: map block-model y=8 to body y=12 → 12-8=4;
-        // z: start tail at body back face z=2 → +2.
         poseStack.translate(-8.0F / 16.0F, 2.0F / 16.0F, 2.0F / 16.0F);
 
-        TailPose tailPose = createTailPose(player, partialTicks, ageInTicks);
-        int renderLight = CosmeticSelections.instance().fullBrightPreview ? LightTexture.FULL_BRIGHT : packedLight;
-        tail.model().render(poseStack, bufferSource.getBuffer(RenderType.entityCutoutNoCull(tail.texture())), renderLight, tailPose);
+        TailPose tailPose = createTailPose(state);
+        boolean fullBright = cosmeticState.minetogether$fullBright();
+        int renderLight = fullBright ? LightCoordsUtil.FULL_BRIGHT : lightCoords;
+        submitNodeCollector.submitCustomGeometry(
+                poseStack,
+                RenderTypes.entityCutout(tail.texture()),
+                (pose, buffer) -> tail.model().render(pose, buffer, renderLight, tailPose, fullBright)
+        );
 
         poseStack.popPose();
     }
 
-    private TailPose createTailPose(T player, float partialTicks, float ageInTicks) {
-        float idleSeed = ageInTicks * (float) (Math.PI * 2.0D) / 140.0F;
-        float walk = Mth.lerp(partialTicks, player.walkDistO, player.walkDist);
-        float bob = Mth.lerp(partialTicks, player.oBob, player.bob);
+    private TailPose createTailPose(AvatarRenderState state) {
+        float idleSeed = state.ageInTicks * (float) (Math.PI * 2.0D) / 140.0F;
+        float walk = state.walkAnimationPos;
+        float bob = state.walkAnimationSpeed;
         float walkPhase = walk * 6.0F;
         float walkWave = Mth.sin(walkPhase) * bob;
         float walkCounterWave = Mth.cos(walkPhase) * bob;
 
-        float lift = 0.0F;
-        float sideLag = 0.0F;
-        if (player.isPassenger()) {
+        float lift;
+        float sideLag;
+        if (state.isPassenger) {
             lift = (float) Math.toRadians(8.0F);
+            sideLag = 0.0F;
         } else {
-            double d0 = Mth.lerp((double) partialTicks, player.xCloakO, player.xCloak)
-                    - Mth.lerp((double) partialTicks, player.xo, player.getX());
-            double d1 = Mth.lerp((double) partialTicks, player.yCloakO, player.yCloak)
-                    - Mth.lerp((double) partialTicks, player.yo, player.getY());
-            double d2 = Mth.lerp((double) partialTicks, player.zCloakO, player.zCloak)
-                    - Mth.lerp((double) partialTicks, player.zo, player.getZ());
-            float bodyYaw = Mth.rotLerp(partialTicks, player.yBodyRotO, player.yBodyRot);
-            float sin = Mth.sin(bodyYaw * (float) (Math.PI / 180.0D));
-            float back = -Mth.cos(bodyYaw * (float) (Math.PI / 180.0D));
-            float verticalLag = Mth.clamp((float) d1 * 10.0F, -6.0F, 20.0F);
-            float backwardLag = Mth.clamp((float) (d0 * sin + d2 * back) * 100.0F, 0.0F, 40.0F);
-            float sidewaysLag = Mth.clamp((float) (d0 * back - d2 * sin) * 100.0F, -16.0F, 16.0F);
+            float verticalLag = state.capeFlap;
+            float backwardLag = Mth.clamp(state.capeLean, 0.0F, 40.0F);
+            float sidewaysLag = state.capeLean2;
             lift = Mth.clamp(backwardLag / 260.0F + verticalLag / 500.0F, -0.05F, 0.16F);
             sideLag = sidewaysLag / 220.0F;
         }
