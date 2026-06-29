@@ -2,6 +2,8 @@ package net.creeperhost.minetogethercommunity.neoforge;
 
 import net.creeperhost.minetogethercommunity.MineTogether;
 import net.creeperhost.minetogethercommunity.chat.MineTogetherChat;
+import net.creeperhost.minetogethercommunity.compat.Integration;
+import net.creeperhost.minetogethercommunity.compat.ftbquests.FTBQuestsCompat;
 import net.creeperhost.minetogethercommunity.connect.DedicatedServerConnect;
 import net.creeperhost.minetogethercommunity.neoforge.datagen.DataGenEventHandler;
 import net.minecraft.server.level.ServerPlayer;
@@ -25,6 +27,7 @@ public class MineTogetherNeoForge {
         DataGenEventHandler.init(eventBus);
 
         if (FMLEnvironment.getDist().isClient()) {
+            Integration.runOptional("ftbquests", () -> FTBQuestsCompat::registerNeoForgeEvents);
             NeoForge.EVENT_BUS.addListener(this::clientInit);
             NeoForgeClientEvents.init(eventBus);
         } else {

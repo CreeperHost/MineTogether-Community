@@ -3,6 +3,8 @@ package net.creeperhost.minetogethercommunity.fabric;
 import net.creeperhost.minetogethercommunity.MineTogether;
 import net.creeperhost.minetogethercommunity.MineTogetherClient;
 import net.creeperhost.minetogethercommunity.chat.MineTogetherChat;
+import net.creeperhost.minetogethercommunity.compat.Integration;
+import net.creeperhost.minetogethercommunity.compat.ftbquests.FTBQuestsCompat;
 import net.creeperhost.minetogethercommunity.connect.DedicatedServerConnect;
 import net.fabricmc.api.EnvType;
 import net.fabricmc.api.ModInitializer;
@@ -29,6 +31,7 @@ public class MineTogetherFabric implements ModInitializer {
     }
 
     private void clientInit() {
+        Integration.runOptional("ftbquests", () -> FTBQuestsCompat::registerFabricEvents);
         ClientCommandRegistrationCallback.EVENT.register((dispatcher, registryAccess) -> MineTogetherClient.registerClientCommands(dispatcher));
         ScreenEvents.AFTER_INIT.register((client, screen, scaledWidth, scaledHeight) -> MineTogetherChat.onScreenPostInit(screen));
     }
