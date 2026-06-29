@@ -47,6 +47,7 @@ import net.minecraft.client.renderer.GlStateManager;
 import net.minecraft.client.settings.GameSettings;
 import net.minecraft.client.resources.I18n;
 import net.minecraft.server.integrated.IntegratedServer;
+import net.minecraft.util.ResourceLocation;
 import net.minecraft.util.text.TextFormatting;
 import net.minecraft.util.text.ITextComponent;
 import net.minecraftforge.client.event.ClientChatReceivedEvent;
@@ -97,6 +98,7 @@ public class ClientEvents {
     private int cosmeticScanTicks;
     private ChatActionPopup chatActionPopup;
     private long lastChatDrawDiagnostic;
+    private static boolean drawingChatControlsBeforeInput;
 
     @SubscribeEvent
     public void onKeyInput(InputEvent.KeyInputEvent event) {
@@ -366,6 +368,7 @@ public class ClientEvents {
         GuiScreen gui = event.gui;
         if (gui instanceof GuiChat && LocalConfig.instance().chatEnabled && !Minecraft.getMinecraft().gameSettings.hideGUI) {
             syncChatControlBounds(gui);
+            drawChatControlsBeforeInput(event);
         }
         if (!(gui instanceof GuiChat)
                 || !LocalConfig.instance().chatEnabled
@@ -384,6 +387,32 @@ public class ClientEvents {
         drawCentered(mc, I18n.format("minetogether.new_user.2"), x, y + 30, width, 0xCCCCCC);
         drawCentered(mc, I18n.format("minetogether.new_user.3"), x, y + 44, width, 0xCCCCCC);
         drawCentered(mc, I18n.format("minetogether.new_user.4", ChatStatistics.userCount), x, y + 60, width, 0xCCCCCC);
+    }
+
+    @SuppressWarnings("unchecked")
+    private void drawChatControlsBeforeInput(GuiScreenEvent.DrawScreenEvent.Pre event) {
+        try {
+            List<GuiButton> buttons = (List<GuiButton>) GUI_BUTTON_LIST.get(event.gui);
+            if (buttons == null) return;
+            Minecraft mc = Minecraft.getMinecraft();
+            drawingChatControlsBeforeInput = true;
+            try {
+                for (GuiButton button : buttons) {
+                    if (isPreInputChatControl(button)) {
+                        button.drawButton(mc, event.mouseX, event.mouseY);
+                    }
+                }
+            } finally {
+                drawingChatControlsBeforeInput = false;
+            }
+        } catch (IllegalAccessException ignored) {
+        }
+    }
+
+    private boolean isPreInputChatControl(GuiButton button) {
+        return button instanceof ChatTargetButton
+                || button instanceof CompactChatSlider
+                || button instanceof ChatSettingsButton;
     }
 
     @SubscribeEvent
@@ -643,7 +672,7 @@ public class ClientEvents {
         group.enabled = groupChat;
         event.buttonList.add(group);
 
-        event.buttonList.add(new IconButton(BUTTON_SETTINGS, layout.x, layout.settingsY, 12, 12, Constants.GEAR_BUTTON, I18n.format("minetogether.gui.button.settings.info")));
+        event.buttonList.add(new ChatSettingsButton(BUTTON_SETTINGS, layout.x, layout.settingsY, 12, 12, Constants.GEAR_BUTTON, I18n.format("minetogether.gui.button.settings.info")));
     }
 
     private String vanillaChatTargetLabel() {
@@ -1294,6 +1323,7 @@ public class ClientEvents {
 
         @Override
         public void drawButton(Minecraft mc, int mouseX, int mouseY) {
+            if (!drawingChatControlsBeforeInput) return;
             if (!(mc.currentScreen instanceof GuiChat)) {
                 visible = false;
                 return;
@@ -1334,6 +1364,18 @@ public class ClientEvents {
         }
     }
 
+    private static class ChatSettingsButton extends IconButton {
+        private ChatSettingsButton(int id, int x, int y, int width, int height, ResourceLocation sheet, String tooltip) {
+            super(id, x, y, width, height, sheet, tooltip);
+        }
+
+        @Override
+        public void drawButton(Minecraft mc, int mouseX, int mouseY) {
+            if (!drawingChatControlsBeforeInput) return;
+            super.drawButton(mc, mouseX, mouseY);
+        }
+    }
+
     private static class CompactChatSlider extends GuiButton {
         private final GameSettings.Options option;
         private boolean dragging;
@@ -1345,6 +1387,7 @@ public class ClientEvents {
 
         @Override
         public void drawButton(Minecraft mc, int mouseX, int mouseY) {
+            if (!drawingChatControlsBeforeInput) return;
             if (!(mc.currentScreen instanceof GuiChat)) {
                 visible = false;
                 return;
