@@ -8,25 +8,26 @@ import net.creeperhost.minetogethercommunity.connect.netty.NettyClient;
 import net.creeperhost.minetogether.session.JWebToken;
 import net.creeperhost.minetogether.session.MineTogetherSession;
 import net.minecraft.DefaultUncaughtExceptionHandler;
-import net.minecraft.Util;
+import net.minecraft.util.Util;
 import net.minecraft.client.Minecraft;
-import net.minecraft.client.gui.GuiGraphics;
+import net.minecraft.client.gui.GuiGraphicsExtractor;
 import net.minecraft.client.gui.components.Button;
-import net.minecraft.client.gui.components.Renderable;
 import net.minecraft.client.gui.screens.ConnectScreen;
 import net.minecraft.client.gui.screens.DisconnectedScreen;
 import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.client.multiplayer.ClientHandshakePacketListenerImpl;
+import net.minecraft.client.multiplayer.LevelLoadTracker;
 import net.minecraft.client.multiplayer.ServerData;
+import net.minecraft.client.multiplayer.TransferState;
 import net.minecraft.client.multiplayer.chat.report.ReportEnvironment;
 import net.minecraft.client.quickplay.QuickPlayLog;
 import net.minecraft.client.server.LanServer;
 import net.minecraft.network.chat.CommonComponents;
 import net.minecraft.network.chat.Component;
+import net.minecraft.network.protocol.login.LoginProtocols;
 import net.minecraft.network.protocol.login.ServerboundHelloPacket;
 import org.slf4j.Logger;
 
-import java.time.Duration;
 import java.util.concurrent.atomic.AtomicInteger;
 
 
@@ -45,7 +46,7 @@ public class FriendConnectScreen extends ConnectScreen {
 
     public static void startConnecting(Screen screen, Minecraft minecraft, RemoteServer server, LanServer serverData) {
         FriendConnectScreen connectScreen = new FriendConnectScreen(screen);
-        minecraft.disconnect();
+        minecraft.disconnectWithProgressScreen(false);
         minecraft.prepareForMultiplayer();
         minecraft.updateReportEnvironment(ReportEnvironment.thirdParty(serverData.getAddress()));
         minecraft.quickPlayLog().setWorldData(QuickPlayLog.Type.MULTIPLAYER, serverData.getAddress(), "MT Friend Server"); //< TODO Ideally we want the world or the friend name here
@@ -66,8 +67,11 @@ public class FriendConnectScreen extends ConnectScreen {
                         connection = NettyClient.connect(endpoint, token, server.serverToken, minecraft.getDebugOverlay().getBandwidthLogger(), false);
                         connection.initiateServerboundPlayConnection(
                                 endpoint.address(),
-                                endpoint.proxyPort(),                                        //TODO This v may break....
-                                new ClientHandshakePacketListenerImpl(connection, minecraft, new ServerData("", "", ServerData.Type.OTHER), parent, false, (Duration) null, FriendConnectScreen.this::updateStatus, null)
+                                endpoint.proxyPort(),
+                                LoginProtocols.SERVERBOUND,
+                                LoginProtocols.CLIENTBOUND,
+                                new ClientHandshakePacketListenerImpl(connection, minecraft, new ServerData("", "", ServerData.Type.OTHER), parent, false, null, FriendConnectScreen.this::updateStatus, new LevelLoadTracker(), (TransferState) null),
+                                false
                         );
                         connection.send(new ServerboundHelloPacket(minecraft.getUser().getName(), minecraft.getUser().getProfileId()));
                     }
@@ -125,18 +129,15 @@ public class FriendConnectScreen extends ConnectScreen {
         );
     }
 
-    public void render(GuiGraphics graphics, int i, int j, float f) {
-        renderBackground(graphics, i, j, f);
+    @Override
+    public void extractRenderState(GuiGraphicsExtractor graphics, int i, int j, float f) {
+        super.extractRenderState(graphics, i, j, f);
         long l = Util.getMillis();
         if (l - lastNarration > 2000L) {
             lastNarration = l;
-            minecraft.getNarrator().sayNow(Component.translatable("narrator.joining"));
+            minecraft.getNarrator().saySystemNow(Component.translatable("narrator.joining"));
         }
 
-        graphics.drawCenteredString(font, status, width / 2, height / 2 - 50, 16777215);
-
-        for (Renderable renderable : this.renderables) {
-            renderable.render(graphics, i, j, f);
-        }
+        graphics.centeredText(font, status, width / 2, height / 2 - 50, 16777215);
     }
 }

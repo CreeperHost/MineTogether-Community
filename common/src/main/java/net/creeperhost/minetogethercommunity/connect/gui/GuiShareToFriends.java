@@ -18,7 +18,7 @@ import net.creeperhost.polylib.client.modulargui.lib.GuiProvider;
 import net.creeperhost.polylib.client.modulargui.lib.SliderState;
 import net.creeperhost.polylib.client.modulargui.lib.geometry.Axis;
 import net.minecraft.ChatFormatting;
-import net.minecraft.Util;
+import net.minecraft.util.Util;
 import net.minecraft.client.gui.screens.ConfirmLinkScreen;
 import net.minecraft.client.server.IntegratedServer;
 import net.minecraft.network.chat.CommonComponents;
@@ -222,7 +222,7 @@ public class GuiShareToFriends implements GuiProvider {
 
     private void openWorld(ModularGui gui) {
         gui.mc().setScreen(null);
-        gui.mc().gui.getChat().addMessage(Component.translatable("minetogether.connect.open.attempting"));
+        gui.mc().gui.getChat().addClientSystemMessage(Component.translatable("minetogether.connect.open.attempting"));
         ConnectHandler.publishToFriends(gameMode, commands, getPlayersSetting());
     }
 

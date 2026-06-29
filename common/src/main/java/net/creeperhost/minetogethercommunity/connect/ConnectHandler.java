@@ -1,33 +1,25 @@
 package net.creeperhost.minetogethercommunity.connect;
 
 import com.google.common.util.concurrent.ThreadFactoryBuilder;
-import com.google.gson.Gson;
-import net.covers1624.quack.collection.FastStream;
-import net.covers1624.quack.gson.JsonUtils;
-import net.creeperhost.minetogether.lib.web.requests.GetClosestDCRequest;
-import net.creeperhost.minetogethercommunity.MineTogether;
 import net.creeperhost.minetogethercommunity.chat.MineTogetherChat;
 import net.creeperhost.minetogether.connect.lib.netty.packet.CFriendServers;
-import net.creeperhost.minetogether.connect.lib.web.GetConnectServersRequest;
+import net.creeperhost.minetogethercommunity.connect.netty.HostNettyClient;
 import net.creeperhost.minetogethercommunity.connect.netty.NettyClient;
 import net.creeperhost.minetogether.lib.chat.profile.Profile;
 import net.creeperhost.minetogether.lib.chat.profile.ProfileManager;
-import net.creeperhost.minetogether.lib.web.ApiClientResponse;
 import net.creeperhost.minetogether.session.JWebToken;
 import net.creeperhost.minetogether.session.MineTogetherSession;
-import net.creeperhost.minetogethercommunity.util.ModPackInfo;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.server.IntegratedServer;
 import net.minecraft.network.chat.Component;
 import net.minecraft.server.level.ServerPlayer;
+import net.minecraft.server.permissions.PermissionSet;
 import net.minecraft.world.level.GameType;
-import org.apache.commons.lang3.NotImplementedException;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.jetbrains.annotations.Nullable;
 
 import java.io.IOException;
-import java.nio.file.Path;
 import java.util.*;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutorService;
@@ -46,106 +38,20 @@ public class ConnectHandler {
     private static long lastSearch = 0;
     private static CompletableFuture<?> activeSearch = null;
     private static List<CFriendServers.ServerEntry> searchResult = null;
-    private static int defaultMaxPlayers = 8;
-
-    // Useful for testing, can connect to specific node.
-    private static final String FORCED_NODE = System.getProperty("connect.node");
-    // Useful for testing, can force the use of a host list json. Running node mesh locally, for example.
-    @Nullable
-    private static final String NODE_HOSTS_OVERRIDE = System.getProperty("connect.mesh.hosts");
-    private static final Gson GSON = new Gson();
-
-    @Nullable
-    private static ConnectHost endpoint;
+    private static int publishedMaxPlayers = -1;
 
     private static boolean didWeShareFirst = false;
-    private static NettyClient.ProxyConnection publishedServer;
+    private static HostNettyClient.HostConnection publishedServer;
 
     public static void init() {
     }
 
     public static ConnectHost getEndpoint() {
-        if (endpoint == null) {
-            GetConnectServersRequest.ConnectServer node = chooseServer();
-            LOGGER.info("Selected MTConnect server: " + node.name);
-
-            endpoint = new ConnectHost(node);
-        }
-        return endpoint;
+        return ConnectServices.getEndpoint();
     }
 
     public static ConnectHost getSpecificEndpoint(@Nullable String node) throws IOException {
-        if (node == null) {
-            return getEndpoint();
-        }
-
-        List<GetConnectServersRequest.ConnectServer> servers = pollServers();
-        if (servers == null || servers.isEmpty()) {
-            throw new IllegalStateException("No server list returned.");
-        }
-        GetConnectServersRequest.ConnectServer server = FastStream.of(servers)
-                .filter(e -> e.name.equals(node))
-                .firstOrDefault();
-        if (server == null) {
-            throw new IllegalStateException("Did not find node with id: " + node);
-        }
-        return new ConnectHost(server);
-    }
-
-    private static GetConnectServersRequest.ConnectServer chooseServer() {
-        if (Boolean.getBoolean("mt.develop.connect")) {
-            return GetConnectServersRequest.ConnectServer.getLocalHost();
-        }
-        try {
-            List<GetConnectServersRequest.ConnectServer> servers = pollServers();
-            if (servers == null || servers.isEmpty()) {
-                // TODO, this needs to gracefully fail as noted bellow.
-                LOGGER.warn("No MTConnect nodes found.. :(");
-                throw new NotImplementedException();
-            }
-
-            if (FORCED_NODE != null) {
-                return FastStream.of(servers)
-                        .filter(e -> e.name.equals(FORCED_NODE))
-                        .first();
-            }
-
-            GetConnectServersRequest.ConnectServer first = servers.get(0);
-
-            ApiClientResponse<GetClosestDCRequest.Response> closestDCResponse = MineTogether.API.execute(new GetClosestDCRequest());
-            if (!closestDCResponse.hasBody()) {
-                LOGGER.error("Failed to get Closest DC locations. Using first server: {}", first.name);
-                return first;
-            }
-
-            for (GetClosestDCRequest.DataCenter dc : closestDCResponse.apiResponse().getDataCenters()) {
-                for (GetConnectServersRequest.ConnectServer server : servers) {
-                    if (server.location.equals(dc.getName())) {
-                        LOGGER.info("Selected server {}. Closest DC was {}.", server.name, dc.getName());
-                        return server;
-                    }
-                }
-            }
-
-            LOGGER.info("Could not select a server. Using first server: {}", first.name);
-            return first;
-        } catch (IOException ex) {
-            // TODO, this needs to gracefully fail, getEndpoint likely needs to return null, and isEnabled needs to return false.
-            throw new NotImplementedException("TODO, Implement exception handling for this:", ex);
-        }
-    }
-
-    @Nullable
-    private static List<GetConnectServersRequest.ConnectServer> pollServers() throws IOException {
-        if (NODE_HOSTS_OVERRIDE != null) {
-            return JsonUtils.parse(GSON, Path.of(NODE_HOSTS_OVERRIDE), GetConnectServersRequest.LIST_SERVERS);
-        }
-        ApiClientResponse<List<GetConnectServersRequest.ConnectServer>> apiResp = MineTogether.API.execute(new GetConnectServersRequest());
-        if (apiResp.statusCode() != 200) {
-            LOGGER.error("Failed to query node list. Got: {}", apiResp.statusCode());
-            return null;
-        }
-        return apiResp.apiResponse();
+        return ConnectServices.getSpecificEndpoint(node);
     }
 
     public static boolean isEnabled() {
@@ -157,8 +63,7 @@ public class ConnectHandler {
         Minecraft mc = Minecraft.getInstance();
         IntegratedServer server = mc.getSingleplayerServer();
         if (server == null) return;
-        defaultMaxPlayers = server.getPlayerList().maxPlayers;
-        server.getPlayerList().maxPlayers = Math.min(2, maxPlayers); //Set to the minimum, here, later it may be increased as appropriate inside NettyClient.publishServer
+        setPublishedMaxPlayers(Math.min(2, maxPlayers)); // Set to the minimum; the proxy may raise this after it reports the account cap.
         mc.prepareForMultiplayer();
 
         if (server.isPublished()) {
@@ -169,7 +74,9 @@ public class ConnectHandler {
         }
         server.publishedGameType = gameType;
         server.getPlayerList().setAllowCommandsForAllPlayers(cheats);
-        mc.player.setPermissionLevel(server.getProfilePermissions(mc.player.getGameProfile()));
+        PermissionSet permissions = server.getProfilePermissions(mc.player.nameAndId());
+        mc.player.setPermissions(permissions);
+        mc.player.refreshChatAbilities();
 
         for (ServerPlayer player : server.getPlayerList().getPlayers()) {
             server.getCommands().sendCommands(player);
@@ -180,7 +87,7 @@ public class ConnectHandler {
                 JWebToken token = MineTogetherSession.getDefault().getTokenAsync().get();
                 publishedServer = NettyClient.publishServer(server, getEndpoint(), token, getModpackKey(), maxPlayers);
             } catch (Exception e) {
-                Minecraft.getInstance().gui.getChat().addMessage(Component.translatable("minetogether.connect.open.failed", e.getMessage()));
+                Minecraft.getInstance().gui.getChat().addClientSystemMessage(Component.translatable("minetogether.connect.open.failed", e.getMessage()));
                 LOGGER.error("Failed to open to friends", e);
                 unPublish();
             }
@@ -190,6 +97,7 @@ public class ConnectHandler {
     public static void unPublish() {
         Minecraft mc = Minecraft.getInstance();
         IntegratedServer server = mc.getSingleplayerServer();
+        setPublishedMaxPlayers(-1);
         if (server == null) return;
         // This will yeet the control socket, which, should cause the proxy to sever all other connections.
         if (publishedServer != null) {
@@ -201,11 +109,18 @@ public class ConnectHandler {
             server.publishedPort = -1;
             server.publishedGameType = null;
         }
-        server.getPlayerList().maxPlayers = Math.max(defaultMaxPlayers, 8);
     }
 
     public static boolean isPublished() {
         return publishedServer != null;
+    }
+
+    public static int getPublishedMaxPlayers() {
+        return publishedMaxPlayers;
+    }
+
+    public static void setPublishedMaxPlayers(int maxPlayers) {
+        publishedMaxPlayers = maxPlayers;
     }
 
     public static void updateFriendsSearch() {
@@ -268,6 +183,6 @@ public class ConnectHandler {
     }
 
     private static @Nullable String getModpackKey() {
-        return ModPackInfo.getInfo().getConnectPackKey();
+        return ConnectServices.getModpackKey();
     }
 }

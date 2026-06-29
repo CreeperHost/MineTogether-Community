@@ -1,12 +1,10 @@
 package net.creeperhost.minetogethercommunity.connect;
 
-import dev.architectury.event.events.client.ClientGuiEvent;
-import dev.architectury.hooks.client.screen.ScreenAccess;
-import dev.architectury.hooks.client.screen.ScreenHooks;
 import net.creeperhost.minetogethercommunity.config.Config;
 import net.creeperhost.minetogethercommunity.connect.gui.ConnectPackSelectionScreen;
 import net.creeperhost.minetogethercommunity.connect.gui.GuiShareToFriends;
 import net.creeperhost.polylib.client.screen.ButtonHelper;
+import net.creeperhost.polylib.event.events.client.PolyScreenEvents;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.components.AbstractWidget;
 import net.minecraft.client.gui.components.Button;
@@ -29,10 +27,10 @@ public class MineTogetherConnect {
         isInitted = true;
         ConnectHandler.init();
 
-        ClientGuiEvent.INIT_POST.register(MineTogetherConnect::onScreenOpen);
+        PolyScreenEvents.SCREEN_OPENED.register(MineTogetherConnect::onScreenOpen);
     }
 
-    private static void onScreenOpen(Screen screen, ScreenAccess screenAccess) {
+    private static void onScreenOpen(Minecraft client, Screen screen, int scaledWidth, int scaledHeight) {
         if (screen instanceof TitleScreen) {
             ConnectPackSelectionScreen.promptIfNeeded(screen);
             return;
@@ -56,8 +54,8 @@ public class MineTogetherConnect {
 
         @SuppressWarnings ("unchecked")
         List<GuiEventListener> children = (List<GuiEventListener>) screen.children();
-        List<Renderable> renderables = screenAccess.getRenderables();
-        List<NarratableEntry> narratables = screenAccess.getNarratables();
+        List<Renderable> renderables = screen.renderables;
+        List<NarratableEntry> narratables = screen.narratables;
 
         AbstractWidget feedBack = ButtonHelper.findButton("menu.sendFeedback", screen);
         AbstractWidget options = ButtonHelper.findButton("menu.options", screen);
@@ -67,7 +65,7 @@ public class MineTogetherConnect {
             Button openToFriends = Button.builder(buttonText, action)
                     .bounds(screen.width - 105, 25, 100, 20)
                     .build();
-            ScreenHooks.addRenderableWidget(screen, openToFriends);
+            screen.addRenderableWidget(openToFriends);
             return;
         }
 
@@ -75,7 +73,7 @@ public class MineTogetherConnect {
         Button openToFriends = Button.builder(buttonText, action)
                 .bounds(options.getX(), options.getY(), 98, 20)
                 .build();
-        ScreenHooks.addRenderableWidget(screen, openToFriends);
+        screen.addRenderableWidget(openToFriends);
 
         // Move the options button to where the feedback button was.
         options.setY(feedBack.getY());

@@ -46,7 +46,7 @@ public class ConnectPackSelectionScreen implements GuiProvider {
             return;
         }
         promptShown = true;
-        Minecraft.getInstance().tell(() -> Minecraft.getInstance().setScreen(new Screen(parent)));
+        Minecraft.getInstance().execute(() -> Minecraft.getInstance().setScreen(new Screen(parent)));
     }
 
     @Override

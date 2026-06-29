@@ -109,6 +109,9 @@ public class Config {
     @Comment ("Enables dumping all MTConnect packets to logs.")
     public boolean dumpConnectPackets = false;
 
+    @Comment ("Dedicated server MineTogether Connect mode. Valid values: off, auto, on.")
+    public String dedicatedServerConnect = "auto";
+
     @Comment ("If pause screen buttons are enabled.")
     public boolean pauseScreenButtons = true;
 

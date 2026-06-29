@@ -2,9 +2,6 @@ package net.creeperhost.minetogethercommunity.connect.netty;
 
 import io.netty.bootstrap.Bootstrap;
 import io.netty.channel.*;
-import io.netty.channel.epoll.Epoll;
-import io.netty.channel.epoll.EpollSocketChannel;
-import io.netty.channel.socket.nio.NioSocketChannel;
 import io.netty.handler.timeout.ReadTimeoutHandler;
 import net.covers1624.quack.util.SneakyUtils;
 import net.creeperhost.minetogethercommunity.MineTogetherPlatform;
@@ -22,6 +19,7 @@ import net.minecraft.client.server.IntegratedServer;
 import net.minecraft.network.*;
 import net.minecraft.network.chat.Component;
 import net.minecraft.network.protocol.PacketFlow;
+import net.minecraft.server.network.EventLoopGroupHolder;
 import net.minecraft.server.network.LegacyQueryHandler;
 import net.minecraft.server.network.ServerConnectionListener;
 import net.minecraft.server.network.ServerHandshakePacketListenerImpl;
@@ -37,7 +35,6 @@ import javax.crypto.SecretKey;
 import java.io.IOException;
 import java.security.SecureRandom;
 import java.util.concurrent.TimeUnit;
-import java.util.function.Supplier;
 
 /**
  * Created by covers1624 on 24/4/23.
@@ -46,92 +43,39 @@ public class NettyClient {
 
     private static final Logger LOGGER = LogManager.getLogger();
 
-    public static ProxyConnection publishServer(IntegratedServer server, ConnectHost endpoint, JWebToken session, @Nullable String modpackKey, int maxPlayers) {
-        Throwable[] error = new Throwable[1];
-        ProxyConnection connection = new ProxyConnection(endpoint) {
-
-            private boolean disconnectRequested = false;
-
+    public static HostNettyClient.HostConnection publishServer(IntegratedServer server, ConnectHost endpoint, JWebToken session, @Nullable String modpackKey, int maxPlayers) {
+        return HostNettyClient.publishServer(server, endpoint, session, modpackKey, maxPlayers, new HostNettyClient.HostListener() {
             @Override
-            public void channelReady() {
-                super.channelReady();
-                sendPacket(new SHostRegister(session.toString(), modpackKey));
+            public void onAccepted() {
+                Minecraft.getInstance().gui.getChat().addClientSystemMessage(Component.translatable("minetogether.connect.open.success"));
             }
 
             @Override
             public void onDisconnected(String message) {
-                error[0] = new IOException("Failed to host server: " + message);
-                synchronized (error) {
-                    error.notifyAll();
-                }
-                Minecraft.getInstance().gui.getChat().addMessage(Component.translatable("minetogether.connect.open.failed", message));
+                Minecraft.getInstance().gui.getChat().addClientSystemMessage(Component.translatable("minetogether.connect.open.failed", message));
                 ConnectHandler.unPublish();
             }
 
             @Override
-            public void channelInactive(@NotNull ChannelHandlerContext ctx) throws Exception {
-                super.channelInactive(ctx);
+            public void onChannelInactive(boolean disconnectRequested) {
                 if (disconnectRequested) {
-                    Minecraft.getInstance().gui.getChat().addMessage(Component.translatable("minetogether.connect.open.proxy.closed"));
+                    Minecraft.getInstance().gui.getChat().addClientSystemMessage(Component.translatable("minetogether.connect.open.proxy.closed"));
                 } else {
-                    Minecraft.getInstance().gui.getChat().addMessage(Component.translatable("minetogether.connect.open.proxy.disconnect").withStyle(ChatFormatting.RED));
+                    Minecraft.getInstance().gui.getChat().addClientSystemMessage(Component.translatable("minetogether.connect.open.proxy.disconnect").withStyle(ChatFormatting.RED));
                     ConnectHandler.unPublish();
                 }
             }
 
             @Override
-            public void handleAccepted(ChannelHandlerContext ctx, CAccepted cAccepted) {
-                super.handleAccepted(ctx, cAccepted);
-                synchronized (error) {
-                    error.notifyAll();
-                }
-                Minecraft.getInstance().gui.getChat().addMessage(Component.translatable("minetogether.connect.open.success"));
+            public void onMaxPlayers(int playerCap, int proxyMaxPlayers) {
+                ConnectHandler.setPublishedMaxPlayers(playerCap);
             }
 
             @Override
-            public void handleMaxPlayers(ChannelHandlerContext channelHandlerContext, CMaxPlayers cMaxPlayers) {
-                int playerCap = cMaxPlayers.maxPlayers > 0 ? cMaxPlayers.maxPlayers : Integer.MAX_VALUE;
-                server.getPlayerList().maxPlayers = Math.min(playerCap, maxPlayers);
+            public void onMessage(String message) {
+                Minecraft.getInstance().gui.getChat().addClientSystemMessage(Component.literal("[MTConnect Broadcast] " + message));
             }
-
-            @Override
-            public void handleServerLink(ChannelHandlerContext ctx, CServerLink packet) {
-                link(server, endpoint, session, packet.linkToken);
-            }
-
-            @Override
-            public void disconnect() {
-                if (disconnectRequested) return;
-                disconnectRequested = true;
-                // TODO, we should send a packet to the proxy and nicely kick all clients with a 'Host closed the game' message or something.
-                channel.close();
-            }
-        };
-        ChannelFuture channelFuture = openConnection(
-                endpoint,
-                connection,
-                ServerConnectionListener.SERVER_EPOLL_EVENT_GROUP::get,
-                ServerConnectionListener.SERVER_EVENT_GROUP::get
-        );
-
-        synchronized (error) {
-            try {
-                error.wait();
-            } catch (InterruptedException ex) {
-                throw new RuntimeException("Interrupted whilst waiting.", ex);
-            }
-        }
-        if (error[0] != null) {
-            SneakyUtils.throwUnchecked(error[0]);
-        }
-
-        ServerConnectionListener listener = server.getConnection();
-        assert listener != null;
-
-        synchronized (listener.channels) {
-            listener.channels.add(channelFuture);
-        }
-        return connection;
+        });
     }
 
     public static int getMaxPlayers(ConnectHost endpoint, JWebToken session) throws IOException {
@@ -167,8 +111,7 @@ public class NettyClient {
         ChannelFuture channelFuture = openConnection(
                 endpoint,
                 connection,
-                Connection.NETWORK_EPOLL_WORKER_GROUP::get,
-                Connection.NETWORK_WORKER_GROUP::get
+                Minecraft.getInstance().options.useNativeTransport()
         );
 
         synchronized (error) {
@@ -236,8 +179,7 @@ public class NettyClient {
         ChannelFuture channelFuture = openConnection(
                 endpoint,
                 proxyConnection,
-                Connection.NETWORK_EPOLL_WORKER_GROUP::get,
-                Connection.NETWORK_WORKER_GROUP::get
+                Minecraft.getInstance().options.useNativeTransport()
         );
 
         synchronized (error) {
@@ -291,8 +233,7 @@ public class NettyClient {
         ChannelFuture channelFuture = openConnection(
                 endpoint,
                 proxyConnection,
-                ServerConnectionListener.SERVER_EPOLL_EVENT_GROUP::get,
-                ServerConnectionListener.SERVER_EVENT_GROUP::get
+                server.useNativeTransport()
         );
 
         // TODO, I _BELIEVE_ this is not required..
@@ -337,8 +278,7 @@ public class NettyClient {
         ChannelFuture channelFuture = openConnection(
                 endpoint,
                 connection,
-                Connection.NETWORK_EPOLL_WORKER_GROUP::get,
-                Connection.NETWORK_WORKER_GROUP::get
+                Minecraft.getInstance().options.useNativeTransport()
         );
 
         synchronized (error) {
@@ -361,19 +301,13 @@ public class NettyClient {
         }
     }
 
-    private static ChannelFuture openConnection(ConnectHost endpoint, ProxyConnection connection, Supplier<EventLoopGroup> epollGroup, Supplier<EventLoopGroup> nioGroup) {
-        EventLoopGroup eventGroup;
-        Class<? extends Channel> channelClass;
-        if (Epoll.isAvailable()) {
-            eventGroup = epollGroup.get();
-            channelClass = EpollSocketChannel.class;
-        } else {
-            eventGroup = nioGroup.get();
-            channelClass = NioSocketChannel.class;
-        }
+    @SuppressWarnings("unchecked")
+    private static ChannelFuture openConnection(ConnectHost endpoint, ProxyConnection connection, boolean useNativeTransport) {
+        EventLoopGroupHolder eventLoopGroupHolder = EventLoopGroupHolder.remote(useNativeTransport);
+        Class<? extends Channel> channelClass = (Class<? extends Channel>) eventLoopGroupHolder.channelCls();
 
         return new Bootstrap()
-                .group(eventGroup)
+                .group(eventLoopGroupHolder.eventLoopGroup())
                 .channel(channelClass)
                 .handler(new ChannelInitializer<>() {
                     @Override
@@ -490,7 +424,7 @@ public class NettyClient {
 
         @Override
         public void handleMessage(ChannelHandlerContext ctx, CMessage packet) {
-            Minecraft.getInstance().gui.getChat().addMessage(Component.literal("[MTConnect Broadcast] " + packet.message));
+            Minecraft.getInstance().gui.getChat().addClientSystemMessage(Component.literal("[MTConnect Broadcast] " + packet.message));
         }
     }
 }

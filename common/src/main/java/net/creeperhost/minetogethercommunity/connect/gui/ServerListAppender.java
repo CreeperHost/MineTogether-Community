@@ -1,7 +1,6 @@
 package net.creeperhost.minetogethercommunity.connect.gui;
 
 import com.google.common.collect.Lists;
-import com.mojang.authlib.GameProfile;
 import net.creeperhost.minetogethercommunity.connect.ConnectHandler;
 import net.creeperhost.minetogethercommunity.connect.ConnectHost;
 import net.creeperhost.minetogethercommunity.connect.RemoteServer;
@@ -10,7 +9,7 @@ import net.creeperhost.minetogether.lib.chat.profile.Profile;
 import net.creeperhost.minetogether.session.JWebToken;
 import net.creeperhost.minetogether.session.MineTogetherSession;
 import net.minecraft.ChatFormatting;
-import net.minecraft.Util;
+import net.minecraft.util.Util;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.screens.multiplayer.JoinMultiplayerScreen;
 import net.minecraft.client.gui.screens.multiplayer.ServerSelectionList;
@@ -24,6 +23,7 @@ import net.minecraft.network.protocol.status.ClientStatusPacketListener;
 import net.minecraft.network.protocol.status.ClientboundStatusResponsePacket;
 import net.minecraft.network.protocol.status.ServerStatus;
 import net.minecraft.network.protocol.status.ServerboundStatusRequestPacket;
+import net.minecraft.server.players.NameAndId;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.jetbrains.annotations.Nullable;
@@ -113,13 +113,8 @@ public class ServerListAppender {
         removeAll();
     }
 
-    //Add entries to server list, Called from the end of ServerSelectionList#refreshEntries
-    public void addEntries() {
-        if (serverList == null) return;
-//        serverList.addEntry(new FriendsHeader());
-        for (FriendServerEntry entry : serverEntries.values()) {
-            serverList.addEntry(entry);
-        }
+    public Collection<FriendServerEntry> getEntries() {
+        return serverEntries.values();
     }
 
     public void pingServer(RemoteServer server, Profile profile) throws Exception {
@@ -160,14 +155,14 @@ public class ServerListAppender {
                     serverStatus.players().ifPresentOrElse(players -> {
                         server.status = formatPlayerCount(players.online(), players.max());
                         List<Component> list = Lists.newArrayList();
-                        List<GameProfile> gameProfiles = players.sample();
-                        if (!gameProfiles.isEmpty()) {
-                            for (GameProfile gameProfile : gameProfiles) {
-                                list.add(Component.literal(gameProfile.getName()));
+                        List<NameAndId> names = players.sample();
+                        if (!names.isEmpty()) {
+                            for (NameAndId nameAndId : names) {
+                                list.add(Component.literal(nameAndId.name()));
                             }
 
-                            if (gameProfiles.size() < players.online()) {
-                                list.add(Component.translatable("multiplayer.status.and_more", players.online() - gameProfiles.size()));
+                            if (names.size() < players.online()) {
+                                list.add(Component.translatable("multiplayer.status.and_more", players.online() - names.size()));
                             }
 
                             server.playerList = list;

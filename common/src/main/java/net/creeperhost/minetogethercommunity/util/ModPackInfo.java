@@ -3,11 +3,11 @@ package net.creeperhost.minetogethercommunity.util;
 import com.google.common.util.concurrent.ThreadFactoryBuilder;
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
-import dev.architectury.platform.Platform;
 import net.covers1624.quack.gson.JsonUtils;
 import net.creeperhost.minetogether.lib.web.requests.GetCurseForgeVersionRequest;
 import net.creeperhost.minetogether.lib.web.requests.GetModpacksCHVersionRequest;
 import net.creeperhost.minetogethercommunity.MineTogether;
+import net.creeperhost.minetogethercommunity.MineTogetherPlatform;
 import net.creeperhost.minetogethercommunity.config.LocalConfig;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.commons.lang3.math.NumberUtils;
@@ -128,8 +128,8 @@ public class ModPackInfo {
         }
 
         public VersionInfo init() {
-            Path versionJson = Platform.getGameFolder().resolve("version.json");
-            Path versionJsonNew = Platform.getGameFolder().resolve("instance.json");
+            Path versionJson = MineTogetherPlatform.getGameFolder().resolve("version.json");
+            Path versionJsonNew = MineTogetherPlatform.getGameFolder().resolve("instance.json");
 
             if (!(allowManualOverride && applyManualOverride()) && !readAuxiliumMetadata()) {
                 if (!readVersionJson(versionJson)) {
@@ -155,7 +155,7 @@ public class ModPackInfo {
         }
 
         private boolean readAuxiliumMetadata() {
-            Path auxilium = Platform.getConfigFolder().resolve("metadata.json");
+            Path auxilium = MineTogetherPlatform.getConfigFolder().resolve("metadata.json");
             if (Files.exists(auxilium)) {
                 try {
                     Auxilium aux = JsonUtils.parse(GSON, auxilium, Auxilium.class);
@@ -250,7 +250,7 @@ public class ModPackInfo {
 
         private void tryParseLauncherFiles() {
             //Curse App
-            Path instanceJson = Platform.getGameFolder().resolve("instance.json");
+            Path instanceJson = MineTogetherPlatform.getGameFolder().resolve("instance.json");
             if (Files.exists(instanceJson)) {
                 try {
                     FTBInstance instance = JsonUtils.parse(GSON, instanceJson, FTBInstance.class);
@@ -270,7 +270,7 @@ public class ModPackInfo {
             }
 
             //Curse Launcher
-            Path versionJson = Platform.getGameFolder().resolve("minecraftinstance.json");
+            Path versionJson = MineTogetherPlatform.getGameFolder().resolve("minecraftinstance.json");
             if (Files.exists(versionJson)) {
                 try {
                     CurseInstance instance = JsonUtils.parse(GSON, versionJson, CurseInstance.class);
@@ -290,7 +290,7 @@ public class ModPackInfo {
             }
 
             //Prism
-            Path instanceCfg = Platform.getGameFolder().getParent().resolve("instance.cfg");
+            Path instanceCfg = MineTogetherPlatform.getGameFolder().getParent().resolve("instance.cfg");
             if (Files.exists(instanceCfg)) {
                 try (BufferedReader reader = new BufferedReader(new InputStreamReader(Files.newInputStream(instanceCfg)))){
                     String line;
