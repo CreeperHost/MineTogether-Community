@@ -1,13 +1,12 @@
 package net.creeperhost.minetogethercommunity.polylib.gui;
 
-import com.mojang.blaze3d.systems.RenderSystem;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.Font;
-import net.minecraft.client.gui.GuiGraphics;
+import net.minecraft.client.gui.GuiGraphicsExtractor;
 import net.minecraft.client.gui.components.Button;
+import net.minecraft.client.input.MouseButtonEvent;
 import net.minecraft.network.chat.Component;
 import net.minecraft.util.Mth;
-import org.joml.Quaternionf;
 
 import java.util.function.Consumer;
 import java.util.function.Function;
@@ -138,19 +137,21 @@ public class SlideButton extends Button {
 //    }
 
     @Override
-    public void onClick(double mouseX, double mouseY) {
+    public void onClick(MouseButtonEvent event, boolean doubleClick) {
         if (!isEnabled()) return;
         dragging = true;
         int endOffset = width / 20;
         rangeLeft = getX() + endOffset;
         rangeRight = getX() + width - endOffset;
         prevValue = valueGetter.get();
-        updateDrag(mouseX);
+        updateDrag(event.x());
     }
 
     @Override
-    public boolean mouseDragged(double mouseX, double mouseY, int i, double f, double g) {
+    public boolean mouseDragged(MouseButtonEvent event, double f, double g) {
         if (!dragging) return false;
+        double mouseX = event.x();
+        double mouseY = event.y();
         if (mouseY < getY() - 50 || mouseY > getY() + height + 50) {
             valueSetter.accept(prevValue);
             nextValue = prevValue;
@@ -163,7 +164,7 @@ public class SlideButton extends Button {
     }
 
     @Override
-    public boolean mouseReleased(double d, double e, int i) {
+    public boolean mouseReleased(MouseButtonEvent event) {
         if (dragging) {
             dragging = false;
             onRelease.run();
@@ -172,7 +173,7 @@ public class SlideButton extends Button {
             }
         }
 
-        return super.mouseReleased(d, e, i);
+        return super.mouseReleased(event);
     }
 
     private void updateDrag(double mouseX) {
@@ -186,7 +187,7 @@ public class SlideButton extends Button {
     }
 
     @Override
-    public void renderWidget(GuiGraphics graphics, int mouseX, int mouseY, float partialTicks) {
+    protected void extractContents(GuiGraphicsExtractor graphics, int mouseX, int mouseY, float partialTicks) {
         if (!isEnabled()) return;
         int textColor = 0xFFFFFF;
         int fillColor = 0x80000000;
@@ -196,7 +197,6 @@ public class SlideButton extends Button {
             sliderColor = 0xFFA0A0A0;
         }
 
-        RenderSystem.setShaderColor(1.0F, 1.0F, 1.0F, 1.0F);
         graphics.fill(getX(), getY(), getX() + width, getY() + height, fillColor);
 
         int slideWidth = width / 10;
@@ -217,19 +217,18 @@ public class SlideButton extends Button {
             lWidth = font.width(getMessage()) * scale;
         }
 
-        graphics.pose().pushPose();
+        graphics.pose().pushMatrix();
         if (verticalText) {
-            graphics.pose().translate(getX() + lHeight + (width / 2D) - (lHeight / 2D), getY() + (height / 2D) - (lWidth / 2D), 0);
-            graphics.pose().mulPose(new Quaternionf().rotationXYZ(0F, 0F, 90F * 0.017453292F));
+            graphics.pose().translate((float) (getX() + lHeight + (width / 2D) - (lHeight / 2D)), (float) (getY() + (height / 2D) - (lWidth / 2D)));
+            graphics.pose().rotate((float) Math.toRadians(90F));
         } else {
-            graphics.pose().translate(getX() + (width / 2D) - (lWidth / 2D), getY() + (height / 2D) - (lHeight / 2D), 0);
+            graphics.pose().translate((float) (getX() + (width / 2D) - (lWidth / 2D)), (float) (getY() + (height / 2D) - (lHeight / 2D)));
         }
 
-        graphics.pose().scale(scale, scale, 1);
+        graphics.pose().scale(scale, scale);
 
-        graphics.drawString(font, getMessage(), 0, 0, textColor);
-        graphics.flush();
+        graphics.text(font, getMessage(), 0, 0, textColor);
 
-        graphics.pose().popPose();
+        graphics.pose().popMatrix();
     }
 }

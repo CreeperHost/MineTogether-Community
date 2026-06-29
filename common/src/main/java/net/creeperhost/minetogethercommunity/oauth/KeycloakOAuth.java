@@ -10,7 +10,7 @@ import com.github.scribejava.core.oauth.AuthorizationUrlBuilder;
 import com.github.scribejava.core.oauth.OAuth20Service;
 import com.google.gson.*;
 import net.creeperhost.minetogethercommunity.chat.MineTogetherChat;
-import net.minecraft.Util;
+import net.minecraft.util.Util;
 import net.minecraft.client.Minecraft;
 import org.apache.commons.io.IOUtils;
 import org.apache.logging.log4j.LogManager;

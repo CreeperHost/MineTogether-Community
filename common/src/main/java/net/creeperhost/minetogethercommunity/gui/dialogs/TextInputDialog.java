@@ -7,6 +7,7 @@ import net.creeperhost.polylib.client.modulargui.lib.BackgroundRender;
 import net.creeperhost.polylib.client.modulargui.lib.Constraints;
 import net.creeperhost.polylib.client.modulargui.lib.GuiRender;
 import net.creeperhost.polylib.client.modulargui.lib.geometry.GuiParent;
+import net.minecraft.client.input.KeyEvent;
 import net.minecraft.network.chat.Component;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
@@ -98,8 +99,8 @@ public class TextInputDialog extends GuiElement<TextInputDialog> implements Back
     }
 
     @Override
-    public boolean keyPressed(int key, int scancode, int modifiers) {
-        if (key == InputConstants.KEY_ESCAPE) {
+    public boolean keyPressed(KeyEvent event) {
+        if (event.key() == InputConstants.KEY_ESCAPE) {
             close();
         }
         return true;

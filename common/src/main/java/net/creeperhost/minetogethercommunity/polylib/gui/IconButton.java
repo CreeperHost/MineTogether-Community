@@ -1,10 +1,10 @@
 package net.creeperhost.minetogethercommunity.polylib.gui;
 
-import com.mojang.blaze3d.systems.RenderSystem;
-import net.minecraft.client.gui.GuiGraphics;
+import net.minecraft.client.gui.GuiGraphicsExtractor;
 import net.minecraft.client.gui.components.Button;
+import net.minecraft.client.renderer.RenderPipelines;
 import net.minecraft.network.chat.Component;
-import net.minecraft.resources.ResourceLocation;
+import net.minecraft.resources.Identifier;
 
 /**
  * A simple {@link Button} implementation using an indexed icon
@@ -21,18 +21,22 @@ import net.minecraft.resources.ResourceLocation;
 // TODO This can easily be expanded to support indexes higher than 12, and buttons with a size less than 20.
 public class IconButton extends Button {
 
-    private final ResourceLocation sheet;
+    private static final int ICON_SIZE = 20;
+    private static final int SHEET_WIDTH = 256;
+    private static final int SHEET_HEIGHT = 256;
+
+    private final Identifier sheet;
     private final boolean single;
     private final int index;
 
-    public IconButton(int x, int y, int index, ResourceLocation sheet, OnPress onPress) {
+    public IconButton(int x, int y, int index, Identifier sheet, OnPress onPress) {
         super(x, y, 20, 20, Component.empty(), onPress, Button.DEFAULT_NARRATION);
         this.index = index;
         this.sheet = sheet;
         this.single = false;
     }
 
-    public IconButton(int x, int y, int width, int height, ResourceLocation sheet, OnPress onPress) {
+    public IconButton(int x, int y, int width, int height, Identifier sheet, OnPress onPress) {
         super(x, y, width, height, Component.empty(), onPress, Button.DEFAULT_NARRATION);
         this.sheet = sheet;
         this.single = true;
@@ -47,7 +51,7 @@ public class IconButton extends Button {
     }
 
     @Override
-    public void renderWidget(GuiGraphics graphics, int mx, int my, float partialTicks) {
+    protected void extractContents(GuiGraphicsExtractor graphics, int mx, int my, float partialTicks) {
         if (!visible) return;
 
         if (single) {
@@ -55,13 +59,11 @@ public class IconButton extends Button {
             if (isHovered) {
                 fillColor = 0x64202020;
             }
-            RenderSystem.setShaderColor(1.0F, 1.0F, 1.0F, 1.0F);
             graphics.fill(getX(), getY(), getX() + width, getY() + height, fillColor);
-            graphics.blit(sheet, getX(), getY(), 0, 0, width, height, width, height);
+            graphics.blit(RenderPipelines.GUI_TEXTURED, sheet, getX(), getY(), 0, 0, width, height, width, height);
         } else {
-            int yOffset = !active ? 40 : isHovered ? 20 : 0;
-            RenderSystem.setShaderColor(1.0F, 1.0F, 1.0F, 1.0F);
-            graphics.blit(sheet, getX(), getY(), index * 20, yOffset, width, height);
+            int yOffset = !active ? ICON_SIZE * 2 : isHovered ? ICON_SIZE : 0;
+            graphics.blit(RenderPipelines.GUI_TEXTURED, sheet, getX(), getY(), index * ICON_SIZE, yOffset, width, height, ICON_SIZE, ICON_SIZE, SHEET_WIDTH, SHEET_HEIGHT);
         }
     }
 }

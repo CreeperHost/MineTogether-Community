@@ -13,7 +13,7 @@ import net.creeperhost.polylib.client.modulargui.lib.geometry.Align;
 import net.creeperhost.polylib.client.modulargui.lib.geometry.GuiParent;
 import net.creeperhost.polylib.helpers.MathUtil;
 import net.minecraft.ChatFormatting;
-import net.minecraft.Util;
+import net.minecraft.util.Util;
 import net.minecraft.network.chat.Component;
 import org.jetbrains.annotations.NotNull;
 

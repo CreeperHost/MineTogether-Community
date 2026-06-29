@@ -24,7 +24,7 @@ import net.creeperhost.polylib.client.modulargui.lib.geometry.Axis;
 import net.creeperhost.polylib.client.modulargui.lib.geometry.Constraint;
 import net.creeperhost.polylib.client.modulargui.sprite.Material;
 import net.minecraft.ChatFormatting;
-import net.minecraft.Util;
+import net.minecraft.util.Util;
 import net.minecraft.client.renderer.texture.TextureAtlasSprite;
 import net.minecraft.network.chat.Component;
 import org.apache.logging.log4j.LogManager;

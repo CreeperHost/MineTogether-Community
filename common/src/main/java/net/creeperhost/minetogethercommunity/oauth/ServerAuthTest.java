@@ -2,7 +2,9 @@ package net.creeperhost.minetogethercommunity.oauth;
 
 import net.minecraft.client.Minecraft;
 import net.minecraft.network.Connection;
+import net.minecraft.network.protocol.login.LoginProtocols;
 import net.minecraft.network.protocol.login.ServerboundHelloPacket;
+import net.minecraft.server.network.EventLoopGroupHolder;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
@@ -43,8 +45,8 @@ public class ServerAuthTest {
                     }
 
                     inetaddress = new InetSocketAddress(InetAddress.getByName(address), port);
-                    networkManager = Connection.connectToServer(inetaddress, true, null);
-                    networkManager.initiateServerboundPlayConnection(address, port, new NetHandlerLoginClientOurs(networkManager, mc));
+                    networkManager = Connection.connectToServer(inetaddress, EventLoopGroupHolder.remote(mc.options.useNativeTransport()), mc.getDebugOverlay().getBandwidthLogger());
+                    networkManager.initiateServerboundPlayConnection(address, port, LoginProtocols.SERVERBOUND, LoginProtocols.CLIENTBOUND, new NetHandlerLoginClientOurs(networkManager, mc), false);
                     networkManager.send(new ServerboundHelloPacket(mc.getUser().getName(), mc.getUser().getProfileId()));
 
                 } catch (UnknownHostException unknownhostexception) {

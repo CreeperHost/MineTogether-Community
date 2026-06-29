@@ -1,12 +1,12 @@
 package net.creeperhost.minetogethercommunity.polylib.gui;
 
-import com.mojang.blaze3d.systems.RenderSystem;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.Font;
-import net.minecraft.client.gui.GuiGraphics;
+import net.minecraft.client.gui.GuiGraphicsExtractor;
 import net.minecraft.client.gui.components.Button;
+import net.minecraft.client.input.InputWithModifiers;
+import net.minecraft.client.input.MouseButtonEvent;
 import net.minecraft.network.chat.Component;
-import org.joml.Quaternionf;
 
 import java.util.LinkedList;
 import java.util.List;
@@ -103,7 +103,7 @@ public class RadioButton extends Button {
     }
 
     @Override
-    public void onPress() {
+    public void onPress(InputWithModifiers input) {
         if (selected.get()) return;
         for (OnPress action : actions) {
             action.onPress(this);
@@ -111,20 +111,19 @@ public class RadioButton extends Button {
     }
 
     @Override
-    public boolean mouseReleased(double d, double e, int i) {
+    public boolean mouseReleased(MouseButtonEvent event) {
         onRelease.run();
-        return super.mouseReleased(d, e, i);
+        return super.mouseReleased(event);
     }
 
     @Override
-    public void renderWidget(GuiGraphics graphics, int mouseX, int mouseY, float partialTicks) {
+    protected void extractContents(GuiGraphicsExtractor graphics, int mouseX, int mouseY, float partialTicks) {
         int textColor = 0xFFFFFF;
         int fillColor = 0x64202020;
         if (isHovered || isPressed()) {
             textColor = 0xffffa0;
             fillColor = 0x80000000;
         }
-        RenderSystem.setShaderColor(1.0F, 1.0F, 1.0F, 1.0F);
         graphics.fill(getX(), getY(), getX() + width, getY() + height, fillColor);
 
         Font font = Minecraft.getInstance().font;
@@ -139,18 +138,18 @@ public class RadioButton extends Button {
             lWidth = font.width(getMessage()) * scale;
         }
 
-        graphics.pose().pushPose();
+        graphics.pose().pushMatrix();
         if (verticalText) {
-            graphics.pose().translate(getX() + lHeight + (width / 2D) - (lHeight / 2D), getY() + (height / 2D) - (lWidth / 2D), 0);
-            graphics.pose().mulPose(new Quaternionf().rotationXYZ(0F, 0F, 90F * 0.017453292F));
+            graphics.pose().translate((float) (getX() + lHeight + (width / 2D) - (lHeight / 2D)), (float) (getY() + (height / 2D) - (lWidth / 2D)));
+            graphics.pose().rotate((float) Math.toRadians(90F));
         } else {
-            graphics.pose().translate(getX() + (width / 2D) - (lWidth / 2D), getY() + (height / 2D) - (lHeight / 2D), 0);
+            graphics.pose().translate((float) (getX() + (width / 2D) - (lWidth / 2D)), (float) (getY() + (height / 2D) - (lHeight / 2D)));
         }
 
-        graphics.pose().scale(scale, scale, scale);
+        graphics.pose().scale(scale, scale);
 
-        graphics.drawString(font, getMessage(), 0, 0, textColor);
-        graphics.pose().popPose();
+        graphics.text(font, getMessage(), 0, 0, textColor);
+        graphics.pose().popMatrix();
     }
 
     public boolean isPressed() {
