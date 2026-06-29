@@ -69,12 +69,6 @@ dependencies {
     modApi ("dev.ftb.mods:ftb-pause-menu-api:21.1.0:api") {
         transitive false
     }
-    modCompileOnly("dev.ftb.mods:ftb-quests-neoforge:${ftb_quests_version}") {
-        transitive = false
-    }
-    modCompileOnly("dev.ftb.mods:ftb-library-neoforge:${ftb_quests_version}") {
-        transitive = false
-    }
 
     shadowLib 'org.nanohttpd:nanohttpd:2.3.1'
     shadowLib 'com.github.scribejava:scribejava-apis:6.9.0'
