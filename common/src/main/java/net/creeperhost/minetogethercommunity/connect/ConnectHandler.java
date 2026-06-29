@@ -22,7 +22,6 @@ import net.minecraft.network.chat.Component;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.level.GameType;
 import org.apache.commons.lang3.NotImplementedException;
-import org.apache.commons.lang3.StringUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.jetbrains.annotations.Nullable;
@@ -219,7 +218,8 @@ public class ConnectHandler {
                 ProfileManager profileManager = MineTogetherChat.CHAT_STATE.profileManager;
                 Set<RemoteServer> keep = new HashSet<>();
                 for (CFriendServers.ServerEntry entry : searchResult) {
-                    RemoteServer server = new RemoteServer(entry.friend, entry.serverToken, entry.node);
+                    RemoteServer server = RemoteServer.fromEntry(entry);
+                    ConnectPackResolver.prefetch(server.modpackKey);
                     keep.add(server);
                     if (!AVAILABLE_SERVER_MAP.containsKey(server)) {
                         Profile profile = profileManager.lookupProfile(entry.friend);
@@ -268,12 +268,6 @@ public class ConnectHandler {
     }
 
     private static @Nullable String getModpackKey() {
-        String modpackKey = ModPackInfo.getInfo().base64FTBID;
-        if (StringUtils.isEmpty(modpackKey)) {
-            modpackKey = ModPackInfo.getInfo().curseID;
-        }
-
-        if (!StringUtils.isEmpty(modpackKey)) return modpackKey;
-        return null;
+        return ModPackInfo.getInfo().getConnectPackKey();
     }
 }

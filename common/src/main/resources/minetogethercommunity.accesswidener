@@ -2,6 +2,7 @@ accessWidener   v2  named
 extendable method net/minecraft/client/gui/components/ChatComponent addMessage (Lnet/minecraft/network/chat/Component;Lnet/minecraft/network/chat/MessageSignature;ILnet/minecraft/client/GuiMessageTag;Z)V
 accessible method net/minecraft/client/gui/components/ChatComponent addMessage (Lnet/minecraft/network/chat/Component;Lnet/minecraft/network/chat/MessageSignature;ILnet/minecraft/client/GuiMessageTag;Z)V
 
+
 extendable method net/minecraft/client/gui/components/ChatComponent isChatFocused ()Z
 accessible method net/minecraft/client/gui/components/ChatComponent isChatFocused ()Z
 extendable method net/minecraft/client/gui/components/ChatComponent refreshTrimmedMessage ()V

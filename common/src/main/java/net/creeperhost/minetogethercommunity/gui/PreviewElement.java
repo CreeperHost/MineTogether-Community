@@ -269,10 +269,10 @@ public class PreviewElement extends GuiElement<PreviewElement> {
 
             BufferBuilder bufferBuilder = Tesselator.getInstance().getBuilder();
             bufferBuilder.begin(VertexFormat.Mode.QUADS, DefaultVertexFormat.POSITION_TEX);
-            bufferBuilder.vertex(matrix4f, (float)x, (float)y, (float)0).uv(0, 0).endVertex();
-            bufferBuilder.vertex(matrix4f, (float)x, (float)y2, (float)0).uv(0, 1).endVertex();
-            bufferBuilder.vertex(matrix4f, (float)x2, (float)y2, (float)0).uv(1, 1).endVertex();
-            bufferBuilder.vertex(matrix4f, (float)x2, (float)y, (float)0).uv(1, 0).endVertex();
+            bufferBuilder.vertex(matrix4f, (float) x, (float) y, (float) 0).uv(0, 0).endVertex();
+            bufferBuilder.vertex(matrix4f, (float) x, (float) y2, (float) 0).uv(0, 1).endVertex();
+            bufferBuilder.vertex(matrix4f, (float) x2, (float) y2, (float) 0).uv(1, 1).endVertex();
+            bufferBuilder.vertex(matrix4f, (float) x2, (float) y, (float) 0).uv(1, 0).endVertex();
             BufferUploader.drawWithShader(bufferBuilder.end());
         }
 

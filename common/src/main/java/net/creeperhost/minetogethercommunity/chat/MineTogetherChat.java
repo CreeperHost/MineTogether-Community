@@ -123,8 +123,7 @@ public class MineTogetherChat {
                 if (getTarget() == ChatTarget.GROUP) {
                     setTarget(ChatTarget.VANILLA);//Switch to vanilla rather than public to avoid situations where a user starts sending private messages without realizing they have left the group.
                 }
-                simpleToast(Component.translatable("minetogether:toast.left_group"),
-                        Component.translatable("minetogether:toast.left_group." + e.data));
+                simpleToast(Component.translatable("minetogether:toast.left_group"), Component.translatable("minetogether:toast.left_group." + e.data));
             }
         }));
 
