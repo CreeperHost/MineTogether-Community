@@ -82,7 +82,7 @@ shadowJar {
     exclude "architectury.common.json"
 
     manifest {
-        attributes "MixinConfigs": "minetogethercommunity-forge.mixins.json,minetogethercommunity-common.mixins.json"
+        attributes "MixinConfigs": "minetogethercommunity-forge.mixins.json,minetogethercommunity-common.mixins.json,minetogethercommunity-ftbquests.mixins.json"
     }
 
     configurations = [project.configurations.shadowCommon]
