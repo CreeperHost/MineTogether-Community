@@ -23,6 +23,7 @@ public class Config {
     public boolean logChatToConsole = false;
     public boolean debugMode = false;
     public boolean dumpConnectPackets = false;
+    public String dedicatedServerConnect = "auto";
     public boolean pauseScreenButtons = true;
     public String issueTrackerUrl = "https://pste.ch/";
 

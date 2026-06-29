@@ -1,7 +1,12 @@
 package net.creeperhost.minetogethercommunity.proxy;
 
+import net.creeperhost.minetogethercommunity.connect.DedicatedServerConnect;
+import net.minecraft.entity.player.EntityPlayerMP;
+import cpw.mods.fml.common.FMLCommonHandler;
 import cpw.mods.fml.common.event.FMLInitializationEvent;
 import cpw.mods.fml.common.event.FMLPreInitializationEvent;
+import cpw.mods.fml.common.eventhandler.SubscribeEvent;
+import cpw.mods.fml.common.gameevent.PlayerEvent;
 
 public class CommonProxy {
 
@@ -9,5 +14,13 @@ public class CommonProxy {
     }
 
     public void init(FMLInitializationEvent event) {
+        FMLCommonHandler.instance().bus().register(this);
+    }
+
+    @SubscribeEvent
+    public void playerLoggedIn(PlayerEvent.PlayerLoggedInEvent event) {
+        if (event.player instanceof EntityPlayerMP) {
+            DedicatedServerConnect.playerJoined((EntityPlayerMP) event.player);
+        }
     }
 }

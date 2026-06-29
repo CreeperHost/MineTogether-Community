@@ -5,16 +5,21 @@ import net.creeperhost.minetogether.lib.MineTogetherLib;
 import net.creeperhost.minetogether.lib.web.ApiClient;
 import net.creeperhost.minetogether.lib.web.DynamicWebAuth;
 import net.creeperhost.minetogethercommunity.config.Config;
+import net.creeperhost.minetogethercommunity.connect.DedicatedServerConnect;
 import net.creeperhost.minetogethercommunity.proxy.CommonProxy;
 import net.creeperhost.minetogethercommunity.util.Log4jUtils;
 import net.creeperhost.minetogethercommunity.util.ModPackInfo;
 import net.creeperhost.minetogethercommunity.util.SignatureVerifier;
 import net.covers1624.quack.net.httpapi.apache.ApacheEngine;
 import net.minecraft.launchwrapper.Launch;
+import net.minecraft.server.MinecraftServer;
+import cpw.mods.fml.common.FMLCommonHandler;
 import cpw.mods.fml.common.Mod;
 import cpw.mods.fml.common.SidedProxy;
 import cpw.mods.fml.common.event.FMLInitializationEvent;
 import cpw.mods.fml.common.event.FMLPreInitializationEvent;
+import cpw.mods.fml.common.event.FMLServerStartedEvent;
+import cpw.mods.fml.common.event.FMLServerStoppingEvent;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
@@ -80,6 +85,20 @@ public class MineTogether {
     @Mod.EventHandler
     public void init(FMLInitializationEvent event) {
         proxy.init(event);
+    }
+
+    @Mod.EventHandler
+    public void serverStarted(FMLServerStartedEvent event) {
+        MinecraftServer server = FMLCommonHandler.instance().getMinecraftServerInstance();
+        if (server != null && server.isDedicatedServer()) {
+            DedicatedServerConnect.serverStarted(server);
+        }
+    }
+
+    @Mod.EventHandler
+    public void serverStopping(FMLServerStoppingEvent event) {
+        MinecraftServer server = FMLCommonHandler.instance().getMinecraftServerInstance();
+        DedicatedServerConnect.serverStopping(server);
     }
 
     public static File getGameDir() {
