@@ -1,6 +1,6 @@
 package net.creeperhost.minetogethercommunity.compat;
 
-import dev.architectury.platform.Platform;
+import net.creeperhost.minetogethercommunity.MineTogetherPlatform;
 
 import java.util.function.Supplier;
 
@@ -10,7 +10,7 @@ import java.util.function.Supplier;
 public class Integration {
 
     public static void runOptional(String modid, Supplier<Runnable> runnable) {
-        if (Platform.isModLoaded(modid)) {
+        if (MineTogetherPlatform.isModLoaded(modid)) {
             runnable.get().run();
         }
     }

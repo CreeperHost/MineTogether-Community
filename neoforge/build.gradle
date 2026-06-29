@@ -1,142 +1,144 @@
 plugins {
-    id "com.github.johnrengelman.shadow" version "8.1.1"
+    id "com.gradleup.shadow" version "9.2.2"
+    id 'multiloader-loader'
+    id 'net.neoforged.moddev'
 }
 
 def generatedResources = project(":common").file("src/generated/resources/")
+def commonResources = project(":common").file("src/main/resources")
+def commonAccessTransformer = project(":common").file("src/main/resources/META-INF/accesstransformer.cfg")
 
-loom {
-    accessWidenerPath = project(":common").loom.accessWidenerPath
-
+neoForge {
+    version = neoforge_version
+    if (commonAccessTransformer.exists()) {
+        accessTransformers.from(commonAccessTransformer.absolutePath)
+    }
     runs {
-        clientLogin {
-            client()
-            ideConfigGenerated true
-            mainClass.set 'net.covers1624.devlogin.DevLogin'
-
-            programArgs '--launch_target', 'cpw.mods.bootstraplauncher.BootstrapLauncher'
+        configureEach {
+            systemProperty('neoforge.enabledGameTestNamespaces', mod_id)
+            ideName = "NeoForge ${it.name.capitalize()} (${project.path})"
         }
-
+        client {
+            client()
+            gameDirectory = this.mkdir(this.file("runs/client"))
+        }
+        server {
+            server()
+            this.file("runs/server").createParentDirectories()
+            gameDirectory = this.mkdir(this.file("runs/server"))
+        }
         clientData {
             clientData()
-            programArgs "--mod", "minetogethercommunity"
-            programArgs "--all"
-            programArgs "--output", generatedResources.absolutePath
-            programArgs "--existing", project(":common").file("src/main/resources").absolutePath
+            programArguments.addAll("--mod", "minetogethercommunity", "--all", "--output", generatedResources.absolutePath, "--existing", commonResources.absolutePath)
         }
     }
-}
-
-architectury {
-    platformSetupLoomIde()
-    neoForge {
-        platformPackage = "neoforge"
+    mods {
+        "${mod_id}" {
+            sourceSet sourceSets.main
+        }
     }
-}
-
-configurations {
-    common
-    shadowLib
-    shadowCommon // Don't use shadow from the shadow plugin because we don't want IDEA to index this.
-    shadowCommon.extendsFrom shadowLib
-    compileClasspath.extendsFrom common
-    runtimeClasspath.extendsFrom common
-    developmentNeoForge.extendsFrom common
-    implementation.extendsFrom shadowLib
-    forgeRuntimeLibrary.extendsFrom shadowLib
 }
 
 dependencies {
-    neoForge("net.neoforged:neoforge:${rootProject.neoforge_version}")
+    implementation("${polylib_group}:polylib-neoforge:${polylib_version}") { transitive = false }
+    accessTransformers("${polylib_group}:polylib-neoforge:${polylib_version}")
 
-    modApi("dev.architectury:architectury-neoforge:${rootProject.architectury_version}")
-    modApi("net.creeperhost:polylib-neoforge:${polylib_version}") { transitive false }
-
-    common(project(path: ":common", configuration: "namedElements")) { transitive false }
-    shadowCommon(project(path: ":common", configuration: "transformProductionNeoForge")) { transitive = false }
-
-    shadowLib "blue.endless:jankson:${jankson_version}"
-    shadowLib("net.creeperhost:MineTogetherLib:${mtlib_version}") {
+    implementation "blue.endless:jankson:${jankson_version}"
+    implementation("net.creeperhost:MineTogetherLib:${mtlib_version}") {
         exclude group: "net.creeperhost", module: "MineTogetherSessions"
     }
-    shadowLib("net.creeperhost:MineTogetherSessions:${mtsession_version}") {
-        transitive false
+    implementation("net.creeperhost:MineTogetherSessions:${mtsession_version}") {
+        transitive = false
     }
-    shadowLib("net.creeperhost:MTConnectProxyCommon:${mtproxy_version}") {
+    implementation("net.creeperhost:MTConnectProxyCommon:${mtproxy_version}") {
         exclude group: "net.creeperhost", module: "MineTogetherSessions"
         exclude group: "net.creeperhost", module: "MineTogetherLib"
     }
+    implementation("net.covers1624:Quack:${quack_version}") { transitive = false }
 
-    modApi ("dev.ftb.mods:ftb-pause-menu-api:21.1.0:api") {
-        transitive false
+    implementation 'org.nanohttpd:nanohttpd:2.3.1'
+    implementation 'org.apache.httpcomponents:httpclient:4.5.14'
+    implementation 'com.github.scribejava:scribejava-apis:6.9.0'
+    implementation 'com.github.scribejava:scribejava-core:6.9.0'
+
+    shadow "blue.endless:jankson:${jankson_version}"
+    shadow("net.creeperhost:MineTogetherLib:${mtlib_version}") {
+        exclude group: "net.creeperhost", module: "MineTogetherSessions"
     }
-    modCompileOnly("dev.ftb.mods:ftb-quests-neoforge:${ftb_quests_version}") {
+    shadow("net.creeperhost:MineTogetherSessions:${mtsession_version}") {
         transitive = false
     }
-    modCompileOnly("dev.ftb.mods:ftb-library-neoforge:${ftb_quests_version}") {
-        transitive = false
+    shadow("net.creeperhost:MTConnectProxyCommon:${mtproxy_version}") {
+        exclude group: "net.creeperhost", module: "MineTogetherSessions"
+        exclude group: "net.creeperhost", module: "MineTogetherLib"
     }
-
-    shadowLib 'org.nanohttpd:nanohttpd:2.3.1'
-    shadowLib 'com.github.scribejava:scribejava-apis:6.9.0'
-    shadowLib 'com.github.scribejava:scribejava-core:6.9.0'
-}
-
-processResources {
-    inputs.property "version", project.version
-
-    filesMatching("META-INF/neoforge.mods.toml") {
-        expand "version": project.version
-    }
+    shadow("net.covers1624:Quack:${quack_version}") { transitive = false }
+    shadow 'org.nanohttpd:nanohttpd:2.3.1'
+    shadow 'org.apache.httpcomponents:httpclient:4.5.14'
+    shadow 'com.github.scribejava:scribejava-apis:6.9.0'
+    shadow 'com.github.scribejava:scribejava-core:6.9.0'
 }
 
 shadowJar {
+    dependsOn(jar)
+    configurations = [project.configurations.shadow]
+    mainSpec.sourcePaths.clear()
+    from(zipTree(jar.archiveFile))
     exclude "fabric.mod.json"
-    exclude "architectury.common.json"
-
-    configurations = [project.configurations.shadowCommon]
-    archiveClassifier = "dev-shadow"
     mergeServiceFiles()
+
+    dependencies {
+        exclude(dependency('com.google::'))
+        exclude(dependency('org.apache::'))
+    }
 
     relocate 'blue.endless', 'net.creeperhost.minetogethercommunity.repack.blue.endless'
     relocate 'net.covers1624', 'net.creeperhost.minetogethercommunity.repack.net.covers1624'
     relocate 'org.pircbotx', 'net.creeperhost.minetogethercommunity.repack.org.pircbotx'
     relocate 'com.github.scribejava', 'net.creeperhost.minetogethercommunity.com.github.scribejava'
     relocate 'fi.iki.elonen', 'net.creeperhost.minetogethercommunity.fi.iki.elonen'
-    // TODO can we switch scribble to using Gson?
     relocate 'com.fasterxml.jackson', 'net.creeperhost.minetogethercommunity.com.fasterxml.jackson'
     relocate 'net.creeperhost.minetogether.lib', 'net.creeperhost.minetogethercommunity.repack.minetogether.lib'
     relocate 'net.creeperhost.minetogether.session', 'net.creeperhost.minetogethercommunity.repack.minetogether.session'
-}
-
-remapJar {
-    input.set shadowJar.archiveFile
-    dependsOn shadowJar
-    archiveBaseName.set "${rootProject.archives_base_name}-${project.name}-${rootProject.minecraft_version}"
     archiveClassifier = null
-    atAccessWideners.add('minetogethercommunity.accesswidener')
 }
 
 jar {
-    archiveClassifier = "dev"
+    archiveClassifier = 'dev'
 }
 
-sourcesJar {
-    def commonSources = project(":common").sourcesJar
-    dependsOn commonSources
-    from commonSources.archiveFile.map { zipTree(it) }
+configurations {
+    [apiElements, runtimeElements].each { config ->
+        config.outgoing.artifacts.clear()
+        config.outgoing.artifact(shadowJar)
+    }
 }
 
-components.java {
-    withVariantsFromConfiguration(project.configurations.shadowRuntimeElements) {
-        skip()
+assemble.dependsOn(shadowJar)
+
+def loaderAttribute = Attribute.of('io.github.mcgradleconventions.loader', String)
+['apiElements', 'runtimeElements', 'sourcesElements', 'javadocElements'].each { variant ->
+    configurations.named("$variant") {
+        attributes {
+            attribute(loaderAttribute, 'neoforge')
+        }
+    }
+}
+sourceSets.configureEach {
+    [it.compileClasspathConfigurationName, it.runtimeClasspathConfigurationName, it.getTaskName(null, 'jarJar')].each { variant ->
+        configurations.named("$variant") {
+            attributes {
+                attribute(loaderAttribute, 'neoforge')
+            }
+        }
     }
 }
 
 publishing {
     publications {
-        mavenForge(MavenPublication) {
-            artifactId = rootProject.archives_base_name + "-" + project.name
-            from components.java
+        named('mavenJava', MavenPublication) {
+            artifactId = rootProject.archives_base_name + "-neoforge"
+            version = "${rootProject.minecraft_version}-${rootProject.version}"
         }
     }
 }

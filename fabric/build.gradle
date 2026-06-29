@@ -1,124 +1,132 @@
 plugins {
-    id "com.github.johnrengelman.shadow" version "8.1.1"
+    id "com.gradleup.shadow" version "9.2.2"
+    id 'multiloader-loader'
+    id 'net.fabricmc.fabric-loom'
 }
 
-architectury {
-    platformSetupLoomIde()
-    fabric()
+dependencies {
+    minecraft "com.mojang:minecraft:${minecraft_version}"
+
+    implementation "net.fabricmc:fabric-loader:${fabric_loader_version}"
+    implementation "net.fabricmc.fabric-api:fabric-api:${fabric_version}"
+    implementation("${polylib_group}:polylib-fabric:${polylib_version}") { transitive = false }
+
+    implementation "blue.endless:jankson:${jankson_version}"
+    implementation("net.creeperhost:MineTogetherLib:${mtlib_version}") {
+        exclude group: "net.creeperhost", module: "MineTogetherSessions"
+    }
+    implementation("net.creeperhost:MineTogetherSessions:${mtsession_version}") {
+        transitive = false
+    }
+    implementation("net.creeperhost:MTConnectProxyCommon:${mtproxy_version}") {
+        exclude group: "net.creeperhost", module: "MineTogetherSessions"
+        exclude group: "net.creeperhost", module: "MineTogetherLib"
+    }
+    implementation("net.covers1624:Quack:${quack_version}") { transitive = false }
+
+    implementation 'org.nanohttpd:nanohttpd:2.3.1'
+    implementation 'org.apache.httpcomponents:httpclient:4.5.14'
+    implementation 'com.github.scribejava:scribejava-apis:6.9.0'
+    implementation 'com.github.scribejava:scribejava-core:6.9.0'
+
+    shadow "blue.endless:jankson:${jankson_version}"
+    shadow("net.creeperhost:MineTogetherLib:${mtlib_version}") {
+        exclude group: "net.creeperhost", module: "MineTogetherSessions"
+    }
+    shadow("net.creeperhost:MineTogetherSessions:${mtsession_version}") {
+        transitive = false
+    }
+    shadow("net.creeperhost:MTConnectProxyCommon:${mtproxy_version}") {
+        exclude group: "net.creeperhost", module: "MineTogetherSessions"
+        exclude group: "net.creeperhost", module: "MineTogetherLib"
+    }
+    shadow("net.covers1624:Quack:${quack_version}") { transitive = false }
+    shadow 'org.nanohttpd:nanohttpd:2.3.1'
+    shadow 'org.apache.httpcomponents:httpclient:4.5.14'
+    shadow 'com.github.scribejava:scribejava-apis:6.9.0'
+    shadow 'com.github.scribejava:scribejava-core:6.9.0'
 }
 
 loom {
-    accessWidenerPath = project(":common").loom.accessWidenerPath
-
+    def aw = project(':common').file("src/main/resources/${mod_id}.accesswidener")
+    if (aw.exists()) {
+        accessWidenerPath.set(aw)
+    }
     runs {
-        clientLogin {
+        client {
             client()
-            ideConfigGenerated true
-            mainClass.set 'net.covers1624.devlogin.DevLogin'
-
-            programArgs '--launch_target', 'net.fabricmc.loader.impl.launch.knot.KnotClient'
+            setConfigName('Fabric Client')
+            ideConfigGenerated(true)
+            runDir('runs/client')
+        }
+        server {
+            server()
+            setConfigName('Fabric Server')
+            ideConfigGenerated(true)
+            runDir('runs/server')
         }
     }
 }
 
-configurations {
-    common
-    shadowLib
-    shadowCommon // Don't use shadow from the shadow plugin because we don't want IDEA to index this.
-    shadowCommon.extendsFrom shadowLib
-    compileClasspath.extendsFrom common
-    runtimeClasspath.extendsFrom common
-    developmentFabric.extendsFrom common
-    implementation.extendsFrom shadowLib
-}
-
-dependencies {
-    modImplementation "net.fabricmc:fabric-loader:${rootProject.fabric_loader_version}"
-    modApi "net.fabricmc.fabric-api:fabric-api:${rootProject.fabric_api_version}"
-    modApi "dev.architectury:architectury-fabric:${rootProject.architectury_version}"
-    modApi("net.creeperhost:polylib-fabric:${polylib_version}")
-
-    common(project(path: ":common", configuration: "namedElements")) { transitive false }
-    shadowCommon(project(path: ":common", configuration: "transformProductionFabric")) { transitive false }
-
-    shadowLib "blue.endless:jankson:${jankson_version}"
-    shadowLib("net.creeperhost:MineTogetherLib:${mtlib_version}") {
-        exclude group: "net.creeperhost", module: "MineTogetherSessions"
-    }
-    shadowLib("net.creeperhost:MineTogetherSessions:${mtsession_version}") {
-        transitive false
-    }
-    shadowLib("net.creeperhost:MTConnectProxyCommon:${mtproxy_version}") {
-        exclude group: "net.creeperhost", module: "MineTogetherSessions"
-        exclude group: "net.creeperhost", module: "MineTogetherLib"
-    }
-
-    modCompileOnly("dev.ftb.mods:ftb-quests-fabric:${ftb_quests_version}") {
-        transitive = false
-    }
-    modCompileOnly("dev.ftb.mods:ftb-library-fabric:${ftb_quests_version}") {
-        transitive = false
-    }
-
-    shadowLib 'org.nanohttpd:nanohttpd:2.3.1'
-    shadowLib 'com.github.scribejava:scribejava-apis:6.9.0'
-    shadowLib 'com.github.scribejava:scribejava-core:6.9.0'
-}
-
-processResources {
-    inputs.property "version", project.version
-
-    filesMatching("fabric.mod.json") {
-        expand "version": project.version
-    }
-}
-
 shadowJar {
-    configurations = [project.configurations.shadowCommon]
-    archiveClassifier = "dev-shadow"
+    dependsOn(jar)
+    configurations = [project.configurations.shadow]
+    mainSpec.sourcePaths.clear()
+    from(zipTree(jar.archiveFile))
     mergeServiceFiles()
+
+    dependencies {
+        exclude(dependency('com.google::'))
+        exclude(dependency('org.apache::'))
+    }
 
     relocate 'blue.endless', 'net.creeperhost.minetogethercommunity.repack.blue.endless'
     relocate 'net.covers1624', 'net.creeperhost.minetogethercommunity.repack.net.covers1624'
     relocate 'org.pircbotx', 'net.creeperhost.minetogethercommunity.repack.org.pircbotx'
     relocate 'com.github.scribejava', 'net.creeperhost.minetogethercommunity.com.github.scribejava'
     relocate 'fi.iki.elonen', 'net.creeperhost.minetogethercommunity.fi.iki.elonen'
-    // TODO can we switch scribejava to using Gson?
     relocate 'com.fasterxml.jackson', 'net.creeperhost.minetogethercommunity.com.fasterxml.jackson'
     relocate 'net.creeperhost.minetogether.lib', 'net.creeperhost.minetogethercommunity.repack.minetogether.lib'
     relocate 'net.creeperhost.minetogether.session', 'net.creeperhost.minetogethercommunity.repack.minetogether.session'
-}
-
-remapJar {
-    injectAccessWidener = true
-    input.set shadowJar.archiveFile
-    dependsOn shadowJar
-    archiveBaseName.set "${rootProject.archives_base_name}-${project.name}-${rootProject.minecraft_version}"
     archiveClassifier = null
 }
 
 jar {
-    archiveClassifier = "dev"
+    archiveClassifier = 'dev'
 }
 
-sourcesJar {
-    def commonSources = project(":common").sourcesJar
-    dependsOn commonSources
-    from commonSources.archiveFile.map { zipTree(it) }
+configurations {
+    [apiElements, runtimeElements].each { config ->
+        config.outgoing.artifacts.clear()
+        config.outgoing.artifact(shadowJar)
+    }
 }
 
-components.java {
-    withVariantsFromConfiguration(project.configurations.shadowRuntimeElements) {
-        skip()
+assemble.dependsOn(shadowJar)
+
+def loaderAttribute = Attribute.of('io.github.mcgradleconventions.loader', String)
+['apiElements', 'runtimeElements', 'sourcesElements', 'javadocElements', 'includeInternal', 'modCompileClasspath'].each { variant ->
+    configurations.named("$variant") {
+        attributes {
+            attribute(loaderAttribute, 'fabric')
+        }
+    }
+}
+sourceSets.configureEach {
+    [it.compileClasspathConfigurationName, it.runtimeClasspathConfigurationName].each { variant ->
+        configurations.named("$variant") {
+            attributes {
+                attribute(loaderAttribute, 'fabric')
+            }
+        }
     }
 }
 
 publishing {
     publications {
-        mavenFabric(MavenPublication) {
-            artifactId = rootProject.archives_base_name + "-" + project.name
-            from components.java
+        named('mavenJava', MavenPublication) {
+            artifactId = rootProject.archives_base_name + "-fabric"
+            version = "${rootProject.minecraft_version}-${rootProject.version}"
         }
     }
 }
-

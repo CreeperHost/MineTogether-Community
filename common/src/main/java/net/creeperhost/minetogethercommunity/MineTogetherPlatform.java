@@ -1,29 +1,65 @@
 package net.creeperhost.minetogethercommunity;
 
-import dev.architectury.injectables.annotations.ExpectPlatform;
+import net.creeperhost.minetogethercommunity.platform.MineTogetherPlatformService;
+import net.minecraft.SharedConstants;
+import net.minecraft.client.KeyMapping;
 import net.minecraft.network.Connection;
 import org.jetbrains.annotations.Nullable;
 
 import java.nio.file.Path;
+import java.util.ServiceLoader;
 
 /**
  * Created by covers1624 on 26/8/22.
  */
 public class MineTogetherPlatform {
 
+    private static final MineTogetherPlatformService SERVICE = ServiceLoader.load(MineTogetherPlatformService.class)
+            .findFirst()
+            .orElseThrow(() -> new IllegalStateException("No MineTogether platform service loaded."));
+
     @Nullable
-    @ExpectPlatform
     public static Path getModJar() {
-        throw new AssertionError();
+        return SERVICE.getModJar();
     }
 
-    @ExpectPlatform
     public static String getVersion() {
-        throw new AssertionError();
+        return SERVICE.getVersion();
     }
 
-    @ExpectPlatform
+    public static String getMinecraftVersion() {
+        return SharedConstants.getCurrentVersion().name();
+    }
+
+    public static String getPlatformName() {
+        return SERVICE.getPlatformName();
+    }
+
+    public static boolean isModLoaded(String modId) {
+        return SERVICE.isModLoaded(modId);
+    }
+
+    public static boolean isDevelopmentEnvironment() {
+        return SERVICE.isDevelopmentEnvironment();
+    }
+
+    public static boolean isClient() {
+        return SERVICE.isClient();
+    }
+
+    public static Path getGameFolder() {
+        return SERVICE.getGameFolder();
+    }
+
+    public static Path getConfigFolder() {
+        return SERVICE.getConfigFolder();
+    }
+
+    public static void registerKeyMapping(KeyMapping keyMapping) {
+        SERVICE.registerKeyMapping(keyMapping);
+    }
+
     public static void prepareClientConnection(Connection connection) {
-        throw new AssertionError();
+        SERVICE.prepareClientConnection(connection);
     }
 }

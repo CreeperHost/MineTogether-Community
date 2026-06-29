@@ -1,66 +1,82 @@
 plugins {
-    id "com.github.johnrengelman.shadow" version "7.0.0"
-}
-architectury {
-    common(rootProject.enabled_platforms.split(","))
+    id 'multiloader-common'
+    id 'net.neoforged.moddev'
 }
 
-loom {
-    accessWidenerPath = file("src/main/resources/minetogethercommunity.accesswidener")
-}
-
-repositories {
-    flatDir {
-        dirs '../libs'
+neoForge {
+    neoFormVersion = neo_form_version
+    def at = file('src/main/resources/META-INF/accesstransformer.cfg')
+    if (at.exists()) {
+        accessTransformers.from(at.absolutePath)
     }
 }
 
 dependencies {
-    modImplementation "net.fabricmc:fabric-loader:${rootProject.fabric_loader_version}"
-    modApi "dev.architectury:architectury:${rootProject.architectury_version}"
+    compileOnly group: 'org.spongepowered', name: 'mixin', version: '0.8.5'
+    compileOnly group: 'io.github.llamalad7', name: 'mixinextras-common', version: '0.5.3'
+    annotationProcessor group: 'io.github.llamalad7', name: 'mixinextras-common', version: '0.5.3'
+    compileOnly 'org.ow2.asm:asm:9.7.1'
 
-    modApi("net.creeperhost:polylib-fabric:${polylib_version}") {
-        transitive false
-    }
-    modApi "blue.endless:jankson:${jankson_version}"
-    modApi("net.creeperhost:MineTogetherLib:${mtlib_version}") {
+    compileOnly("${polylib_group}:polylib-fabric:${polylib_version}") { transitive = false }
+    compileOnly "blue.endless:jankson:${jankson_version}"
+    compileOnly("net.creeperhost:MineTogetherLib:${mtlib_version}") {
         exclude group: "net.creeperhost", module: "MineTogetherSessions"
     }
-    modApi("net.creeperhost:MineTogetherSessions:${mtsession_version}") {
-        transitive false
+    compileOnly("net.creeperhost:MineTogetherSessions:${mtsession_version}") {
+        transitive = false
     }
-    modApi("net.creeperhost:MTConnectProxyCommon:${mtproxy_version}") {
+    compileOnly("net.creeperhost:MTConnectProxyCommon:${mtproxy_version}") {
         exclude group: "net.creeperhost", module: "MineTogetherSessions"
         exclude group: "net.creeperhost", module: "MineTogetherLib"
     }
+    compileOnly("net.covers1624:Quack:${quack_version}") { transitive = false }
 
-    modApi 'org.nanohttpd:nanohttpd:2.3.1'
-    modApi 'com.github.scribejava:scribejava-apis:6.9.0'
-    modApi 'com.github.scribejava:scribejava-core:6.9.0'
+    compileOnly 'org.nanohttpd:nanohttpd:2.3.1'
+    compileOnly 'org.apache.httpcomponents:httpclient:4.5.14'
+    compileOnly 'com.github.scribejava:scribejava-apis:6.9.0'
+    compileOnly 'com.github.scribejava:scribejava-core:6.9.0'
 
     testImplementation 'org.junit.jupiter:junit-jupiter-api:5.8.2'
     testRuntimeOnly 'org.junit.jupiter:junit-jupiter-engine:5.8.2'
 
-    modApi "dev.ftb.mods:ftb-pack-companion:${ftb_companion_version}"
-    modCompileOnly("dev.ftb.mods:ftb-quests-fabric:${ftb_quests_version}") {
-        transitive = false
-    }
-    modCompileOnly("dev.ftb.mods:ftb-library-fabric:${ftb_quests_version}") {
-        transitive = false
-    }
     //TODO we should start putting this on maven so we don't need to keep the jar around
 //    compileOnly('minetogetherpartners-neoforge:minetogetherpartners-neoforge:1.21-6.3.4')
 }
 
-test {
-    useJUnitPlatform()
+configurations {
+    commonJava {
+        canBeResolved = false
+        canBeConsumed = true
+    }
+    commonResources {
+        canBeResolved = false
+        canBeConsumed = true
+    }
 }
 
-publishing {
-    publications {
-        mavenCommon(MavenPublication) {
-            artifactId = rootProject.archives_base_name
-            from components.java
+artifacts {
+    commonJava sourceSets.main.java.sourceDirectories.singleFile
+    commonResources sourceSets.main.resources.sourceDirectories.singleFile
+}
+
+def loaderAttribute = Attribute.of('io.github.mcgradleconventions.loader', String)
+['apiElements', 'runtimeElements', 'sourcesElements', 'javadocElements'].each { variant ->
+    configurations.named("$variant") {
+        attributes {
+            attribute(loaderAttribute, 'common')
         }
     }
+}
+sourceSets.configureEach {
+    [it.compileClasspathConfigurationName, it.runtimeClasspathConfigurationName].each { variant ->
+        configurations.named("$variant") {
+            attributes {
+                attribute(loaderAttribute, 'common')
+            }
+        }
+    }
+}
+
+test {
+    useJUnitPlatform()
 }

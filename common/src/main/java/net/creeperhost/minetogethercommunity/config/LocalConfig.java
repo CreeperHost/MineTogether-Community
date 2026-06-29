@@ -4,9 +4,9 @@ import blue.endless.jankson.Comment;
 import blue.endless.jankson.Jankson;
 import blue.endless.jankson.JsonGrammar;
 import blue.endless.jankson.api.SyntaxError;
-import dev.architectury.platform.Platform;
 import net.covers1624.quack.io.IOUtils;
 import net.creeperhost.minetogethercommunity.chat.ChatTarget;
+import net.creeperhost.minetogethercommunity.MineTogetherPlatform;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.jetbrains.annotations.Nullable;
@@ -39,7 +39,7 @@ public class LocalConfig {
         if (INSTANCE == null) {
             synchronized (LocalConfig.class) {
                 if (INSTANCE != null) return INSTANCE;
-                INSTANCE = loadConfig(Platform.getGameFolder().resolve("local/minetogether/" + MOD_ID + ".json"));
+                INSTANCE = loadConfig(MineTogetherPlatform.getGameFolder().resolve("local/minetogether/" + MOD_ID + ".json"));
                 save();
                 // Force main config to load, to migrate data.
                 // This is safe to do in here as we have set the INSTANCE variable. re-entry will return the instance.

@@ -1,7 +1,5 @@
 package net.creeperhost.minetogethercommunity;
 
-import dev.architectury.injectables.targets.ArchitecturyTarget;
-import dev.architectury.platform.Platform;
 import net.covers1624.quack.net.httpapi.HttpEngine;
 import net.covers1624.quack.net.httpapi.java11.Java11HttpEngine;
 import net.creeperhost.minetogether.lib.MineTogetherLib;
@@ -11,11 +9,8 @@ import net.creeperhost.minetogethercommunity.config.Config;
 import net.creeperhost.minetogethercommunity.util.Log4jUtils;
 import net.creeperhost.minetogethercommunity.util.ModPackInfo;
 import net.creeperhost.minetogethercommunity.util.SignatureVerifier;
-import net.fabricmc.api.EnvType;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-
-import java.util.Objects;
 
 /**
  * Main common mod entrypoint.
@@ -35,13 +30,13 @@ public class MineTogether {
             .httpEngine(WEB_ENGINE)
             .addUserAgentSegment("MineTogether-lib/" + MineTogetherLib.VERSION)
             .addUserAgentSegment("MineTogether-Community-mod/" + MineTogetherPlatform.getVersion())
-            .addUserAgentSegment("Minecraft/" + Platform.getMinecraftVersion())
-            .addUserAgentSegment("Modloader/" + ArchitecturyTarget.getCurrentTarget())
+            .addUserAgentSegment("Minecraft/" + MineTogetherPlatform.getMinecraftVersion())
+            .addUserAgentSegment("Modloader/" + MineTogetherPlatform.getPlatformName())
             .webAuth(AUTH)
             .build();
 
     public static void init() {
-        Log4jUtils.attachMTLogs(Platform.getGameFolder().resolve("logs"));
+        Log4jUtils.attachMTLogs(MineTogetherPlatform.getGameFolder().resolve("logs"));
         LOGGER.info("Initializing MineTogether Community!");
         AUTH.setHeader("Fingerprint", FINGERPRINT);
 
@@ -51,7 +46,7 @@ public class MineTogether {
 
         ModPackInfo.init();
         ModPackInfo.waitForInfo(info -> AUTH.setHeader("Identifier", info.realName));
-        if (Objects.requireNonNull(Platform.getEnv()) == EnvType.CLIENT) {
+        if (MineTogetherPlatform.isClient()) {
             MineTogetherClient.init();
         }
     }

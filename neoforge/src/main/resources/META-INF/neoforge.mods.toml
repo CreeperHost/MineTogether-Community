@@ -1,39 +1,34 @@
 modLoader = "javafml"
-loaderVersion = "[4,)"
+loaderVersion = "${neoforge_loader_version_range}"
 issueTrackerURL = "https://github.com/CreeperHost/MineTogether/issues"
-license = "GNU General Public License v3.0"
+license = "${license}"
 
 [[mods]]
-    modId = "minetogethercommunity"
+    modId = "${mod_id}"
     version = "${version}"
-    displayName = "MineTogether Community"
-    authors = "covers1624, Gigabit101, Cloudhunter, CreeperHost!"
-    description = ''''''
+    displayName = "${mod_name}"
+    authors = "${mod_author}"
+    credits = "${credits}"
+    description = '''${description}'''
 
 [[dependencies.minetogethercommunity]]
     modId = "neoforge"
     type="required"
-    versionRange = "[21.0.0-beta,)"
+    versionRange = "[${neoforge_version},)"
     ordering = "NONE"
     side = "BOTH"
 
 [[dependencies.minetogethercommunity]]
     modId = "minecraft"
     type="required"
-    versionRange = "[1.21,)"
+    versionRange = "${minecraft_version_range}"
     ordering = "NONE"
     side = "BOTH"
 
 [[dependencies.minetogethercommunity]]
-    modId = "architectury"
-    type="required"
-    versionRange = "[11.0.9,)"
-    ordering = "AFTER"
-    side = "BOTH"
-[[dependencies.minetogethercommunity]]
     modId = "polylib"
     type="required"
-    versionRange = "[13.0.1,)"
+    versionRange = "[${polylib_mod_version},)"
     ordering = "AFTER"
     side = "BOTH"
 
@@ -42,6 +37,3 @@ config = "minetogethercommunity-neoforge.mixins.json"
 
 [[mixins]]
 config = "minetogethercommunity-common.mixins.json"
-
-[[mixins]]
-config = "minetogethercommunity-ftbquests.mixins.json"

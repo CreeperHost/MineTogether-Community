@@ -4,11 +4,6 @@ import com.google.common.hash.Hashing;
 import com.google.common.util.concurrent.ThreadFactoryBuilder;
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
-import dev.architectury.event.events.client.ClientLifecycleEvent;
-import dev.architectury.event.events.client.ClientPlayerEvent;
-import dev.architectury.event.events.client.ClientTickEvent;
-import dev.architectury.injectables.targets.ArchitecturyTarget;
-import dev.architectury.platform.Platform;
 import net.covers1624.quack.net.httpapi.EngineRequest;
 import net.covers1624.quack.net.httpapi.EngineResponse;
 import net.covers1624.quack.net.httpapi.HeaderList;
@@ -18,6 +13,9 @@ import net.creeperhost.minetogethercommunity.MineTogether;
 import net.creeperhost.minetogethercommunity.MineTogetherPlatform;
 import net.creeperhost.minetogethercommunity.config.LocalConfig;
 import net.creeperhost.minetogethercommunity.util.ModPackInfo;
+import net.creeperhost.polylib.event.events.client.PolyClientLifecycleEvents;
+import net.creeperhost.polylib.event.events.client.PolyClientPlayerEvents;
+import net.creeperhost.polylib.event.events.client.PolyClientTickEvents;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.multiplayer.ServerData;
 import net.minecraft.client.resources.language.ClientLanguage;
@@ -25,7 +23,7 @@ import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.network.chat.Component;
 import net.minecraft.network.chat.contents.TranslatableContents;
 import net.minecraft.network.protocol.game.ClientboundUpdateAdvancementsPacket;
-import net.minecraft.resources.ResourceLocation;
+import net.minecraft.resources.Identifier;
 import net.minecraft.world.item.ItemStack;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -87,9 +85,9 @@ public class ActivityTelemetry {
         if (!currentAuthKey.isEmpty()) {
             applyAuthKey(currentAuthKey);
         }
-        ClientTickEvent.CLIENT_POST.register(ActivityTelemetry::tick);
-        ClientLifecycleEvent.CLIENT_STOPPING.register(ActivityTelemetry::stopping);
-        ClientPlayerEvent.CLIENT_PLAYER_QUIT.register(player -> onWorldExit());
+        PolyClientTickEvents.CLIENT_TICK_END.register(ActivityTelemetry::tick);
+        PolyClientLifecycleEvents.CLIENT_STOPPING.register(ActivityTelemetry::stopping);
+        PolyClientPlayerEvents.LOGOUT.register(player -> onWorldExit());
         refreshPreference();
     }
 
@@ -175,7 +173,7 @@ public class ActivityTelemetry {
 
     // Called both on CLIENT_PLAYER_QUIT (quit to title / disconnect) and CLIENT_STOPPING (game close).
     // Queues any remaining playtime then submits a flush to the same single-threaded executor so it
-    // runs after any in-flight async flush — then blocks (up to 10 s) waiting for completion.
+    // runs after any in-flight async flush â€” then blocks (up to 10 s) waiting for completion.
     // Because the executor is FIFO and single-threaded, this approach avoids the race condition
     // where flushRunning == true causes a blocking flush to return early.
     private static void onWorldExit() {
@@ -536,8 +534,8 @@ public class ActivityTelemetry {
             modpack.packId = info.curseID;
         }
         modpack.websiteId = info.websiteID;
-        modpack.minecraftVersion = Platform.getMinecraftVersion();
-        modpack.loader = ArchitecturyTarget.getCurrentTarget();
+        modpack.minecraftVersion = MineTogetherPlatform.getMinecraftVersion();
+        modpack.loader = MineTogetherPlatform.getPlatformName();
         modpack.modVersion = MineTogetherPlatform.getVersion();
         return modpack;
     }

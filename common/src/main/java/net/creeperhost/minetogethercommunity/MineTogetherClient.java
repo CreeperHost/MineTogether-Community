@@ -2,13 +2,6 @@ package net.creeperhost.minetogethercommunity;
 
 import com.mojang.brigadier.CommandDispatcher;
 import com.mojang.brigadier.builder.LiteralArgumentBuilder;
-import dev.architectury.event.EventResult;
-import dev.architectury.event.events.client.ClientCommandRegistrationEvent;
-import dev.architectury.event.events.client.ClientGuiEvent;
-import dev.architectury.event.events.client.ClientPlayerEvent;
-import dev.architectury.event.events.common.EntityEvent;
-import dev.architectury.hooks.client.screen.ScreenAccess;
-import dev.architectury.platform.Platform;
 import net.creeperhost.minetogether.session.MineTogetherSession;
 import net.creeperhost.minetogethercommunity.activity.ActivityTelemetry;
 import net.creeperhost.minetogethercommunity.chat.FriendChatNotifier;
@@ -27,7 +20,11 @@ import net.creeperhost.minetogethercommunity.util.MTSessionProvider;
 import net.creeperhost.polylib.client.modulargui.ModularGui;
 import net.creeperhost.polylib.client.modulargui.ModularGuiInjector;
 import net.creeperhost.polylib.client.screen.ButtonHelper;
-import net.minecraft.Util;
+import net.creeperhost.polylib.event.events.client.PolyClientEntityEvents;
+import net.creeperhost.polylib.event.events.client.PolyClientLifecycleEvents;
+import net.creeperhost.polylib.event.events.client.PolyClientPlayerEvents;
+import net.creeperhost.polylib.event.events.client.PolyScreenEvents;
+import net.minecraft.util.Util;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.components.AbstractWidget;
 import net.minecraft.client.gui.components.Button;
@@ -39,7 +36,6 @@ import net.minecraft.client.gui.screens.ConfirmLinkScreen;
 import net.minecraft.client.gui.screens.PauseScreen;
 import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.client.player.AbstractClientPlayer;
-import net.minecraft.commands.CommandBuildContext;
 import net.minecraft.network.chat.Component;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -54,6 +50,7 @@ import java.util.List;
 public class MineTogetherClient {
 
     private static final Logger LOGGER = LogManager.getLogger();
+    private static boolean started;
 
     public static void init() {
         LOGGER.info("Initializing MineTogetherCommunityClient!");
@@ -63,30 +60,23 @@ public class MineTogetherClient {
             MineTogether.AUTH.setHeader("Authorization", "Bearer " + token);
             ActivityTelemetry.authChanged(token);
         });
-        // Trigger session validation and set auth header.
-        MineTogetherSession.getDefault().getTokenAsync();
-
-        MineTogetherChat.init();
-        MineTogetherConnect.init();
-        FriendChatNotifier.init();
-        ActivityTelemetry.init();
         Keybindings.init();
 
         ModularGuiInjector.registerInjection(e -> e instanceof ChatScreen, e -> new ChatScreenInjection());
 
-        ClientGuiEvent.INIT_POST.register(MineTogetherClient::onScreenOpen);
-        ClientCommandRegistrationEvent.EVENT.register(MineTogetherClient::registerClientCommands);
+        PolyClientLifecycleEvents.CLIENT_STARTED.register(MineTogetherClient::onClientStarted);
+        PolyScreenEvents.SCREEN_OPENED.register(MineTogetherClient::onScreenOpen);
 
         // Kick off cosmetic catalog download and profile fetch as soon as the player enters a world,
         // so the data is ready (or already cached) by the time they open the cosmetics GUI.
-        ClientPlayerEvent.CLIENT_PLAYER_JOIN.register(player -> {
+        PolyClientPlayerEvents.CLIENT_LOGIN.register(player -> {
             CosmeticDownloader.instance().startCatalogFetch();
             CosmeticApiClient.fetchProfileAsync();
         });
 
         // Clear the in-memory selections when the player leaves so stale data doesn't linger
         // if a different account logs in during the same game session.
-        ClientPlayerEvent.CLIENT_PLAYER_QUIT.register(player -> {
+        PolyClientPlayerEvents.LOGOUT.register(player -> {
             CosmeticSelections cs = CosmeticSelections.instance();
             cs.selectedHatId = "";
             cs.selectedCapeId = "";
@@ -96,24 +86,35 @@ public class MineTogetherClient {
             PlayerCosmeticCache.clearAll();
         });
 
-        // When another player enters entity tracking range, fetch their cosmetic profile.
-        // EntityEvent.ADD fires on the client when any entity is added to the client world —
-        // that includes RemotePlayer instances spawned by the tracking system.
-        EntityEvent.ADD.register((entity, level) -> {
-            if (!level.isClientSide()) return EventResult.pass();
-            if (!(entity instanceof AbstractClientPlayer player)) return EventResult.pass();
-            if (player == Minecraft.getInstance().player) return EventResult.pass(); // local player handled above
+        // Fetch remote player cosmetics once their client-side player entity exists.
+        PolyClientEntityEvents.CLIENT_ENTITY_LOAD.register((entity, level) -> {
+            if (!(entity instanceof AbstractClientPlayer player)) return;
+            if (player == Minecraft.getInstance().player) return;
             // markFetching returns false if a fetch is already in progress for this UUID,
             // preventing concurrent duplicate requests.
             if (PlayerCosmeticCache.markFetching(player.getUUID())) {
                 CosmeticApiClient.fetchProfileForPlayerAsync(player.getUUID());
             }
-            return EventResult.pass();
         });
     }
 
-    private static void registerClientCommands(CommandDispatcher<ClientCommandRegistrationEvent.ClientCommandSourceStack> dispatcher, CommandBuildContext context) {
-        dispatcher.register(LiteralArgumentBuilder.<ClientCommandRegistrationEvent.ClientCommandSourceStack>literal("minetogether_settings")
+    private static void onClientStarted(Minecraft client) {
+        if (started) {
+            return;
+        }
+        started = true;
+
+        // Trigger session validation and set auth header after Minecraft has a user.
+        MineTogetherSession.getDefault().getTokenAsync();
+
+        MineTogetherChat.init();
+        MineTogetherConnect.init();
+        FriendChatNotifier.init();
+        ActivityTelemetry.init();
+    }
+
+    public static <S> void registerClientCommands(CommandDispatcher<S> dispatcher) {
+        dispatcher.register(LiteralArgumentBuilder.<S>literal("minetogether_settings")
                 .executes(c -> {
                     Minecraft.getInstance().setScreen(new SettingGui.Screen(null));
                     return 0;
@@ -122,7 +123,7 @@ public class MineTogetherClient {
     }
 
     public static void openOrderUI(ModularGui gui) {
-        if (Platform.isModLoaded("minetogetherpartners")) {
+        if (MineTogetherPlatform.isModLoaded("minetogetherpartners")) {
             LOGGER.info("minetogetherpartners loaded, Using minetogetherpartners order form");
             MTPartners.openOrderUI(gui);
             return;
@@ -131,12 +132,12 @@ public class MineTogetherClient {
         gui.mc().setScreen(new OrderGui.Screen(gui.getScreen(), true));
     }
 
-    private static void onScreenOpen(Screen screen, ScreenAccess screenAccess) {
+    private static void onScreenOpen(Minecraft client, Screen screen, int scaledWidth, int scaledHeight) {
         if (screen instanceof PauseScreen) {
             @SuppressWarnings ("unchecked")
             List<GuiEventListener> children = (List<GuiEventListener>) screen.children();
-            List<Renderable> renderables = screenAccess.getRenderables();
-            List<NarratableEntry> narratables = screenAccess.getNarratables();
+            List<Renderable> renderables = screen.renderables;
+            List<NarratableEntry> narratables = screen.narratables;
 
             // Replace bugs button with our own button.
             AbstractWidget bugs = ButtonHelper.findButton("menu.reportBugs", screen);

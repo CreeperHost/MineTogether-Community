@@ -1,7 +1,5 @@
 package net.creeperhost.minetogethercommunity.util;
 
-import dev.architectury.injectables.targets.ArchitecturyTarget;
-import dev.architectury.platform.Platform;
 import net.creeperhost.minetogethercommunity.MineTogetherPlatform;
 import net.creeperhost.minetogether.lib.MineTogetherLib;
 import net.creeperhost.minetogether.session.MojangUtils;
@@ -25,18 +23,31 @@ public class MTSessionProvider implements SessionProvider {
     private static final String UA =
             "MineTogether-lib/" + MineTogetherLib.VERSION +
             " MineTogether-Community-mod/" + MineTogetherPlatform.getVersion() +
-            " Minecraft/" + Platform.getMinecraftVersion() +
-            " Modloader/" + ArchitecturyTarget.getCurrentTarget();
-    private final Minecraft MC = Minecraft.getInstance();
-    private final User U = MC.getUser();
-    private final String PN = U.getName();
-    private final UUID PI = U.getProfileId();
+            " Minecraft/" + MineTogetherPlatform.getMinecraftVersion() +
+            " Modloader/" + MineTogetherPlatform.getPlatformName();
+
+    private static @Nullable User getUser() {
+        Minecraft minecraft = Minecraft.getInstance();
+        return minecraft == null ? null : minecraft.getUser();
+    }
 
     // @formatter:off
-    @Override public @Nullable UUID getUUID() { return PI; }
-    @Override public String getUsername() { return PN; }
-    @Override public @Nullable String beginAuth() throws IOException { return MojangUtils.joinServer(PI, U.getAccessToken()); }
-    @Override public @Nullable ProfileKeyPairResponse getProfileKeyPair() throws IOException { return MojangUtils.getProfileKeypair(U.getAccessToken()); }
+    @Override public @Nullable UUID getUUID() {
+        User user = getUser();
+        return user == null ? null : user.getProfileId();
+    }
+    @Override public String getUsername() {
+        User user = getUser();
+        return user == null ? "" : user.getName();
+    }
+    @Override public @Nullable String beginAuth() throws IOException {
+        User user = getUser();
+        return user == null ? null : MojangUtils.joinServer(user.getProfileId(), user.getAccessToken());
+    }
+    @Override public @Nullable ProfileKeyPairResponse getProfileKeyPair() throws IOException {
+        User user = getUser();
+        return user == null ? null : MojangUtils.getProfileKeypair(user.getAccessToken());
+    }
     @Override public void infoLog(String msg, Object... args) { LOGGER.info(msg, args); }
     @Override public void warnLog(String msg, Object... args) { LOGGER.warn(msg, args); }
     @Override public void errorLog(String msg, Object... args) { LOGGER.error(msg, args); }

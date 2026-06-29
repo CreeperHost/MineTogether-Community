@@ -1,9 +1,12 @@
-accessWidener   v2  named
+accessWidener   v2  official
 
 extendable method net/minecraft/client/gui/components/ChatComponent isChatFocused ()Z
 accessible method net/minecraft/client/gui/components/ChatComponent isChatFocused ()Z
 extendable method net/minecraft/client/gui/components/ChatComponent refreshTrimmedMessages ()V
 accessible method net/minecraft/client/gui/components/ChatComponent refreshTrimmedMessages ()V
+accessible method net/minecraft/client/gui/components/ChatComponent getWidth ()I
+accessible method net/minecraft/client/gui/components/ChatComponent getHeight ()I
+accessible method net/minecraft/client/gui/components/ChatComponent getScale ()D
 
 accessible field net/minecraft/client/gui/components/ChatComponent trimmedMessages Ljava/util/List;
 accessible field net/minecraft/client/gui/components/ChatComponent allMessages Ljava/util/List;
@@ -13,12 +16,7 @@ accessible field net/minecraft/client/gui/components/ChatComponent newMessageSin
 accessible field net/minecraft/client/gui/components/CommandSuggestions suggestions Lnet/minecraft/client/gui/components/CommandSuggestions$SuggestionsList;
 
 accessible field net/minecraft/client/gui/Gui chat Lnet/minecraft/client/gui/components/ChatComponent;
-
-extendable method net/minecraft/client/gui/components/AbstractSelectionList clearEntries ()V
-accessible method net/minecraft/client/gui/components/AbstractSelectionList clearEntries ()V
-
-extendable method net/minecraft/client/gui/components/AbstractSelectionList addEntry (Lnet/minecraft/client/gui/components/AbstractSelectionList$Entry;)I
-accessible method net/minecraft/client/gui/components/AbstractSelectionList addEntry (Lnet/minecraft/client/gui/components/AbstractSelectionList$Entry;)I
+accessible field net/minecraft/client/Minecraft services Lnet/minecraft/server/Services;
 
 accessible field net/minecraft/server/network/ServerConnectionListener channels Ljava/util/List;
 accessible field net/minecraft/server/network/ServerConnectionListener connections Ljava/util/List;
@@ -26,9 +24,6 @@ accessible field net/minecraft/server/network/ServerConnectionListener connectio
 accessible field net/minecraft/client/server/IntegratedServer publishedPort I
 accessible field net/minecraft/client/server/IntegratedServer publishedGameType Lnet/minecraft/world/level/GameType;
 accessible field net/minecraft/server/MinecraftServer storageSource Lnet/minecraft/world/level/storage/LevelStorageSource$LevelStorageAccess;
-
-accessible field net/minecraft/server/players/PlayerList maxPlayers I
-mutable field net/minecraft/server/players/PlayerList maxPlayers I
 
 accessible field net/minecraft/client/gui/screens/ConnectScreen connection Lnet/minecraft/network/Connection;
 
@@ -40,10 +35,20 @@ accessible field net/minecraft/client/gui/screens/ShareToLanScreen gameMode Lnet
 accessible field net/minecraft/client/gui/screens/ShareToLanScreen commands Z
 
 accessible field net/minecraft/client/gui/screens/Screen renderables Ljava/util/List;
+accessible field net/minecraft/client/gui/screens/Screen narratables Ljava/util/List;
+
+extendable method net/minecraft/client/gui/screens/Screen addRenderableWidget (Lnet/minecraft/client/gui/components/events/GuiEventListener;)Lnet/minecraft/client/gui/components/events/GuiEventListener;
+accessible method net/minecraft/client/gui/screens/Screen addRenderableWidget (Lnet/minecraft/client/gui/components/events/GuiEventListener;)Lnet/minecraft/client/gui/components/events/GuiEventListener;
+accessible method net/minecraft/client/gui/screens/Screen defaultHandleClickEvent (Lnet/minecraft/network/chat/ClickEvent;Lnet/minecraft/client/Minecraft;Lnet/minecraft/client/gui/screens/Screen;)V
+
+accessible field net/minecraft/client/gui/screens/ChatScreen displayMode Lnet/minecraft/client/gui/components/ChatComponent$DisplayMode;
+accessible method net/minecraft/client/gui/screens/ChatScreen handleComponentClicked (Lnet/minecraft/network/chat/Style;Z)Z
 
 accessible field net/minecraft/client/gui/components/AbstractButton SPRITES Lnet/minecraft/client/gui/components/WidgetSprites;
 
 accessible field net/minecraft/network/Connection bandwidthDebugMonitor Lnet/minecraft/network/BandwidthDebugMonitor;
+
+accessible method net/minecraft/client/renderer/entity/LivingEntityRenderer addLayer (Lnet/minecraft/client/renderer/entity/layers/RenderLayer;)Z
 
 accessible field net/minecraft/client/gui/screens/multiplayer/ServerSelectionList THREAD_POOL Ljava/util/concurrent/ThreadPoolExecutor;
 
