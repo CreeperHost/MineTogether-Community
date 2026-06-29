@@ -2,9 +2,7 @@ package net.creeperhost.minetogethercommunity.oauth;
 import net.minecraft.ChatFormatting;
 import net.minecraft.network.Connection;
 import net.minecraft.network.chat.Component;
-import net.minecraft.network.protocol.common.*;
 import net.minecraft.network.protocol.game.*;
-import net.minecraft.network.protocol.status.ClientboundPongResponsePacket;
 
 public class ClientPlayNetHandlerOurs implements ClientGamePacketListener {
 
@@ -31,12 +29,11 @@ public class ClientPlayNetHandlerOurs implements ClientGamePacketListener {
 
     // NO-OP
     //@formatter:off
-    @Override public void handleResourcePackPush(ClientboundResourcePackPushPacket clientboundResourcePackPushPacket) { }
-    @Override public void handleResourcePackPop(ClientboundResourcePackPopPacket clientboundResourcePackPopPacket) { }
     @Override public void handleKeepAlive(ClientboundKeepAlivePacket clientboundKeepAlivePacket) { }
     @Override public void handlePing(ClientboundPingPacket clientboundPingPacket) { }
     @Override public void handleCustomPayload(ClientboundCustomPayloadPacket clientboundCustomPayloadPacket) { }
     @Override public void handleAddEntity(ClientboundAddEntityPacket clientboundAddEntityPacket) { }
+    @Override public void handleAddPlayer(ClientboundAddPlayerPacket clientboundAddPlayerPacket) { }
     @Override public void handleAddExperienceOrb(ClientboundAddExperienceOrbPacket clientboundAddExperienceOrbPacket) { }
     @Override public void handleAddObjective(ClientboundSetObjectivePacket clientboundSetObjectivePacket) { }
     @Override public void handleAnimate(ClientboundAnimatePacket clientboundAnimatePacket) { }
@@ -83,15 +80,12 @@ public class ClientPlayNetHandlerOurs implements ClientGamePacketListener {
     @Override public void handleSetHealth(ClientboundSetHealthPacket clientboundSetHealthPacket) { }
     @Override public void handleSetPlayerTeamPacket(ClientboundSetPlayerTeamPacket clientboundSetPlayerTeamPacket) { }
     @Override public void handleSetScore(ClientboundSetScorePacket clientboundSetScorePacket) { }
-    @Override public void handleResetScore(ClientboundResetScorePacket clientboundResetScorePacket) {}
     @Override public void handleSetSpawn(ClientboundSetDefaultSpawnPositionPacket clientboundSetDefaultSpawnPositionPacket) { }
     @Override public void handleSetTime(ClientboundSetTimePacket clientboundSetTimePacket) { }
     @Override public void handleSoundEvent(ClientboundSoundPacket clientboundSoundPacket) { }
     @Override public void handleSoundEntityEvent(ClientboundSoundEntityPacket clientboundSoundEntityPacket) { }
     @Override public void handleTakeItemEntity(ClientboundTakeItemEntityPacket clientboundTakeItemEntityPacket) { }
     @Override public void handleTeleportEntity(ClientboundTeleportEntityPacket clientboundTeleportEntityPacket) { }
-    @Override public void handleTickingState(ClientboundTickingStatePacket clientboundTickingStatePacket) {}
-    @Override public void handleTickingStep(ClientboundTickingStepPacket clientboundTickingStepPacket) {}
     @Override public void handleUpdateAttributes(ClientboundUpdateAttributesPacket clientboundUpdateAttributesPacket) { }
     @Override public void handleUpdateMobEffect(ClientboundUpdateMobEffectPacket clientboundUpdateMobEffectPacket) { }
     @Override public void handleUpdateTags(ClientboundUpdateTagsPacket clientboundUpdateTagsPacket) { }
@@ -107,6 +101,7 @@ public class ClientPlayNetHandlerOurs implements ClientGamePacketListener {
     @Override public void handleSetBorderWarningDistance(ClientboundSetBorderWarningDistancePacket clientboundSetBorderWarningDistancePacket) { }
     @Override public void handleSetBorderCenter(ClientboundSetBorderCenterPacket clientboundSetBorderCenterPacket) { }
     @Override public void handleTabListCustomisation(ClientboundTabListPacket clientboundTabListPacket) { }
+    @Override public void handleResourcePack(ClientboundResourcePackPacket clientboundResourcePackPacket) { }
     @Override public void handleBossUpdate(ClientboundBossEventPacket clientboundBossEventPacket) { }
     @Override public void handleItemCooldown(ClientboundCooldownPacket clientboundCooldownPacket) { }
     @Override public void handleMoveVehicle(ClientboundMoveVehiclePacket clientboundMoveVehiclePacket) { }
@@ -134,6 +129,7 @@ public class ClientPlayNetHandlerOurs implements ClientGamePacketListener {
     @Override public void handleTitlesClear(ClientboundClearTitlesPacket clientboundClearTitlesPacket) { }
     @Override public void handleServerData(ClientboundServerDataPacket clientboundServerDataPacket) { }
     @Override public void handleCustomChatCompletions(ClientboundCustomChatCompletionsPacket clientboundCustomChatCompletionsPacket) { }
+    @Override public void handleEnabledFeatures(ClientboundUpdateEnabledFeaturesPacket clientboundUpdateEnabledFeaturesPacket) { }
     @Override public void handleHurtAnimation(ClientboundHurtAnimationPacket clientboundHurtAnimationPacket) { }
     @Override public void handleDisguisedChat(ClientboundDisguisedChatPacket clientboundDisguisedChatPacket) { }
     @Override public void handleChunksBiomes(ClientboundChunksBiomesPacket clientboundChunksBiomesPacket) { }
@@ -141,9 +137,5 @@ public class ClientPlayNetHandlerOurs implements ClientGamePacketListener {
     @Override public void handlePlayerInfoUpdate(ClientboundPlayerInfoUpdatePacket clientboundPlayerInfoUpdatePacket) { }
     @Override public void handleBundlePacket(ClientboundBundlePacket clientboundBundlePacket) { }
     @Override public void handleDamageEvent(ClientboundDamageEventPacket clientboundDamageEventPacket) { }
-    @Override public void handleConfigurationStart(ClientboundStartConfigurationPacket clientboundStartConfigurationPacket) { }
-    @Override public void handleChunkBatchStart(ClientboundChunkBatchStartPacket clientboundChunkBatchStartPacket) { }
-    @Override public void handleChunkBatchFinished(ClientboundChunkBatchFinishedPacket clientboundChunkBatchFinishedPacket) { }
-    @Override public void handlePongResponse(ClientboundPongResponsePacket clientboundPongResponsePacket) { }
     //@formatter:on
 }

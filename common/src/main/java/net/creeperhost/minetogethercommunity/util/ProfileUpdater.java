@@ -4,7 +4,6 @@ import com.google.common.cache.CacheBuilder;
 import com.google.common.cache.CacheLoader;
 import com.google.common.cache.LoadingCache;
 import com.mojang.authlib.GameProfile;
-import com.mojang.authlib.yggdrasil.ProfileResult;
 import net.minecraft.Util;
 import net.minecraft.client.Minecraft;
 import org.jetbrains.annotations.Nullable;
@@ -46,9 +45,8 @@ public class ProfileUpdater {
 
     private static CompletableFuture<@Nullable GameProfile> loadProfile(UUID uuid) {
         return CompletableFuture.supplyAsync(() -> {
-            ProfileResult result = Minecraft.getInstance().getMinecraftSessionService().fetchProfile(uuid, true);
-            if (result == null) return null;
-            return result.profile();
+            GameProfile profile = new GameProfile(uuid, null);
+            return Minecraft.getInstance().getMinecraftSessionService().fillProfileProperties(profile, true);
         }, Util.backgroundExecutor());
     }
 }

@@ -3,7 +3,7 @@ package net.creeperhost.minetogethercommunity;
 import com.mojang.brigadier.CommandDispatcher;
 import com.mojang.brigadier.builder.LiteralArgumentBuilder;
 import dev.architectury.event.EventResult;
-import dev.architectury.event.events.client.ClientCommandRegistrationEvent;
+import dev.architectury.event.events.common.CommandRegistrationEvent;
 import dev.architectury.event.events.client.ClientGuiEvent;
 import dev.architectury.event.events.client.ClientPlayerEvent;
 import dev.architectury.event.events.common.EntityEvent;
@@ -42,6 +42,8 @@ import net.minecraft.client.gui.screens.PauseScreen;
 import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.client.player.AbstractClientPlayer;
 import net.minecraft.commands.CommandBuildContext;
+import net.minecraft.commands.CommandSourceStack;
+import net.minecraft.commands.Commands;
 import net.minecraft.network.chat.Component;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -77,7 +79,7 @@ public class MineTogetherClient {
 
 
         ClientGuiEvent.INIT_POST.register(MineTogetherClient::onScreenOpen);
-        ClientCommandRegistrationEvent.EVENT.register(MineTogetherClient::registerClientCommands);
+        CommandRegistrationEvent.EVENT.register(MineTogetherClient::registerClientCommands);
 
         Integration.runOptional("ftbpc", () -> FTBPackCompanionCompat::init);
 
@@ -116,8 +118,8 @@ public class MineTogetherClient {
         });
     }
 
-    private static void registerClientCommands(CommandDispatcher<ClientCommandRegistrationEvent.ClientCommandSourceStack> dispatcher, CommandBuildContext context) {
-        dispatcher.register(LiteralArgumentBuilder.<ClientCommandRegistrationEvent.ClientCommandSourceStack>literal("minetogether_settings")
+    private static void registerClientCommands(CommandDispatcher<CommandSourceStack> dispatcher, CommandBuildContext context, Commands.CommandSelection selection) {
+        dispatcher.register(LiteralArgumentBuilder.<CommandSourceStack>literal("minetogether_settings")
                 .executes(c -> {
                     Minecraft.getInstance().setScreen(new SettingGui.Screen(null));
                     return 0;

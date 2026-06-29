@@ -1,34 +1,36 @@
-package net.creeperhost.minetogethercommunity.neoforge;
+package net.creeperhost.minetogethercommunity.forge;
 
 import net.creeperhost.minetogethercommunity.MineTogether;
 import net.creeperhost.minetogethercommunity.chat.MineTogetherChat;
 import net.creeperhost.minetogethercommunity.connect.DedicatedServerConnect;
 import net.minecraft.server.level.ServerPlayer;
-import net.neoforged.bus.api.IEventBus;
-import net.neoforged.fml.common.Mod;
-import net.neoforged.fml.loading.FMLEnvironment;
-import net.neoforged.neoforge.client.event.ScreenEvent;
-import net.neoforged.neoforge.common.NeoForge;
-import net.neoforged.neoforge.event.entity.player.PlayerEvent;
-import net.neoforged.neoforge.event.server.ServerStartedEvent;
-import net.neoforged.neoforge.event.server.ServerStoppingEvent;
+import net.minecraftforge.eventbus.api.IEventBus;
+import net.minecraftforge.fml.common.Mod;
+import net.minecraftforge.fml.javafmlmod.FMLJavaModLoadingContext;
+import net.minecraftforge.fml.loading.FMLEnvironment;
+import net.minecraftforge.client.event.ScreenEvent;
+import net.minecraftforge.common.MinecraftForge;
+import net.minecraftforge.event.entity.player.PlayerEvent;
+import net.minecraftforge.event.server.ServerStartedEvent;
+import net.minecraftforge.event.server.ServerStoppingEvent;
 
 /**
  * Created by covers1624 on 20/6/22.
  */
 @Mod (MineTogether.MOD_ID)
-public class MineTogetherNeoForge {
+public class MineTogetherForge {
 
-    public MineTogetherNeoForge(IEventBus eventBus) {
+    public MineTogetherForge() {
+        IEventBus eventBus = FMLJavaModLoadingContext.get().getModEventBus();
         MineTogether.init();
 
         if (FMLEnvironment.dist.isClient()) {
-            NeoForge.EVENT_BUS.addListener(this::clientInit);
-            NeoForgeClientEvents.init(eventBus);
+            MinecraftForge.EVENT_BUS.addListener(this::clientInit);
+            ForgeClientEvents.init(eventBus);
         } else {
-            NeoForge.EVENT_BUS.addListener(this::serverStarted);
-            NeoForge.EVENT_BUS.addListener(this::serverStopping);
-            NeoForge.EVENT_BUS.addListener(this::playerLoggedIn);
+            MinecraftForge.EVENT_BUS.addListener(this::serverStarted);
+            MinecraftForge.EVENT_BUS.addListener(this::serverStopping);
+            MinecraftForge.EVENT_BUS.addListener(this::playerLoggedIn);
         }
     }
 

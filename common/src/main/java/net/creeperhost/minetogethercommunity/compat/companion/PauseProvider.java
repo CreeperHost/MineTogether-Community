@@ -4,7 +4,6 @@ import dev.ftb.packcompanion.api.client.pause.AdditionalPauseProvider;
 import dev.ftb.packcompanion.api.client.pause.AdditionalPauseTarget;
 import dev.ftb.packcompanion.api.client.pause.ScreenHolder;
 import dev.ftb.packcompanion.api.client.pause.ScreenWidgetCollection;
-import dev.ftb.packcompanion.client.screen.pause.providers.SupportPauseProvider;
 import net.creeperhost.minetogethercommunity.Constants;
 import net.creeperhost.minetogethercommunity.chat.gui.FriendChatGui;
 import net.creeperhost.minetogethercommunity.chat.gui.PublicChatGui;
@@ -12,8 +11,10 @@ import net.creeperhost.minetogethercommunity.config.LocalConfig;
 import net.creeperhost.minetogethercommunity.connect.ConnectHandler;
 import net.creeperhost.minetogethercommunity.connect.gui.GuiShareToFriends;
 import net.creeperhost.minetogethercommunity.gui.SettingGui;
+import net.creeperhost.minetogethercommunity.polylib.gui.IconButton;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.components.Button;
+import net.minecraft.client.gui.components.Tooltip;
 import net.minecraft.client.gui.screens.PauseScreen;
 import net.minecraft.client.server.IntegratedServer;
 import net.minecraft.network.chat.Component;
@@ -43,16 +44,18 @@ public class PauseProvider implements AdditionalPauseProvider {
 
         xOffset += 22;
 
-        var newSettingsBtn = new SupportPauseProvider.IconButton(x - xOffset, y, 20, 20, Constants.WIDGETS_SHEET, "minetogether:gui.button.settings.info", e -> Minecraft.getInstance().setScreen(new SettingGui.Screen(screen.unsafeScreenAccess())), 60, 0, 256, 256, 20, 20, 20, false);
-        var newFriendChatBtn = new SupportPauseProvider.IconButton(x - xOffset - 22, y, 20, 20, Constants.WIDGETS_SHEET, "minetogether:gui.button.friends.info", e -> Minecraft.getInstance().setScreen(new FriendChatGui.Screen(screen.unsafeScreenAccess())), 140, 0, 256, 256, 20, 20, 20, false);
+        var newSettingsBtn = new IconButton(x - xOffset, y, 3, Constants.WIDGETS_SHEET, e -> Minecraft.getInstance().setScreen(new SettingGui.Screen(screen.unsafeScreenAccess())));
+        newSettingsBtn.setTooltip(Tooltip.create(Component.translatable("minetogether:gui.button.settings.info")));
+        var newFriendChatBtn = new IconButton(x - xOffset - 22, y, 7, Constants.WIDGETS_SHEET, e -> Minecraft.getInstance().setScreen(new FriendChatGui.Screen(screen.unsafeScreenAccess())));
+        newFriendChatBtn.setTooltip(Tooltip.create(Component.translatable("minetogether:gui.button.friends.info")));
         collection.addRenderableWidget(newSettingsBtn);
         collection.addRenderableWidget(newFriendChatBtn);
 
         if (LocalConfig.instance().chatEnabled) {
-            var newPublicChatBtn = new SupportPauseProvider.IconButton(x - xOffset - 44, y, 20, 20, Constants.WIDGETS_SHEET, "minetogether:gui.button.global_chat.info", e -> Minecraft.getInstance().setScreen(new PublicChatGui.Screen(screen.unsafeScreenAccess())), 20, 0, 256, 256, 20, 20, 20, false);
+            var newPublicChatBtn = new IconButton(x - xOffset - 44, y, 1, Constants.WIDGETS_SHEET, e -> Minecraft.getInstance().setScreen(new PublicChatGui.Screen(screen.unsafeScreenAccess())));
+            newPublicChatBtn.setTooltip(Tooltip.create(Component.translatable("minetogether:gui.button.global_chat.info")));
             collection.addRenderableWidget(newPublicChatBtn);
         }
-
         return collection;
     }
 }

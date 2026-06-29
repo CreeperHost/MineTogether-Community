@@ -366,11 +366,11 @@ abstract class ChatScreenMixin extends Screen {
             at = @At("HEAD"),
             cancellable = true
     )
-    private void onHandleChatInput(String message, boolean bl, CallbackInfo ci) {
+    private void onHandleChatInput(String message, boolean bl, CallbackInfoReturnable<Boolean> cir) {
         String normalized = normalizeChatMessage(message);
         if (MineTogetherChat.getTarget() == ChatTarget.PUBLIC && !normalized.isEmpty()) {
             MineTogetherChat.publicChat.addRecentChat(normalized);
-            ci.cancel();
+            cir.setReturnValue(true);
         }
     }
 

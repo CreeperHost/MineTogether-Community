@@ -15,7 +15,7 @@ public class FTBQuestsCompat {
 
     /**
      * Called from the optional mixin when any quest-object completion message is received on the client.
-     * Reflection keeps the base 1.20.4 build independent from FTB Quests compile-time artifacts.
+     * Reflection keeps the base 1.20.x build independent from FTB Quests compile-time artifacts.
      */
     public static void onObjectCompleted(long id) {
         try {

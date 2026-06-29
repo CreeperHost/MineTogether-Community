@@ -50,6 +50,8 @@ public class MTChatComponent extends ChatComponent {
     private final List<InGameDisplayableMessage> processedMessages = new ArrayList<>();
     @Nullable
     private IrcChannel channel;
+    @Nullable
+    private IrcChannel.ChatListener listener;
 
     @Nullable
     private Message clickedMessage;
@@ -62,11 +64,31 @@ public class MTChatComponent extends ChatComponent {
     }
 
     public void attach(IrcChannel channel) {
-        // Bail if we are already bound. IrcChannel's are
-        if (this.channel != null) return;
+        if (this.channel == channel) return;
+
+        if (this.channel != null) {
+            assert listener != null;
+            this.channel.removeListener(listener);
+            listener = null;
+        }
+
+        synchronized (pendingMessages) {
+            pendingMessages.clear();
+        }
+        synchronized (processedMessages) {
+            for (InGameDisplayableMessage message : processedMessages) {
+                message.onDead();
+            }
+            processedMessages.clear();
+        }
+        trimmedMessages.clear();
+        resetChatScroll();
 
         this.channel = channel;
-        channel.addListener(message -> {
+        synchronized (pendingMessages) {
+            pendingMessages.addAll(channel.getMessages());
+        }
+        listener = channel.addListener(message -> {
             synchronized (pendingMessages) {
                 pendingMessages.add(message);
             }

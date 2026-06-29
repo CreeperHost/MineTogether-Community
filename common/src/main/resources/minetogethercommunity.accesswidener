@@ -44,9 +44,7 @@ accessible field net/minecraft/client/gui/screens/ShareToLanScreen commands Z
 
 accessible field net/minecraft/client/gui/screens/Screen renderables Ljava/util/List;
 
-accessible field net/minecraft/client/gui/components/AbstractButton SPRITES Lnet/minecraft/client/gui/components/WidgetSprites;
 
-accessible field net/minecraft/network/Connection bandwidthDebugMonitor Lnet/minecraft/network/BandwidthDebugMonitor;
 
 accessible field net/minecraft/client/gui/screens/multiplayer/ServerSelectionList THREAD_POOL Ljava/util/concurrent/ThreadPoolExecutor;
 

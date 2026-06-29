@@ -2,6 +2,8 @@ package net.creeperhost.minetogethercommunity.oauth;
 
 import net.minecraft.client.Minecraft;
 import net.minecraft.network.Connection;
+import net.minecraft.network.ConnectionProtocol;
+import net.minecraft.network.protocol.handshake.ClientIntentionPacket;
 import net.minecraft.network.protocol.login.ServerboundHelloPacket;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -9,6 +11,7 @@ import org.apache.logging.log4j.Logger;
 import java.net.InetAddress;
 import java.net.InetSocketAddress;
 import java.net.UnknownHostException;
+import java.util.Optional;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.BiFunction;
 import java.util.regex.Matcher;
@@ -43,9 +46,10 @@ public class ServerAuthTest {
                     }
 
                     inetaddress = new InetSocketAddress(InetAddress.getByName(address), port);
-                    networkManager = Connection.connectToServer(inetaddress, true, null);
-                    networkManager.initiateServerboundPlayConnection(address, port, new NetHandlerLoginClientOurs(networkManager, mc));
-                    networkManager.send(new ServerboundHelloPacket(mc.getUser().getName(), mc.getUser().getProfileId()));
+                    networkManager = Connection.connectToServer(inetaddress, true);
+                    networkManager.setListener(new NetHandlerLoginClientOurs(networkManager, mc));
+                    networkManager.send(new ClientIntentionPacket(address, port, ConnectionProtocol.LOGIN));
+                    networkManager.send(new ServerboundHelloPacket(mc.getUser().getName(), Optional.of(mc.getUser().getProfileId())));
 
                 } catch (UnknownHostException unknownhostexception) {
                     if (ServerAuthTest.cancel) {

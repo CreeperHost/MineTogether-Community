@@ -15,6 +15,7 @@ import net.minecraft.client.Minecraft;
 import net.minecraft.client.server.IntegratedServer;
 import net.minecraft.network.chat.Component;
 import net.minecraft.util.StringUtil;
+import net.minecraft.world.level.storage.LevelResource;
 import net.minecraft.world.level.storage.LevelStorageException;
 import net.minecraft.world.level.storage.LevelStorageSource;
 import net.minecraft.world.level.storage.LevelSummary;
@@ -75,7 +76,7 @@ public class WorldElement extends GuiElement<WorldElement> {
                     .onPress(() -> new ItemSelectDialog<>(this.getModularGui().getRoot(), Component.translatable("minetogether:gui.order.world.select"), levels, levels.get(0), e -> Component.empty().append(Component.literal(e.getLevelName()).withStyle(GREEN)).append("\n").append(e.getInfo()).withStyle(GRAY))
                             .setCloseOnOutsideClick(true)
                             .setOnItemSelected(selected -> {
-                                Path worldFolder = this.mc().getLevelSource().getLevelPath(selected.getLevelId());
+                                Path worldFolder = this.mc().getLevelSource().getBaseDir().resolve(selected.getLevelId());
                                 confirmStartUpload(worldFolder, selected.getLevelName());
                             })
                     )
@@ -193,7 +194,7 @@ public class WorldElement extends GuiElement<WorldElement> {
         IntegratedServer server = gui.mc().getSingleplayerServer();
         if (server == null) return;
         LevelStorageSource.LevelStorageAccess storage = server.storageSource;
-        Path levelPath = storage.getLevelDirectory().path().toAbsolutePath();
+        Path levelPath = storage.getLevelPath(LevelResource.ROOT).toAbsolutePath();
         confirmStartUpload(levelPath, server.getWorldData().getLevelName());
     }
 

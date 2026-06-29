@@ -23,10 +23,13 @@ import net.minecraft.client.quickplay.QuickPlayLog;
 import net.minecraft.client.server.LanServer;
 import net.minecraft.network.chat.CommonComponents;
 import net.minecraft.network.chat.Component;
+import net.minecraft.network.ConnectionProtocol;
+import net.minecraft.network.protocol.handshake.ClientIntentionPacket;
 import net.minecraft.network.protocol.login.ServerboundHelloPacket;
 import org.slf4j.Logger;
 
 import java.time.Duration;
+import java.util.Optional;
 import java.util.concurrent.atomic.AtomicInteger;
 
 
@@ -45,7 +48,7 @@ public class FriendConnectScreen extends ConnectScreen {
 
     public static void startConnecting(Screen screen, Minecraft minecraft, RemoteServer server, LanServer serverData) {
         FriendConnectScreen connectScreen = new FriendConnectScreen(screen);
-        minecraft.disconnect();
+        minecraft.clearLevel();
         minecraft.prepareForMultiplayer();
         minecraft.updateReportEnvironment(ReportEnvironment.thirdParty(serverData.getAddress()));
         minecraft.quickPlayLog().setWorldData(QuickPlayLog.Type.MULTIPLAYER, serverData.getAddress(), "MT Friend Server"); //< TODO Ideally we want the world or the friend name here
@@ -63,13 +66,10 @@ public class FriendConnectScreen extends ConnectScreen {
                     synchronized (FriendConnectScreen.this) {
                         ConnectHost endpoint = ConnectHandler.getSpecificEndpoint(server.node);
                         JWebToken token = MineTogetherSession.getDefault().getTokenAsync().get();
-                        connection = NettyClient.connect(endpoint, token, server.serverToken, minecraft.getDebugOverlay().getBandwidthLogger(), false);
-                        connection.initiateServerboundPlayConnection(
-                                endpoint.address(),
-                                endpoint.proxyPort(),                                        //TODO This v may break....
-                                new ClientHandshakePacketListenerImpl(connection, minecraft, new ServerData("", "", ServerData.Type.OTHER), parent, false, (Duration) null, FriendConnectScreen.this::updateStatus)
-                        );
-                        connection.send(new ServerboundHelloPacket(minecraft.getUser().getName(), minecraft.getUser().getProfileId()));
+                        connection = NettyClient.connect(endpoint, token, server.serverToken, false);
+                        connection.setListener(new ClientHandshakePacketListenerImpl(connection, minecraft, new ServerData("", "", false), parent, false, (Duration) null, FriendConnectScreen.this::updateStatus));
+                        connection.send(new ClientIntentionPacket(endpoint.address(), endpoint.proxyPort(), ConnectionProtocol.LOGIN));
+                        connection.send(new ServerboundHelloPacket(minecraft.getUser().getName(), Optional.of(minecraft.getUser().getProfileId())));
                     }
                 } catch (Exception ex) {
                     if (aborted) {
@@ -126,7 +126,7 @@ public class FriendConnectScreen extends ConnectScreen {
     }
 
     public void render(GuiGraphics graphics, int i, int j, float f) {
-        renderBackground(graphics, i, j, f);
+        renderBackground(graphics);
         long l = Util.getMillis();
         if (l - lastNarration > 2000L) {
             lastNarration = l;

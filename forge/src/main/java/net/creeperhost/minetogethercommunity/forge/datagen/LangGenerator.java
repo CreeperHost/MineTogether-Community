@@ -1,9 +1,9 @@
-package net.creeperhost.minetogethercommunity.neoforge.datagen;
+package net.creeperhost.minetogethercommunity.forge.datagen;
 
 
 import net.creeperhost.minetogethercommunity.MineTogether;
 import net.minecraft.data.PackOutput;
-import net.neoforged.neoforge.common.data.LanguageProvider;
+import net.minecraftforge.common.data.LanguageProvider;
 
 /**
  * Created by brandon3055 on 02/02/2025

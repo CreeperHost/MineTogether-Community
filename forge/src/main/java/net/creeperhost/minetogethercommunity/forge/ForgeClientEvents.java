@@ -1,13 +1,13 @@
-package net.creeperhost.minetogethercommunity.neoforge;
+package net.creeperhost.minetogethercommunity.forge;
 
 import net.creeperhost.minetogethercommunity.gui.MTTextures;
-import net.neoforged.bus.api.IEventBus;
-import net.neoforged.neoforge.client.event.RegisterClientReloadListenersEvent;
+import net.minecraftforge.eventbus.api.IEventBus;
+import net.minecraftforge.client.event.RegisterClientReloadListenersEvent;
 
-public class NeoForgeClientEvents {
+public class ForgeClientEvents {
 
     public static void init(IEventBus eventBus) {
-        eventBus.addListener(NeoForgeClientEvents::registerReloadListeners);
+        eventBus.addListener(ForgeClientEvents::registerReloadListeners);
     }
 
     private static void registerReloadListeners(RegisterClientReloadListenersEvent event) {

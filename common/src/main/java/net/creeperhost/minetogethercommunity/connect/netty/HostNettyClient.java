@@ -144,11 +144,10 @@ public class HostNettyClient {
         HostConnection proxyConnection = new HostConnection(endpoint, listener) {
             @Override
             protected void buildPipeline(ChannelPipeline pipeline) {
-                Connection.setInitialProtocolAttributes(pipeline.channel());
                 pipeline.addLast("mt:raw", new RawCodec());
-                pipeline.addLast("legacy_query", new LegacyQueryHandler(server));
-                Connection.configureSerialization(pipeline, PacketFlow.SERVERBOUND, null);
-                connection.configurePacketHandler(pipeline);
+                pipeline.addLast("legacy_query", new LegacyQueryHandler(serverConnection));
+                Connection.configureSerialization(pipeline, PacketFlow.SERVERBOUND);
+                pipeline.addLast("packet_handler", connection);
             }
 
             @Override

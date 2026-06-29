@@ -24,20 +24,8 @@ import java.util.*;
  * Created by brandon3055 on 21/04/2023
  */
 public class FriendServerEntry extends ServerSelectionList.NetworkServerEntry {
-    private static final ResourceLocation INCOMPATIBLE_SPRITE = new ResourceLocation("minecraft", "server_list/incompatible");
-    private static final ResourceLocation UNREACHABLE_SPRITE = new ResourceLocation("minecraft", "server_list/unreachable");
-    private static final ResourceLocation PING_1_SPRITE = new ResourceLocation("minecraft", "server_list/ping_1");
-    private static final ResourceLocation PING_2_SPRITE = new ResourceLocation("minecraft", "server_list/ping_2");
-    private static final ResourceLocation PING_3_SPRITE = new ResourceLocation("minecraft", "server_list/ping_3");
-    private static final ResourceLocation PING_4_SPRITE = new ResourceLocation("minecraft", "server_list/ping_4");
-    private static final ResourceLocation PING_5_SPRITE = new ResourceLocation("minecraft", "server_list/ping_5");
-    private static final ResourceLocation PINGING_1_SPRITE = new ResourceLocation("minecraft", "server_list/pinging_1");
-    private static final ResourceLocation PINGING_2_SPRITE = new ResourceLocation("minecraft", "server_list/pinging_2");
-    private static final ResourceLocation PINGING_3_SPRITE = new ResourceLocation("minecraft", "server_list/pinging_3");
-    private static final ResourceLocation PINGING_4_SPRITE = new ResourceLocation("minecraft", "server_list/pinging_4");
-    private static final ResourceLocation PINGING_5_SPRITE = new ResourceLocation("minecraft", "server_list/pinging_5");
-    private static final ResourceLocation JOIN_HIGHLIGHTED_SPRITE = new ResourceLocation("minecraft", "server_list/join_highlighted");
-    private static final ResourceLocation JOIN_SPRITE = new ResourceLocation("minecraft", "server_list/join");
+    private static final ResourceLocation ICONS_LOCATION = new ResourceLocation("textures/gui/icons.png");
+    private static final ResourceLocation SERVER_SELECTION_LOCATION = new ResourceLocation("textures/gui/server_selection.png");
     private static final Component INCOMPATIBLE_TOOLTIP = Component.translatable("multiplayer.status.incompatible");
     private static final Component NO_CONNECTION_TOOLTIP = Component.translatable("multiplayer.status.no_connection");
     private static final Component PINGING_TOOLTIP = Component.translatable("multiplayer.status.pinging");
@@ -97,53 +85,46 @@ public class FriendServerEntry extends ServerSelectionList.NetworkServerEntry {
         int statusWidth = this.minecraft.font.width(statusText);
         graphics.drawString(this.minecraft.font, statusText, (x + entryWidth - statusWidth - 15 - 2), (y + 1), 8421504);
 
-        ResourceLocation statusIcon = null;
+        int statusIcon = 0;
+        boolean scanning = false;
         List<Component> playersToolTip;
         Component statusToolTip;
         if (versionMismatch) {
-            statusIcon = INCOMPATIBLE_SPRITE;
+            statusIcon = 5;
             statusToolTip = INCOMPATIBLE_TOOLTIP;
             playersToolTip = this.remoteServer.playerList;
         } else if (this.remoteServer.pinged && this.remoteServer.ping != -2L) {
             if (this.remoteServer.ping < 150L) {
-                statusIcon = PING_5_SPRITE;
+                statusIcon = 0;
             } else if (this.remoteServer.ping < 300L) {
-                statusIcon = PING_4_SPRITE;
+                statusIcon = 1;
             } else if (this.remoteServer.ping < 600L) {
-                statusIcon = PING_3_SPRITE;
+                statusIcon = 2;
             } else if (this.remoteServer.ping < 1000L) {
-                statusIcon = PING_2_SPRITE;
+                statusIcon = 3;
             } else {
-                statusIcon = PING_1_SPRITE;
+                statusIcon = 4;
             }
 
             if (this.remoteServer.ping < 0L) {
                 statusToolTip = NO_CONNECTION_TOOLTIP;
-                statusIcon = UNREACHABLE_SPRITE;
+                statusIcon = 5;
                 playersToolTip = Collections.emptyList();
             } else {
                 statusToolTip = Component.translatable("multiplayer.status.ping", this.remoteServer.ping);
                 playersToolTip = this.remoteServer.playerList;
             }
         } else {
-            int time = (int)(Util.getMillis() / 100L + (long)(entryIndex * 2) & 7L);
-            if (time > 4) time = 8 - time;
-            switch (time) {
-                case 1 -> statusIcon = PINGING_2_SPRITE;
-                case 2 -> statusIcon = PINGING_3_SPRITE;
-                case 3 -> statusIcon = PINGING_4_SPRITE;
-                case 4 -> statusIcon = PINGING_5_SPRITE;
-                default -> statusIcon = PINGING_1_SPRITE;
-            }
+            scanning = true;
+            statusIcon = (int) (Util.getMillis() / 100L + (long) (entryIndex * 2) & 7L);
+            if (statusIcon > 4) statusIcon = 8 - statusIcon;
 
             statusToolTip = PINGING_TOOLTIP;
             playersToolTip = Collections.emptyList();
         }
 
         //Draw Signal / Scanning Bars.
-        if (statusIcon != null) {
-            graphics.blitSprite(statusIcon, x + entryWidth - 15, y, 10, 8);
-        }
+        graphics.blit(ICONS_LOCATION, x + entryWidth - 15, y, scanning ? 10.0F : 0.0F, 176.0F + statusIcon * 8.0F, 10, 8, 256, 256);
 
         //Update server icon.
         byte[] bs = this.remoteServer.getIconBytes();
@@ -174,9 +155,9 @@ public class FriendServerEntry extends ServerSelectionList.NetworkServerEntry {
             int v = mouseX - x;
             //Draw "Join Arrow"
             if (v < 32 && v > 16) {
-                graphics.blitSprite(JOIN_HIGHLIGHTED_SPRITE, x, y, 32, 32);
+                graphics.blit(SERVER_SELECTION_LOCATION, x, y, 0.0F, 32.0F, 32, 32, 256, 256);
             } else {
-                graphics.blitSprite(JOIN_SPRITE, x, y, 32, 32);
+                graphics.blit(SERVER_SELECTION_LOCATION, x, y, 0.0F, 0.0F, 32, 32, 256, 256);
             }
         }
     }

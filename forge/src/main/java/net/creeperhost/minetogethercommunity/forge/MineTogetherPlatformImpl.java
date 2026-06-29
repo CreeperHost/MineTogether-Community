@@ -1,9 +1,9 @@
-package net.creeperhost.minetogethercommunity.neoforge;
+package net.creeperhost.minetogethercommunity.forge;
 
 import net.creeperhost.minetogethercommunity.MineTogether;
 import net.minecraft.network.Connection;
-import net.neoforged.fml.ModList;
-import net.neoforged.neoforgespi.language.IModFileInfo;
+import net.minecraftforge.fml.ModList;
+import net.minecraftforge.forgespi.language.IModFileInfo;
 import org.jetbrains.annotations.Nullable;
 
 import java.nio.file.Path;
@@ -32,6 +32,6 @@ public class MineTogetherPlatformImpl {
     }
 
     public static void prepareClientConnection(Connection connection) {
-        // Not required on NeoForge.
+        // Not required on Forge.
     }
 }
