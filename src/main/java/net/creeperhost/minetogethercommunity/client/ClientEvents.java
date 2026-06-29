@@ -59,6 +59,7 @@ import net.minecraftforge.fml.common.gameevent.TickEvent;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.lwjgl.input.Keyboard;
+import org.lwjgl.input.Mouse;
 
 import java.lang.reflect.Field;
 import java.io.IOException;
@@ -404,7 +405,7 @@ public class ClientEvents {
             chatActionPopup.draw(event.mouseX, event.mouseY);
             return;
         }
-        PreviewElement.URLInfo info = InGameChatBridge.getUrlUnderMouse(event.mouseX, event.mouseY);
+        PreviewElement.URLInfo info = InGameChatBridge.getUrlUnderMouse(Mouse.getX(), Mouse.getY());
         if (info != null) {
             PreviewElement.renderPreview(Minecraft.getMinecraft(), info, event.mouseX, event.mouseY,
                     event.gui.width, event.gui.height, 80, false);
@@ -494,10 +495,12 @@ public class ClientEvents {
             return false;
         }
 
+        int rawMouseX = Mouse.getX();
+        int rawMouseY = Mouse.getY();
         Message message = mouseButton == 1 || mouseButton == 0 && GuiScreen.isShiftKeyDown()
-                ? InGameChatBridge.getMessageUnderMouse(mouseX, mouseY)
-                : InGameChatBridge.getClickedMessage(mouseX, mouseY);
-        PreviewElement.URLInfo info = InGameChatBridge.getUrlUnderMouse(mouseX, mouseY);
+                ? InGameChatBridge.getMessageUnderMouse(rawMouseX, rawMouseY)
+                : InGameChatBridge.getClickedMessage(rawMouseX, rawMouseY);
+        PreviewElement.URLInfo info = InGameChatBridge.getUrlUnderMouse(rawMouseX, rawMouseY);
         URL url = info == null ? null : info.getUrl();
         if (!isActionableMessage(message) && url == null) {
             return false;

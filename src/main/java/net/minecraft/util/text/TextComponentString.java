@@ -26,17 +26,17 @@ public class TextComponentString extends ChatComponentText implements ITextCompo
     }
 
     public ITextComponent appendText(String text) {
-        TextComponentCompat.siblings(this).add(new TextComponentString(text));
+        super.appendSibling(new TextComponentString(text));
         return this;
     }
 
     public ITextComponent appendSibling(ITextComponent component) {
-        TextComponentCompat.siblings(this).add(component);
+        super.appendSibling(component);
         return this;
     }
 
     public ITextComponent appendSibling(IChatComponent component) {
-        TextComponentCompat.siblings(this).add(component);
+        super.appendSibling(component);
         return this;
     }
 
@@ -45,13 +45,13 @@ public class TextComponentString extends ChatComponentText implements ITextCompo
     }
 
     public List<IChatComponent> getSiblings() {
-        return TextComponentCompat.siblings(this);
+        return super.getSiblings();
     }
 
     public TextComponentString createCopy() {
         TextComponentString copy = new TextComponentString(getChatComponentText_TextValue());
         copy.setChatStyle(getChatStyle().createDeepCopy());
-        for (Object sibling : TextComponentCompat.siblings(this)) {
+        for (Object sibling : super.getSiblings()) {
             copy.appendSibling(((IChatComponent) sibling).createCopy());
         }
         return copy;
