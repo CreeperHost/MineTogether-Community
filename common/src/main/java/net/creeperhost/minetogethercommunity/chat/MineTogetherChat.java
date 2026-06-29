@@ -1,7 +1,5 @@
 package net.creeperhost.minetogethercommunity.chat;
 
-import dev.architectury.hooks.client.screen.ScreenHooks;
-import dev.architectury.platform.Platform;
 import net.creeperhost.minetogether.lib.chat.ChatState;
 import net.creeperhost.minetogether.lib.chat.MutedUserList;
 import net.creeperhost.minetogether.lib.chat.irc.IrcChannel;
@@ -10,6 +8,7 @@ import net.creeperhost.minetogether.lib.chat.profile.Profile;
 import net.creeperhost.minetogether.lib.chat.profile.ProfileManager;
 import net.creeperhost.minetogethercommunity.Constants;
 import net.creeperhost.minetogethercommunity.MineTogether;
+import net.creeperhost.minetogethercommunity.MineTogetherPlatform;
 import net.creeperhost.minetogethercommunity.chat.gui.FriendChatGui;
 import net.creeperhost.minetogethercommunity.chat.gui.PublicChatGui;
 import net.creeperhost.minetogethercommunity.chat.ingame.MTChatComponent;
@@ -43,12 +42,10 @@ public class MineTogetherChat {
 
     private static final Logger LOGGER = LogManager.getLogger();
 
-    public static final ChatAuthImpl CHAT_AUTH = new ChatAuthImpl(Minecraft.getInstance());
-    private static final MutedUserList MUTED_USER_LIST = new MutedUserList(
-            Platform.getGameFolder().resolve("local/minetogether/mutedusers.json")
-    );
+    public static ChatAuthImpl CHAT_AUTH;
+    private static MutedUserList MUTED_USER_LIST;
 
-    public static ChatState CHAT_STATE = new ChatState(MineTogether.API, CHAT_AUTH, MUTED_USER_LIST, () -> ModPackInfo.getInfo().realName, false);
+    public static ChatState CHAT_STATE;
 
     public static ChatComponent vanillaChat;
     public static MTChatComponent publicChat;
@@ -56,6 +53,14 @@ public class MineTogetherChat {
     private static boolean hasHitLoadingScreen = false;
 
     public static void init() {
+        if (CHAT_STATE == null) {
+            CHAT_AUTH = new ChatAuthImpl(Minecraft.getInstance());
+            MUTED_USER_LIST = new MutedUserList(
+                    MineTogetherPlatform.getGameFolder().resolve("local/minetogether/mutedusers.json")
+            );
+            CHAT_STATE = new ChatState(MineTogether.API, CHAT_AUTH, MUTED_USER_LIST, () -> ModPackInfo.getInfo().realName, false);
+        }
+
         CHAT_STATE.logChatToConsole = Config.instance().logChatToConsole | Config.instance().debugMode;
 
         if (Config.instance().debugMode) {
@@ -68,8 +73,12 @@ public class MineTogetherChat {
     }
 
     public static void initChat(Gui gui) {
+        if (CHAT_STATE == null) {
+            init();
+        }
+
         Minecraft mc = Minecraft.getInstance();
-        vanillaChat = gui.chat;
+        vanillaChat = gui.getChat();
         publicChat = new MTChatComponent(ChatTarget.PUBLIC, mc);
         groupChat = new MTChatComponent(ChatTarget.GROUP, mc);
         if (LocalConfig.instance().chatEnabled) {
@@ -160,7 +169,7 @@ public class MineTogetherChat {
 
     private static void addToast(Toast toast) {
         if (hasHitLoadingScreen) {
-            Minecraft.getInstance().getToasts().addToast(toast);
+            Minecraft.getInstance().getToastManager().addToast(toast);
         } else {
             // YEET, too bad.
         }
@@ -189,16 +198,16 @@ public class MineTogetherChat {
         int buttonPos = 4;
         IconButton settings = new IconButton(screen.width - (buttonPos += 21), 5, 3, Constants.WIDGETS_SHEET, e -> Minecraft.getInstance().setScreen(new SettingGui.Screen(screen)));
         settings.setTooltip(Tooltip.create(Component.translatable("minetogether:gui.button.settings.info")));
-        ScreenHooks.addRenderableWidget(screen, settings);
+        screen.addRenderableWidget(settings);
 
         IconButton friendChat = new IconButton(screen.width - (buttonPos += 21), 5, 7, Constants.WIDGETS_SHEET, e -> Minecraft.getInstance().setScreen(new FriendChatGui.Screen(screen)));
         friendChat.setTooltip(Tooltip.create(Component.translatable("minetogether:gui.button.friends.info")));
-        ScreenHooks.addRenderableWidget(screen, friendChat);
+        screen.addRenderableWidget(friendChat);
 
         if (LocalConfig.instance().chatEnabled) {
             IconButton publicChat = new IconButton(screen.width - (buttonPos += 21), 5, 1, Constants.WIDGETS_SHEET, e -> Minecraft.getInstance().setScreen(new PublicChatGui.Screen(screen)));
             publicChat.setTooltip(Tooltip.create(Component.translatable("minetogether:gui.button.global_chat.info")));
-            ScreenHooks.addRenderableWidget(screen, publicChat);
+            screen.addRenderableWidget(publicChat);
         }
     }
 

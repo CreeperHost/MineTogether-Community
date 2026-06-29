@@ -1,30 +1,23 @@
 package net.creeperhost.minetogethercommunity.chat.gui;
 
 import com.mojang.authlib.GameProfile;
-import com.mojang.blaze3d.vertex.VertexConsumer;
 import net.creeperhost.minetogethercommunity.gui.MTTextures;
 import net.creeperhost.polylib.client.modulargui.elements.GuiElement;
 import net.creeperhost.polylib.client.modulargui.lib.BackgroundRender;
 import net.creeperhost.polylib.client.modulargui.lib.GuiRender;
 import net.creeperhost.polylib.client.modulargui.lib.geometry.GuiParent;
 import net.creeperhost.polylib.client.modulargui.sprite.Material;
-import net.minecraft.client.Minecraft;
-import net.minecraft.client.renderer.RenderType;
-import net.minecraft.client.resources.DefaultPlayerSkin;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
-import org.joml.Matrix4f;
 
 /**
  * Created by brandon3055 on 28/10/2023
  */
 public class PlayerIconElement extends GuiElement<PlayerIconElement> implements BackgroundRender {
     @Nullable
-    private RenderType skinType;
-    public boolean textureFail = false;
-    @Nullable
     private GameProfile profile;
-    private Material fallback = MTTextures.get("player_offline");
+    private final Material fallback = MTTextures.get("player_offline");
+    public boolean textureFail = false;
 
     /**
      * @param parent parent {@link GuiParent}.
@@ -36,52 +29,10 @@ public class PlayerIconElement extends GuiElement<PlayerIconElement> implements 
 
     public void setProfile(GameProfile profile) {
         this.profile = profile;
-        skinType = null;
-        textureFail = false;
     }
 
     @Override
     public void renderBehind(GuiRender render, double mouseX, double mouseY, float partialTicks) {
-        if (skinType == null && profile != null && !textureFail) {
-            updateGameProfile();
-        }
-
-        if (skinType != null) {
-            draw(render);
-        } else {
-            render.texRect(fallback, getRectangle());
-        }
-    }
-
-    public void draw(GuiRender render) {
-        float texMin = 8/64F;
-        float texMax = 16/64F;
-
-        VertexConsumer buffer = render.buffers().getBuffer(skinType);
-        Matrix4f mat = render.pose().last().pose();
-        buffer.addVertex(mat, (float) xMax(), (float) yMax(), 0).setUv(texMax, texMax);//.endVertex();  //R-B
-        buffer.addVertex(mat, (float) xMax(), (float) yMin(), 0).setUv(texMax, texMin);//.endVertex();  //R-T
-        buffer.addVertex(mat, (float) xMin(), (float) yMin(), 0).setUv(texMin, texMin);//.endVertex();  //L-T
-        buffer.addVertex(mat, (float) xMin(), (float) yMax(), 0).setUv(texMin, texMax);//.endVertex();  //L-B
-        render.flush();
-    }
-
-
-    private void updateGameProfile() {
-        if (profile == null) return;
-
-        if (!profile.getProperties().containsKey("textures")) {
-            //TODO Off thread
-            // TODO Actually should not be needed due to how we pass profiles in here now.
-            mc().getMinecraftSessionService().fetchProfile(profile.getId(), true);
-        }
-
-        mc().getSkinManager().getOrLoad(profile).thenAcceptAsync(e -> {
-            if (!e.texture().equals(DefaultPlayerSkin.getDefaultTexture())) {
-                skinType = GuiRender.texType(e.texture());
-            } else {
-                textureFail = true;
-            }
-        }, Minecraft.getInstance());
+        render.texRect(fallback, getRectangle());
     }
 }

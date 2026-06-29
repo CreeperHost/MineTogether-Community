@@ -8,10 +8,13 @@ import net.creeperhost.minetogether.lib.chat.irc.IrcChannel;
 import net.creeperhost.minetogether.lib.chat.message.Message;
 import net.creeperhost.minetogether.lib.chat.message.MessageComponent;
 import net.creeperhost.minetogethercommunity.util.MessageFormatter;
-import net.minecraft.client.GuiMessage;
-import net.minecraft.client.GuiMessageTag;
+import net.creeperhost.minetogethercommunity.util.ChatStyleHelper;
+import net.minecraft.client.multiplayer.chat.GuiMessage;
+import net.minecraft.client.multiplayer.chat.GuiMessageSource;
+import net.minecraft.client.multiplayer.chat.GuiMessageTag;
 import net.minecraft.client.Minecraft;
-import net.minecraft.client.gui.GuiGraphics;
+import net.minecraft.client.gui.Font;
+import net.minecraft.client.gui.GuiGraphicsExtractor;
 import net.minecraft.client.gui.components.ChatComponent;
 import net.minecraft.network.chat.ClickEvent;
 import net.minecraft.network.chat.Component;
@@ -61,6 +64,22 @@ public class MTChatComponent extends ChatComponent {
         assert target != ChatTarget.VANILLA : "MTChatComponent doesn't work this way";
     }
 
+    private List<GuiMessage.Line> trimmedMessages() {
+        return trimmedMessages;
+    }
+
+    private int chatScrollbarPos() {
+        return chatScrollbarPos;
+    }
+
+    private int chatWidth() {
+        return getWidth();
+    }
+
+    private double chatScale() {
+        return getScale();
+    }
+
     public void attach(IrcChannel channel) {
         // Bail if we are already bound. IrcChannel's are
         if (this.channel != null) return;
@@ -86,7 +105,7 @@ public class MTChatComponent extends ChatComponent {
     }
 
     @Override
-    public void render(GuiGraphics graphics, int i, int j, int k, boolean bl) {
+    public void extractRenderState(GuiGraphicsExtractor graphics, Font font, int ticks, int mouseX, int mouseY, DisplayMode displayMode, boolean changeCursorOnInsertions) {
         if (!pendingMessages.isEmpty()) {
             internalUpdate = true;
             synchronized (pendingMessages) {
@@ -105,17 +124,17 @@ public class MTChatComponent extends ChatComponent {
                 changedMessages.clear();
             }
         }
-        super.render(graphics, i, j, k, bl);
+        super.extractRenderState(graphics, font, ticks, mouseX, mouseY, displayMode, changeCursorOnInsertions);
     }
 
     @Override
     public void rescaleChat() {
         // If we are the target, propagate to the others.
-        if (MineTogetherChat.getTarget() == target) {
+        if (MineTogetherChat.getTarget() == target && MineTogetherChat.vanillaChat != null) {
             MineTogetherChat.vanillaChat.rescaleChat();
         }
 
-        trimmedMessages.clear();
+        trimmedMessages().clear();
         resetChatScroll();
 
         synchronized (processedMessages) {
@@ -129,7 +148,7 @@ public class MTChatComponent extends ChatComponent {
     @Override
     public void clearMessages(boolean bl) {
         // If we are the target, propagate to the others.
-        if (MineTogetherChat.getTarget() == target) {
+        if (MineTogetherChat.getTarget() == target && MineTogetherChat.vanillaChat != null) {
             MineTogetherChat.vanillaChat.clearMessages(bl);
         }
 
@@ -144,7 +163,7 @@ public class MTChatComponent extends ChatComponent {
             }
             processedMessages.clear();
         }
-        trimmedMessages.clear();
+        trimmedMessages().clear();
     }
 
     @Override
@@ -162,14 +181,14 @@ public class MTChatComponent extends ChatComponent {
             processedMessages.add(newMessage);
             newMessage.display();
 
-            if (isChatFocused() && chatScrollbarPos > 0) {
+            if (isChatFocused() && chatScrollbarPos() > 0) {
                 newMessageSinceScroll = true;
                 scrollChat(1);
             }
 
             while (processedMessages.size() > MAX_MESSAGE_HISTORY) {
                 InGameDisplayableMessage toRemove = processedMessages.remove(0);
-                trimmedMessages.removeAll(toRemove.getTrimmedLines());
+                trimmedMessages().removeAll(toRemove.getTrimmedLines());
                 toRemove.onDead();
             }
         }
@@ -197,7 +216,7 @@ public class MTChatComponent extends ChatComponent {
             if (oldMessage != null) {
                 processedMessages.remove(oldMessage);
                 if (oldMessage.line != null) {
-                    trimmedMessages.remove(oldMessage.line);
+                    trimmedMessages().remove(oldMessage.line);
                 }
             }
 
@@ -207,38 +226,53 @@ public class MTChatComponent extends ChatComponent {
             processedMessages.add(newMessage);
             newMessage.display();
 
-            if (isChatFocused() && chatScrollbarPos > 0) {
+            if (isChatFocused() && chatScrollbarPos() > 0) {
                 newMessageSinceScroll = true;
                 scrollChat(1);
             }
 
             while (processedMessages.size() > MAX_MESSAGE_HISTORY) {
                 InGameDisplayableMessage toRemove = processedMessages.remove(0);
-                trimmedMessages.removeAll(toRemove.getTrimmedLines());
+                trimmedMessages().removeAll(toRemove.getTrimmedLines());
                 toRemove.onDead();
             }
         }
     }
 
     @Override
-    public void addMessage(Component component) {
+    public void addClientSystemMessage(Component component) {
         assert !internalUpdate; // We don't use this to add messages.
 
-        MineTogetherChat.vanillaChat.addMessage(component);
+        if (MineTogetherChat.vanillaChat != null) {
+            MineTogetherChat.vanillaChat.addClientSystemMessage(component);
+        }
     }
 
     @Override
-    public void addMessage(Component component, @Nullable MessageSignature messageSignature, @Nullable GuiMessageTag guiMessageTag) {
+    public void addServerSystemMessage(Component component) {
         assert !internalUpdate; // We don't use this to add messages.
 
-        MineTogetherChat.vanillaChat.addMessage(component, messageSignature, guiMessageTag);
+        if (MineTogetherChat.vanillaChat != null) {
+            MineTogetherChat.vanillaChat.addServerSystemMessage(component);
+        }
+    }
+
+    @Override
+    public void addPlayerMessage(Component component, @Nullable MessageSignature messageSignature, @Nullable GuiMessageTag guiMessageTag) {
+        assert !internalUpdate; // We don't use this to add messages.
+
+        if (MineTogetherChat.vanillaChat != null) {
+            MineTogetherChat.vanillaChat.addPlayerMessage(component, messageSignature, guiMessageTag);
+        }
     }
 
     @Override
     public void deleteMessage(MessageSignature messageSignature) {
         assert !internalUpdate; // We don't use this to add messages.
 
-        MineTogetherChat.vanillaChat.deleteMessage(messageSignature);
+        if (MineTogetherChat.vanillaChat != null) {
+            MineTogetherChat.vanillaChat.deleteMessage(messageSignature);
+        }
     }
 
     public boolean handleClick(double mouseX, double mouseY) {
@@ -246,18 +280,18 @@ public class MTChatComponent extends ChatComponent {
 
         double x = mouseX - 2.0;
         double y = (double) minecraft.getWindow().getGuiScaledHeight() - mouseY - 40.0;
-        x = Mth.floor(x / getScale());
-        y = Mth.floor(y / (getScale() * (minecraft.options.chatLineSpacing().get() + 1.0)));
+        x = Mth.floor(x / chatScale());
+        y = Mth.floor(y / (chatScale() * (minecraft.options.chatLineSpacing().get() + 1.0)));
         if (x < 0.0 || y < 0.0) return false;
 
-        int i = Math.min(getLinesPerPage(), trimmedMessages.size());
-        if (x <= (double) Mth.floor((double) getWidth() / getScale())) {
+        int i = Math.min(getLinesPerPage(), trimmedMessages().size());
+        if (x <= (double) Mth.floor((double) chatWidth() / chatScale())) {
             Objects.requireNonNull(minecraft.font);
             if (y < (double) (9 * i + i)) {
                 Objects.requireNonNull(minecraft.font);
-                int j = (int) (y / 9.0 + (double) chatScrollbarPos);
-                if (j >= 0 && j < trimmedMessages.size()) {
-                    return handleClickedMessage(findMessageForTrimmedMessage(trimmedMessages.get(j)), x);
+                int j = (int) (y / 9.0 + (double) chatScrollbarPos());
+                if (j >= 0 && j < trimmedMessages().size()) {
+                    return handleClickedMessage(findMessageForTrimmedMessage(trimmedMessages().get(j)), x);
                 }
             }
         }
@@ -272,20 +306,20 @@ public class MTChatComponent extends ChatComponent {
 
         double x = mouseX - 2.0;
         double y = (double) minecraft.getWindow().getGuiScaledHeight() - mouseY - 40.0;
-        x = Mth.floor(x / getScale());
-        y = Mth.floor(y / (getScale() * (minecraft.options.chatLineSpacing().get() + 1.0)));
+        x = Mth.floor(x / chatScale());
+        y = Mth.floor(y / (chatScale() * (minecraft.options.chatLineSpacing().get() + 1.0)));
         if (x < 0.0 || y < 0.0) return null;
 
-        int i = Math.min(getLinesPerPage(), trimmedMessages.size());
-        if (x <= (double) Mth.floor((double) getWidth() / getScale())) {
+        int i = Math.min(getLinesPerPage(), trimmedMessages().size());
+        if (x <= (double) Mth.floor((double) chatWidth() / chatScale())) {
             Objects.requireNonNull(minecraft.font);
             if (y < (double) (9 * i + i)) {
                 Objects.requireNonNull(minecraft.font);
-                int j = (int) (y / 9.0 + (double) chatScrollbarPos);
-                if (j >= 0 && j < trimmedMessages.size()) {
-                    InGameDisplayableMessage message = findMessageForTrimmedMessage(trimmedMessages.get(j));
+                int j = (int) (y / 9.0 + (double) chatScrollbarPos());
+                if (j >= 0 && j < trimmedMessages().size()) {
+                    InGameDisplayableMessage message = findMessageForTrimmedMessage(trimmedMessages().get(j));
                     if (message == null) return null;
-                    return minecraft.font.getSplitter().componentStyleAtWidth(message.getBuiltMessage(), (int) x);
+                    return ChatStyleHelper.styleAtWidth(minecraft.font, message.getBuiltMessage(), (int) x);
                 }
             }
         }
@@ -298,18 +332,18 @@ public class MTChatComponent extends ChatComponent {
 
         double x = mouseX - 2.0;
         double y = (double) minecraft.getWindow().getGuiScaledHeight() - mouseY - 40.0;
-        x = Mth.floor(x / getScale());
-        y = Mth.floor(y / (getScale() * (minecraft.options.chatLineSpacing().get() + 1.0)));
+        x = Mth.floor(x / chatScale());
+        y = Mth.floor(y / (chatScale() * (minecraft.options.chatLineSpacing().get() + 1.0)));
         if (x < 0.0 || y < 0.0) return null;
 
-        int i = Math.min(getLinesPerPage(), trimmedMessages.size());
-        if (x <= (double) Mth.floor((double) getWidth() / getScale())) {
+        int i = Math.min(getLinesPerPage(), trimmedMessages().size());
+        if (x <= (double) Mth.floor((double) chatWidth() / chatScale())) {
             Objects.requireNonNull(minecraft.font);
             if (y < (double) (9 * i + i)) {
                 Objects.requireNonNull(minecraft.font);
-                int j = (int) (y / 9.0 + (double) chatScrollbarPos);
-                if (j >= 0 && j < trimmedMessages.size()) {
-                    InGameDisplayableMessage message = findMessageForTrimmedMessage(trimmedMessages.get(j));
+                int j = (int) (y / 9.0 + (double) chatScrollbarPos());
+                if (j >= 0 && j < trimmedMessages().size()) {
+                    InGameDisplayableMessage message = findMessageForTrimmedMessage(trimmedMessages().get(j));
                     return message == null ? null : message.getMessage();
                 }
             }
@@ -325,11 +359,11 @@ public class MTChatComponent extends ChatComponent {
         if (message.sender == null) return false;
         if (message.sender == MineTogetherChat.getOurProfile()) return false;
 
-        Style style = minecraft.font.getSplitter().componentStyleAtWidth(clickedMessage.getBuiltMessage(), (int) x);
+        Style style = ChatStyleHelper.styleAtWidth(minecraft.font, clickedMessage.getBuiltMessage(), (int) x);
         if (style == null) return false;
         ClickEvent event = style.getClickEvent();
         if (event == null) return false;
-        if (!event.getValue().equals(MessageFormatter.CLICK_NAME)) return false;
+        if (!MessageFormatter.isClickName(event)) return false;
 
         this.clickedMessage = message;
         return true;
@@ -377,28 +411,28 @@ public class MTChatComponent extends ChatComponent {
         }
 
         @Override
-        protected GuiMessage.Line createMessage(int addTime, FormattedCharSequence message) {
-            return new GuiMessage.Line(addTime, message, null, true);// TODO true is not correct here, we need to pass it down.
+        protected GuiMessage.Line createMessage(GuiMessage builtMessage, FormattedCharSequence message, boolean endOfEntry) {
+            return new GuiMessage.Line(builtMessage, message, endOfEntry);
         }
 
         @Override
         protected int getMessageIndex(GuiMessage.Line message) {
-            return trimmedMessages.indexOf(message);
+            return trimmedMessages().indexOf(message);
         }
 
         @Override
         protected void clearMessages() {
-            trimmedMessages.removeAll(getTrimmedLines());
+            trimmedMessages().removeAll(getTrimmedLines());
         }
 
         @Override
         protected void addMessage(int index, GuiMessage.Line message) {
-            trimmedMessages.add(index, message);
+            trimmedMessages().add(index, message);
         }
 
         @Override
         protected double getChatWidth() {
-            return (double) getWidth() / getScale();
+            return (double) chatWidth() / chatScale();
         }
     }
 
@@ -415,8 +449,9 @@ public class MTChatComponent extends ChatComponent {
         }
 
         @Override
-        protected GuiMessage.Line createMessage(int addTime, FormattedCharSequence formattedCharSequence) {
-            return line = new GuiMessage.Line(addTime, message.getVisualOrderText(), null, true);
+        protected GuiMessage.Line createMessage(GuiMessage builtMessage, FormattedCharSequence formattedCharSequence, boolean endOfEntry) {
+            GuiMessage guiMessage = new GuiMessage(builtMessage.addedTime(), message, signature, GuiMessageSource.SYSTEM_CLIENT, null);
+            return line = new GuiMessage.Line(guiMessage, message.getVisualOrderText(), true);
         }
     }
 }

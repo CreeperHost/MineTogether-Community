@@ -8,6 +8,7 @@ import net.creeperhost.minetogethercommunity.gui.dialogs.TextInputDialog;
 import net.creeperhost.minetogether.lib.chat.message.Message;
 import net.creeperhost.minetogether.lib.chat.profile.Profile;
 import net.creeperhost.minetogether.lib.chat.profile.ProfileManager;
+import net.creeperhost.minetogethercommunity.util.ChatStyleHelper;
 import net.creeperhost.minetogethercommunity.util.MessageFormatter;
 import net.creeperhost.polylib.client.modulargui.elements.GuiButton;
 import net.creeperhost.polylib.client.modulargui.elements.GuiElement;
@@ -17,6 +18,7 @@ import net.creeperhost.polylib.client.modulargui.lib.ForegroundRender;
 import net.creeperhost.polylib.client.modulargui.lib.GuiRender;
 import net.creeperhost.polylib.client.modulargui.lib.geometry.Constraint;
 import net.minecraft.ChatFormatting;
+import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.components.ComponentRenderUtils;
 import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.network.chat.ClickEvent;
@@ -95,7 +97,7 @@ public class MessageElement extends GuiElement<MessageElement> implements Foregr
         synchronized (wrappedLines) {
             double y = yMin();
             for (FormattedCharSequence line : wrappedLines) {
-                render.drawString(line, xMin() + (y == yMin() ? 0 : inset), y, 0xFFFFFF);
+                render.drawString(line, xMin() + (y == yMin() ? 0 : inset), y, 0xFFFFFFFF);
                 y += font().lineHeight + 1;
             }
         }
@@ -110,8 +112,8 @@ public class MessageElement extends GuiElement<MessageElement> implements Foregr
         ClickEvent event = style.getClickEvent();
         if (event == null) return false;
 
-        if (!friendUI && MessageFormatter.CLICK_NAME.equals(event.getValue()) && message.sender != null && message.sender != MineTogetherChat.getOurProfile()) {
-            if (LocalConfig.instance().shiftClickMention && button == 0 && Screen.hasShiftDown()) {
+        if (!friendUI && MessageFormatter.isClickName(event) && message.sender != null && message.sender != MineTogetherChat.getOurProfile()) {
+            if (LocalConfig.instance().shiftClickMention && button == 0 && Minecraft.getInstance().hasShiftDown()) {
                 mention(message);
                 return true;
             }
@@ -142,7 +144,11 @@ public class MessageElement extends GuiElement<MessageElement> implements Foregr
             }
             menu.setPosition(mouseX, mouseY);
         } else {
-            getModularGui().getScreen().handleComponentClicked(style);
+            ClickEvent clickEvent = style.getClickEvent();
+            if (clickEvent != null) {
+                Screen.defaultHandleClickEvent(clickEvent, Minecraft.getInstance(), getModularGui().getScreen());
+                return true;
+            }
         }
         return false;
     }
@@ -176,7 +182,7 @@ public class MessageElement extends GuiElement<MessageElement> implements Foregr
             int index = (int) (y / (font().lineHeight + 1));
             if (index < 0 || index >= wrappedLines.size()) return null;
             FormattedCharSequence line = wrappedLines.get(index);
-            return font().getSplitter().componentStyleAtWidth(line, (int) Math.floor(x - inset));
+            return ChatStyleHelper.styleAtWidth(font(), line, (int) Math.floor(x - inset));
         }
     }
 

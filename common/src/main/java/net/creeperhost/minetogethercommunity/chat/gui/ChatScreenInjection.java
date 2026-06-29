@@ -17,8 +17,8 @@ import net.creeperhost.polylib.client.modulargui.lib.GuiProvider;
 import net.creeperhost.polylib.client.modulargui.lib.GuiRender;
 import net.creeperhost.polylib.client.modulargui.lib.geometry.GuiParent;
 import net.minecraft.ChatFormatting;
+import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.components.EditBox;
-import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.network.chat.Component;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -61,7 +61,7 @@ public class ChatScreenInjection implements GuiProvider {
     }
 
     public void openMessageDialog(Message message, EditBox input, double mouseX, double mouseY, int button) {
-        if (LocalConfig.instance().shiftClickMention && button == 0 && Screen.hasShiftDown()) {
+        if (LocalConfig.instance().shiftClickMention && button == 0 && Minecraft.getInstance().hasShiftDown()) {
             mention(input, message);
             return;
         }
@@ -111,10 +111,5 @@ public class ChatScreenInjection implements GuiProvider {
 
         @Override
         public void renderBehind(GuiRender render, double mouseX, double mouseY, float partialTicks) {}
-
-        @Override
-        public double getBackgroundDepth() {
-            return 105;
-        }
     }
 }

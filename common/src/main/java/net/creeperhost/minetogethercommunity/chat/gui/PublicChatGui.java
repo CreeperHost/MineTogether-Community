@@ -194,6 +194,7 @@ public class PublicChatGui implements GuiProvider {
     }
 
     private void tick() {
+        chatMonitor.attach(MineTogetherChat.CHAT_STATE.ircClient.getPrimaryChannel());
         chatMonitor.tick();
 
         IrcState state = MineTogetherChat.CHAT_STATE.ircClient.getState();

@@ -2,7 +2,8 @@ package net.creeperhost.minetogethercommunity.chat;
 
 import net.creeperhost.minetogether.lib.chat.message.Message;
 import net.creeperhost.minetogethercommunity.util.MessageFormatter;
-import net.minecraft.client.GuiMessage;
+import net.minecraft.client.multiplayer.chat.GuiMessage;
+import net.minecraft.client.multiplayer.chat.GuiMessageSource;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.components.ComponentRenderUtils;
 import net.minecraft.network.chat.Component;
@@ -45,13 +46,13 @@ public abstract class DisplayableMessage<M> {
 
     public void format() {
         int addTime = builtMessage != null ? builtMessage.addedTime() : mc.gui.getGuiTicks();
-        builtMessage = new GuiMessage(addTime, MessageFormatter.formatMessage(message), null, null);
+        builtMessage = new GuiMessage(addTime, MessageFormatter.formatMessage(message), null, GuiMessageSource.PLAYER, null);
         trimmedLines.clear();
 
         int maxLen = Mth.floor(getChatWidth());
         List<FormattedCharSequence> lines = ComponentRenderUtils.wrapComponents(builtMessage.content(), maxLen, mc.font);
-        for (FormattedCharSequence line : lines) {
-            trimmedLines.add(createMessage(addTime, line));
+        for (int i = 0; i < lines.size(); i++) {
+            trimmedLines.add(createMessage(builtMessage, lines.get(i), i == lines.size() - 1));
         }
 
         // Why would we ever build no lines?
@@ -102,7 +103,7 @@ public abstract class DisplayableMessage<M> {
 
     protected abstract boolean isForward();
 
-    protected abstract M createMessage(int addTime, FormattedCharSequence message);
+    protected abstract M createMessage(GuiMessage builtMessage, FormattedCharSequence message, boolean endOfEntry);
 
     protected abstract int getMessageIndex(M message);
 

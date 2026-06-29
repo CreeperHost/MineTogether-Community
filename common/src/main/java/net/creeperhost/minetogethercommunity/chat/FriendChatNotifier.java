@@ -1,14 +1,14 @@
 package net.creeperhost.minetogethercommunity.chat;
 
-import dev.architectury.event.events.client.ClientTickEvent;
 import net.covers1624.quack.collection.FastStream;
 import net.creeperhost.minetogethercommunity.config.LocalConfig;
 import net.creeperhost.minetogether.lib.chat.ChatState;
 import net.creeperhost.minetogether.lib.chat.irc.IrcUser;
 import net.creeperhost.minetogether.lib.chat.profile.Profile;
 import net.creeperhost.minetogether.lib.chat.profile.ProfileManager;
+import net.creeperhost.polylib.event.events.client.PolyClientTickEvents;
 import net.minecraft.ChatFormatting;
-import net.minecraft.client.GuiMessage;
+import net.minecraft.client.multiplayer.chat.GuiMessage;
 import net.minecraft.client.Minecraft;
 import net.minecraft.network.chat.*;
 import org.jetbrains.annotations.Nullable;
@@ -29,7 +29,7 @@ public class FriendChatNotifier {
     private static Profile activeChat = null;
 
     public static void init() {
-        ClientTickEvent.CLIENT_PRE.register(FriendChatNotifier::tick);
+        PolyClientTickEvents.CLIENT_TICK_START.register(FriendChatNotifier::tick);
     }
 
     private static void tick(Minecraft mc) {
@@ -75,7 +75,7 @@ public class FriendChatNotifier {
             Component message = Component.translatable("minetogether:chat.friend_message", Component.literal(name).withStyle(ChatFormatting.GOLD))
                     .setStyle(Style.EMPTY
                             .applyFormat(ChatFormatting.GREEN)
-                            .withHoverEvent(new HoverEvent(HoverEvent.Action.SHOW_TEXT, Component.translatable("minetogether:chat.friend_message.info")))
+                            .withHoverEvent(new HoverEvent.ShowText(Component.translatable("minetogether:chat.friend_message.info")))
                             .withClickEvent(new OpenFriendEvent(profile))
                     );
             addNotificationMessage(message, profileToSig(profile));
@@ -104,7 +104,7 @@ public class FriendChatNotifier {
         } else {
             deleteMessage(signature);
             if (message != null) {
-                MineTogetherChat.vanillaChat.addMessage(message, signature, null);
+                MineTogetherChat.vanillaChat.addPlayerMessage(message, signature, null);
             }
         }
     }
@@ -131,11 +131,16 @@ public class FriendChatNotifier {
     }
 
     //Just a custom event that can be intercepted by ChatScreenMixin
-    public static class OpenFriendEvent extends ClickEvent {
+    public static class OpenFriendEvent implements ClickEvent {
         public final Profile profile;
+
         public OpenFriendEvent(Profile profile) {
-            super(Action.RUN_COMMAND, "");
             this.profile = profile;
+        }
+
+        @Override
+        public Action action() {
+            return Action.RUN_COMMAND;
         }
     }
 }

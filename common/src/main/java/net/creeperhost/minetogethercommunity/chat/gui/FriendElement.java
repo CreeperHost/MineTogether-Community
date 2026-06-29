@@ -281,14 +281,9 @@ class FriendElement extends GuiElement<FriendElement> implements BackgroundRende
     }
 
     @Override
-    public double getBackgroundDepth() {
-        return BackgroundRender.super.getBackgroundDepth();
-    }
-
-    @Override
     public void renderBehind(GuiRender render, double mouseX, double mouseY, float partialTicks) {
         if (divider != null) {
-            render.drawCenteredString(divider, xCenter(), yMin() + 2, 0xFFFFFF, false);
+            render.drawCenteredString(divider, xCenter(), yMin() + 2, 0xFFFFFFFF, false);
             return;
         }
         render.rect(getRectangle(), MTStyle.Flat.listEntryBackground((isMouseOver() && request == null) || FriendChatGui.getSelected() == profile));

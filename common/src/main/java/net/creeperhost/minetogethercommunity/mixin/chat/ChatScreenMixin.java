@@ -12,21 +12,25 @@ import net.creeperhost.minetogether.lib.chat.message.Message;
 import net.creeperhost.minetogethercommunity.polylib.gui.IconButton;
 import net.creeperhost.minetogethercommunity.polylib.gui.RadioButton;
 import net.creeperhost.minetogethercommunity.polylib.gui.SlideButton;
+import net.creeperhost.minetogethercommunity.util.ChatStyleHelper;
+import net.creeperhost.minetogethercommunity.util.MessageFormatter;
 import net.creeperhost.minetogethercommunity.chat.*;
 import net.creeperhost.polylib.client.modulargui.ModularGui;
 import net.creeperhost.polylib.client.modulargui.ModularGuiInjector;
 import net.minecraft.client.Minecraft;
-import net.minecraft.client.gui.GuiGraphics;
+import net.minecraft.client.gui.GuiGraphicsExtractor;
 import net.minecraft.client.gui.components.Button;
 import net.minecraft.client.gui.components.ChatComponent;
 import net.minecraft.client.gui.components.CommandSuggestions;
 import net.minecraft.client.gui.components.EditBox;
+import net.minecraft.client.input.KeyEvent;
+import net.minecraft.client.input.MouseButtonEvent;
 import net.minecraft.client.gui.screens.ChatScreen;
 import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.network.chat.ClickEvent;
 import net.minecraft.network.chat.Component;
 import net.minecraft.network.chat.Style;
-import net.minecraft.resources.ResourceLocation;
+import net.minecraft.resources.Identifier;
 import net.minecraft.util.Mth;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -67,7 +71,9 @@ abstract class ChatScreenMixin extends Screen {
 
     @Shadow private String initial;
 
-    @Shadow @Nullable protected abstract Style getComponentStyleAt(double d, double e);
+    @Shadow private ChatComponent.DisplayMode displayMode;
+
+    @Shadow protected abstract boolean handleComponentClicked(Style clicked, boolean allowInsertions);
 
     private Button newUserButton;
     private Button disableButton;
@@ -111,7 +117,7 @@ abstract class ChatScreenMixin extends Screen {
                 .onPressed(e -> MineTogetherChat.setTarget(ChatTarget.GROUP))
                 .onRelease(() -> setFocused(input));
 
-        settingsButton = addRenderableWidget(new IconButton(0, 0, 12, 12, ResourceLocation.fromNamespaceAndPath(MineTogether.MOD_ID, "textures/gui/buttons/gear.png"), e -> mc.setScreen(new SettingGui.Screen(mc.screen))));
+        settingsButton = addRenderableWidget(new IconButton(0, 0, 12, 12, Identifier.fromNamespaceAndPath(MineTogether.MOD_ID, "textures/gui/buttons/gear.png"), e -> mc.setScreen(new SettingGui.Screen(mc.screen))));
 
         chatScaleSlider = addRenderableWidget(new SlideButton(0, 0, 12, 200))
                 .setDynamicMessage(() -> Component.translatable("options.percent_value", Component.translatable("options.chat.scale"), (int) (mc.options.chatScale().get() * 100.0)))
@@ -221,17 +227,21 @@ abstract class ChatScreenMixin extends Screen {
     }
 
     @Inject(
-            method = "mouseClicked",
+            method = "mouseClicked(Lnet/minecraft/client/input/MouseButtonEvent;Z)Z",
             at = @At("HEAD"),
             cancellable = true
     )
-    private void onMouseClicked(double mouseX, double mouseY, int button, CallbackInfoReturnable<Boolean> cir) {
+    private void onMouseClicked(MouseButtonEvent event, boolean doubleClick, CallbackInfoReturnable<Boolean> cir) {
+        double mouseX = event.x();
+        double mouseY = event.y();
+        int button = event.button();
+
         //Should be able to do this with a client command, but client commands dont work through the "RUN_COMMAND" click event.
-        Style style = getComponentStyleAt(mouseX, mouseY);
+        Style style = ChatStyleHelper.styleAtChatPosition(Minecraft.getInstance(), getFont(), mouseX, mouseY, displayMode, Minecraft.getInstance().hasShiftDown());
         if (style != null) {
             ClickEvent clickEvent = style.getClickEvent();
-            if (clickEvent instanceof FriendChatNotifier.OpenFriendEvent event) {
-                FriendChatGui.setSelected(event.profile);
+            if (clickEvent instanceof FriendChatNotifier.OpenFriendEvent openFriendEvent) {
+                FriendChatGui.setSelected(openFriendEvent.profile);
                 Minecraft.getInstance().setScreen(new FriendChatGui.Screen(null));
                 cir.setReturnValue(true);
             }
@@ -241,7 +251,7 @@ abstract class ChatScreenMixin extends Screen {
 
         //Link clicks get blocked by our tryClickMTChat function, so we need to do it ourselves here.
         if (MineTogetherChat.getTarget() == ChatTarget.PUBLIC && button == 0) {
-            if (style != null && this.handleComponentClicked(style)) {
+            if (style != null && !MessageFormatter.isClickName(style.getClickEvent()) && this.handleComponentClicked(style, false)) {
                 this.initial = this.input.getValue();
                 cir.setReturnValue(true);
             }
@@ -253,51 +263,49 @@ abstract class ChatScreenMixin extends Screen {
     }
 
     @Override
-    public boolean mouseReleased(double d, double e, int i) {
+    public boolean mouseReleased(MouseButtonEvent event) {
         Minecraft mc = Minecraft.getInstance();
         if (!LocalConfig.instance().chatEnabled || mc.options.hideGui) {
-            return super.mouseReleased(d, e, i);
+            return super.mouseReleased(event);
         }
 
         //Needed because vanilla does not bother to send release if the mouse is not over the component.
-        chatWidthSlider.mouseReleased(d, e, i);
-        chatHeightSlider.mouseReleased(d, e, i);
-        chatScaleSlider.mouseReleased(d, e, i);
+        chatWidthSlider.mouseReleased(event);
+        chatHeightSlider.mouseReleased(event);
+        chatScaleSlider.mouseReleased(event);
 
         //Ensure input box is always focused after input.
         setFocused(input);
-        return super.mouseReleased(d, e, i);
+        return super.mouseReleased(event);
     }
 
     @Override
-    public boolean keyReleased(int i, int j, int k) {
+    public boolean keyReleased(KeyEvent event) {
         //Prevent focus from being directed away from text box via arrow keys
         setFocused(input);
-        return super.keyReleased(i, j, k);
+        return super.keyReleased(event);
     }
 
     @Inject(
-            method = "render",
+            method = "extractRenderState",
             at = @At("TAIL")
     )
-    private void onRender(GuiGraphics graphics, int mouseX, int mouseY, float partialTicks, CallbackInfo ci) {
+    private void onRender(GuiGraphicsExtractor graphics, int mouseX, int mouseY, float partialTicks, CallbackInfo ci) {
         if (MineTogetherChat.getTarget() == ChatTarget.PUBLIC && MineTogetherChat.isNewUser()) {
-            graphics.pose().pushPose();
-            graphics.pose().translate(0, 0, 100); // Push it forward a little bit so It's actually above the text.
+            graphics.nextStratum();
 
             ChatComponent chatComponent = MineTogetherChat.publicChat;
             int y = height - 43 - (minecraft.font.lineHeight * Math.max(Math.min(chatComponent.getRecentChat().size(), chatComponent.getLinesPerPage()), 20));
             graphics.fill(0, y, chatComponent.getWidth() + 6, chatComponent.getHeight() + 10 + y, 0x99000000);
 
-            graphics.drawCenteredString(font, Component.translatable("minetogether:new_user.1"), (chatComponent.getWidth() / 2) + 3, height - ((chatComponent.getHeight() + 80) / 2), 0xFFFFFF);
-            graphics.drawCenteredString(font, Component.translatable("minetogether:new_user.2"), (chatComponent.getWidth() / 2) + 3, height - ((chatComponent.getHeight() + 80) / 2) + 10, 0xFFFFFF);
-            graphics.drawCenteredString(font, Component.translatable("minetogether:new_user.3"), (chatComponent.getWidth() / 2) + 3, height - ((chatComponent.getHeight() + 80) / 2) + 20, 0xFFFFFF);
-            graphics.drawCenteredString(font, Component.translatable("minetogether:new_user.4", ChatStatistics.userCount), (chatComponent.getWidth() / 2) + 3, height - ((chatComponent.getHeight() + 80) / 2) + 30, 0xFFFFFF);
+            graphics.centeredText(font, Component.translatable("minetogether:new_user.1"), (chatComponent.getWidth() / 2) + 3, height - ((chatComponent.getHeight() + 80) / 2), 0xFFFFFF);
+            graphics.centeredText(font, Component.translatable("minetogether:new_user.2"), (chatComponent.getWidth() / 2) + 3, height - ((chatComponent.getHeight() + 80) / 2) + 10, 0xFFFFFF);
+            graphics.centeredText(font, Component.translatable("minetogether:new_user.3"), (chatComponent.getWidth() / 2) + 3, height - ((chatComponent.getHeight() + 80) / 2) + 20, 0xFFFFFF);
+            graphics.centeredText(font, Component.translatable("minetogether:new_user.4", ChatStatistics.userCount), (chatComponent.getWidth() / 2) + 3, height - ((chatComponent.getHeight() + 80) / 2) + 30, 0xFFFFFF);
 
             // Render these manually after the grey-out, so they are on top of it.
-            newUserButton.render(graphics, mouseX, mouseY, partialTicks);
-            disableButton.render(graphics, mouseX, mouseY, partialTicks);
-            graphics.pose().popPose();
+            newUserButton.extractRenderState(graphics, mouseX, mouseY, partialTicks);
+            disableButton.extractRenderState(graphics, mouseX, mouseY, partialTicks);
         }
     }
 

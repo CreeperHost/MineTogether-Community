@@ -1,23 +1,20 @@
 package net.creeperhost.minetogethercommunity.mixin.chat.ingame;
 
-import com.mojang.blaze3d.systems.RenderSystem;
 import net.creeperhost.minetogethercommunity.Constants;
 import net.creeperhost.minetogethercommunity.chat.ChatTarget;
 import net.creeperhost.minetogethercommunity.chat.MineTogetherChat;
 import net.creeperhost.minetogethercommunity.config.LocalConfig;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.Font;
-import net.minecraft.client.gui.GuiGraphics;
+import net.minecraft.client.gui.GuiGraphicsExtractor;
 import net.minecraft.client.gui.components.ChatComponent;
-import net.minecraft.client.renderer.RenderType;
-import net.minecraft.util.ArrayListDeque;
+import net.minecraft.client.renderer.RenderPipelines;
 import net.minecraft.util.Mth;
 import org.spongepowered.asm.mixin.Final;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.Shadow;
 import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
-import org.spongepowered.asm.mixin.injection.Redirect;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 
 /**
@@ -30,38 +27,21 @@ abstract class ChatComponentMixin {
     @Shadow
     private Minecraft minecraft;
 
-    @Shadow
-    public abstract int getHeight();
-
-    @Shadow
-    public abstract int getWidth();
-
-    @Shadow
-    public abstract double getScale();
-
-    @Shadow
-    protected abstract boolean isChatFocused();
-
-    @Shadow
-    public abstract ArrayListDeque<String> getRecentChat();
-
-    @Shadow
-    public abstract int getLinesPerPage();
-
     @Inject(
-            method = "render",
+            method = "extractRenderState(Lnet/minecraft/client/gui/GuiGraphicsExtractor;Lnet/minecraft/client/gui/Font;IIILnet/minecraft/client/gui/components/ChatComponent$DisplayMode;Z)V",
             at = @At("HEAD")
     )
-    private void onRender(GuiGraphics graphics, int i, int mouseX, int mouseY, boolean bl, CallbackInfo ci) {
+    private void onExtractRenderState(GuiGraphicsExtractor graphics, Font font, int ticks, int mouseX, int mouseY, ChatComponent.DisplayMode displayMode, boolean changeCursorOnInsertions, CallbackInfo ci) {
         // Don't render our additional background blackout if chat is not enabled, or chat is not focused.
-        if (!LocalConfig.instance().chatEnabled || Minecraft.getInstance().options.hideGui || !isChatFocused()) return;
+        if (!displayMode.foreground || !LocalConfig.instance().chatEnabled || Minecraft.getInstance().options.hideGui || !((ChatComponent) (Object) this).isChatFocused()) return;
 
         //This does not *perfectly* match vanilla, but its very close, and a lot less dumb.
         //It also just happens to fix the vanilla scroll bar
 
-        float scale = (float)getScale();
-        int width = Mth.ceil((float)this.getWidth() + (12 * scale));
-        int height = Mth.ceil(getHeight() * scale);
+        ChatComponent chatComponent = (ChatComponent) (Object) this;
+        float scale = (float) chatComponent.getScale();
+        int width = Mth.ceil((float) chatComponent.getWidth() + (12 * scale));
+        int height = Mth.ceil(chatComponent.getHeight() * scale);
         int guiHeight = graphics.guiHeight();
         int maxYPos = guiHeight - 40;
 
@@ -72,22 +52,6 @@ abstract class ChatComponentMixin {
         if (MineTogetherChat.getTarget() != ChatTarget.VANILLA){
             int logoSize = (int) (Math.min(width, height) * 0.9D);
             drawLogo(graphics, minecraft.font, -4 + (width / 2) - (logoSize / 2), maxYPos - (height / 2) - (logoSize / 2), logoSize, logoSize);
-        }
-    }
-
-    @Redirect(
-            method = "render",
-            at = @At(
-                    value = "INVOKE",
-                    target = "Lnet/minecraft/client/gui/GuiGraphics;fill(IIIII)V",
-                    ordinal = 0
-            )
-    )
-    // When chat is focussed, this disables vanilla rendering the 'filled' background bellow a chat line.
-    // We force-enable this fill if chat is disabled to revert to vanilla behaviour.
-    private void onFill(GuiGraphics graphics, int i, int j, int k, int l, int m) {
-        if (!isChatFocused() || !LocalConfig.instance().chatEnabled || Minecraft.getInstance().options.hideGui) {
-            graphics.fill(i, j, k, l, m);
         }
     }
 
@@ -105,8 +69,7 @@ abstract class ChatComponentMixin {
      * Draws the Mine Together logo with the "Created By {CreeperHost Logo}" bellow it.
      * The entire thing will be scaled appropriately to fit within the specified bounds.
      */
-    private static void drawLogo(GuiGraphics g, Font font, int x, int y, int width, int height) {
-        RenderSystem.setShaderColor(1F, 1F, 1F, 1F);
+    private static void drawLogo(GuiGraphicsExtractor g, Font font, int x, int y, int width, int height) {
         String created = "Created by";
         int strWidth = font.width(created);
         int creeperHeight = 19; //Value chosen so that Creeper Host logo text is roughly the same size as the "Created By" text
@@ -116,22 +79,18 @@ abstract class ChatComponentMixin {
         int creeperOffset = (int) ((font.lineHeight / 2D) - (creeperHeight / 2D));
         int creeperSHeight = (int) (creeperHeight * createdScale);
 
-        g.pose().pushPose();
-        g.pose().translate(x, y + height - (creeperHeight * createdScale) - creeperOffset, 0);
-        g.pose().scale(createdScale, createdScale, createdScale);
+        g.pose().pushMatrix();
+        g.pose().translate((float) x, (float) (y + height - (creeperHeight * createdScale) - creeperOffset));
+        g.pose().scale(createdScale, createdScale);
 
-        RenderSystem.enableBlend();
-        g.blit(Constants.CREEPERHOST_LOGO_25, createdWidth - creeperWidth, creeperOffset, 0.0F, 0.0F, creeperWidth, creeperHeight, creeperWidth, creeperHeight);
-        g.drawString(font, created, 0, 0, 0x40FFFFFF, true);
+        g.blit(RenderPipelines.GUI_TEXTURED, Constants.CREEPERHOST_LOGO_25, createdWidth - creeperWidth, creeperOffset, 0.0F, 0.0F, creeperWidth, creeperHeight, creeperWidth, creeperHeight, 0x40FFFFFF);
+        g.text(font, created, 0, 0, 0x40FFFFFF, true);
 
-        g.pose().popPose();
+        g.pose().popMatrix();
 
         int mtHeight = height - creeperSHeight - 4;
         int mtWidth = (int) (mtHeight * (348D / 318D));
 
-        RenderSystem.enableBlend();
-        g.blit(Constants.MINETOGETHER_LOGO_25, x + (int) ((width / 2D) - (mtWidth / 2D)), y, 0.0F, 0.0F, mtWidth, mtHeight, mtWidth, mtHeight);
-
-        RenderSystem.disableBlend();
+        g.blit(RenderPipelines.GUI_TEXTURED, Constants.MINETOGETHER_LOGO_25, x + (int) ((width / 2D) - (mtWidth / 2D)), y, 0.0F, 0.0F, mtWidth, mtHeight, mtWidth, mtHeight, 0x40FFFFFF);
     }
 }
