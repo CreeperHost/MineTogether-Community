@@ -66,9 +66,6 @@ public class ServerListAppender {
         for (RemoteServer remoteServer : remoteServers) {
             if (!serverEntries.containsKey(remoteServer)) {
                 Profile profile = ConnectHandler.getServerProfile(remoteServer);
-                if (profile.isStale()) {
-                    continue;
-                }
                 serverEntries.put(remoteServer, new FriendServerEntry(multiplayerScreen, remoteServer, profile, this));
                 dirty = true;
             }
@@ -111,6 +108,15 @@ public class ServerListAppender {
         multiplayerScreen = null;
         serverEntries.clear();
         removeAll();
+    }
+
+    //Add entries to server list, Called from the end of ServerSelectionList#refreshEntries
+    public void addEntries() {
+        if (serverList == null) return;
+//        serverList.addEntry(new FriendsHeader());
+        for (FriendServerEntry entry : serverEntries.values()) {
+            serverList.addEntry(entry);
+        }
     }
 
     public Collection<FriendServerEntry> getEntries() {

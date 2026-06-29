@@ -46,6 +46,7 @@ dependencies {
     implementation "blue.endless:jankson:${jankson_version}"
     implementation("net.creeperhost:MineTogetherLib:${mtlib_version}") {
         exclude group: "net.creeperhost", module: "MineTogetherSessions"
+        exclude group: "net.covers1624", module: "Quack"
     }
     implementation("net.creeperhost:MineTogetherSessions:${mtsession_version}") {
         transitive = false
@@ -53,8 +54,8 @@ dependencies {
     implementation("net.creeperhost:MTConnectProxyCommon:${mtproxy_version}") {
         exclude group: "net.creeperhost", module: "MineTogetherSessions"
         exclude group: "net.creeperhost", module: "MineTogetherLib"
+        exclude group: "net.covers1624", module: "Quack"
     }
-    implementation("net.covers1624:Quack:${quack_version}") { transitive = false }
 
     implementation 'org.nanohttpd:nanohttpd:2.3.1'
     implementation 'org.apache.httpcomponents:httpclient:4.5.14'

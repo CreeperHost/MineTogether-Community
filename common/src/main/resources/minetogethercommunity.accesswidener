@@ -52,5 +52,8 @@ accessible method net/minecraft/client/renderer/entity/LivingEntityRenderer addL
 
 accessible field net/minecraft/client/gui/screens/multiplayer/ServerSelectionList THREAD_POOL Ljava/util/concurrent/ThreadPoolExecutor;
 
+extendable method net/minecraft/client/gui/components/AbstractSelectionList addEntry (Lnet/minecraft/client/gui/components/AbstractSelectionList$Entry;)I
+accessible method net/minecraft/client/gui/components/AbstractSelectionList addEntry (Lnet/minecraft/client/gui/components/AbstractSelectionList$Entry;)I
+
 extendable method net/minecraft/client/gui/screens/multiplayer/ServerSelectionList refreshEntries ()V
 accessible method net/minecraft/client/gui/screens/multiplayer/ServerSelectionList refreshEntries ()V

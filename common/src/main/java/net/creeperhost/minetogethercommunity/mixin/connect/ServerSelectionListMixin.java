@@ -1,7 +1,6 @@
 package net.creeperhost.minetogethercommunity.mixin.connect;
 
 import net.creeperhost.minetogethercommunity.connect.ConnectHandler;
-import net.creeperhost.minetogethercommunity.connect.gui.FriendServerEntry;
 import net.creeperhost.minetogethercommunity.connect.gui.ServerListAppender;
 import net.minecraft.client.gui.screens.multiplayer.ServerSelectionList;
 import net.minecraft.network.chat.Component;
@@ -28,8 +27,6 @@ public abstract class ServerSelectionListMixin {
     @Final
     private static Component SCANNING_LABEL;
 
-    @Shadow
-    protected abstract int addEntry(ServerSelectionList.Entry entry);
 
     @Inject(at = @At("TAIL"), method = "<init>")
     public void init(CallbackInfo ci) {
@@ -39,8 +36,6 @@ public abstract class ServerSelectionListMixin {
 
     @Inject (at = @At("TAIL"), method = "refreshEntries()V")
     public void onEntriesRefresh(CallbackInfo ci) {
-        for (FriendServerEntry entry : ServerListAppender.INSTANCE.getEntries()) {
-            addEntry(entry);
-        }
+        ServerListAppender.INSTANCE.addEntries();
     }
 }
