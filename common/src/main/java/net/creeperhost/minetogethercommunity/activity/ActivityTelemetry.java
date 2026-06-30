@@ -5,6 +5,7 @@ import com.google.common.util.concurrent.ThreadFactoryBuilder;
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
 import dev.architectury.event.events.client.ClientLifecycleEvent;
+import dev.architectury.event.events.client.ClientPlayerEvent;
 import dev.architectury.event.events.client.ClientTickEvent;
 import dev.architectury.injectables.targets.ArchitecturyTarget;
 import dev.architectury.platform.Platform;
@@ -15,6 +16,7 @@ import net.covers1624.quack.net.httpapi.WebBody;
 import net.creeperhost.minetogether.lib.web.WebConstants;
 import net.creeperhost.minetogethercommunity.MineTogether;
 import net.creeperhost.minetogethercommunity.MineTogetherPlatform;
+import net.creeperhost.minetogethercommunity.config.LocalConfig;
 import net.creeperhost.minetogethercommunity.util.ModPackInfo;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.multiplayer.ServerData;
@@ -43,6 +45,7 @@ import java.util.Optional;
 import java.util.UUID;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.TimeUnit;
 
 public class ActivityTelemetry {
 
@@ -86,6 +89,7 @@ public class ActivityTelemetry {
         }
         ClientTickEvent.CLIENT_POST.register(ActivityTelemetry::tick);
         ClientLifecycleEvent.CLIENT_STOPPING.register(ActivityTelemetry::stopping);
+        ClientPlayerEvent.CLIENT_PLAYER_QUIT.register(player -> onWorldExit());
         refreshPreference();
     }
 
@@ -166,13 +170,22 @@ public class ActivityTelemetry {
     }
 
     private static void stopping(Minecraft mc) {
+        onWorldExit();
+    }
+
+    // Called both on CLIENT_PLAYER_QUIT (quit to title / disconnect) and CLIENT_STOPPING (game close).
+    // Queues any remaining playtime then submits a flush to the same single-threaded executor so it
+    // runs after any in-flight async flush --- then blocks (up to 10 s) waiting for completion.
+    // Because the executor is FIFO and single-threaded, this approach avoids the race condition
+    // where flushRunning == true causes a blocking flush to return early.
+    private static void onWorldExit() {
         long now = System.currentTimeMillis();
         if (inWorld) {
             queuePlaytime(now);
             inWorld = false;
             playtimeStarted = 0;
         }
-        flushBlocking();
+        flushSync();
     }
 
     private static void refreshPreference() {
@@ -197,8 +210,16 @@ public class ActivityTelemetry {
         });
     }
 
+    private static boolean shouldSkipTelemetry() {
+        if (!LocalConfig.instance().activityTelemetry) return true;
+        Minecraft mc = Minecraft.getInstance();
+        if (mc.player != null && mc.player.isCreative()) return true;
+        if (mc.hasSingleplayerServer() && mc.getSingleplayerServer() != null && mc.getSingleplayerServer().getWorldData().isAllowCommands()) return true;
+        return false;
+    }
+
     private static void queuePlaytime(long now) {
-        if (!enabled || playtimeStarted <= 0 || now <= playtimeStarted) return;
+        if (!enabled || shouldSkipTelemetry() || playtimeStarted <= 0 || now <= playtimeStarted) return;
         int deltaSeconds = (int) Math.min((now - playtimeStarted) / 1000L, 600L);
         if (deltaSeconds <= 0) return;
 
@@ -210,8 +231,60 @@ public class ActivityTelemetry {
         queue(batch);
     }
 
+    public static void queueQuestAsync(String questId, String rawTitle, String rawDescription, String iconItemId) {
+        queueQuestAsync("ftbquests", questId, rawTitle, rawDescription, iconItemId);
+    }
+
+    public static void queueQuestAsync(String provider, String questId, String rawTitle, String rawDescription, String iconItemId) {
+        EXECUTOR.execute(() -> {
+            try {
+                queueQuest(provider, questId, rawTitle, rawDescription, iconItemId);
+            } catch (Throwable t) {
+                LOGGER.warn("[MT-TELEMETRY-DEBUG] async quest queue threw", t);
+            }
+        });
+    }
+
+    public static void queueQuest(String questId, String rawTitle, String rawDescription, String iconItemId) {
+        queueQuest("ftbquests", questId, rawTitle, rawDescription, iconItemId);
+    }
+
+    public static void queueQuest(String provider, String questId, String rawTitle, String rawDescription, String iconItemId) {
+        if (!enabled || shouldSkipTelemetry()) return;
+        String safeProvider = safe(provider);
+        if (safeProvider.isEmpty()) safeProvider = "unknown";
+
+        ActivityModels.Metadata metadata = new ActivityModels.Metadata();
+        metadata.type = "quest";
+        metadata.provider = safeProvider;
+        metadata.contentId = safe(questId);
+        metadata.titleEn = safe(rawTitle);
+        metadata.descriptionEn = safe(rawDescription);
+        metadata.iconItemId = safe(iconItemId);
+        metadata.locale = "en_us";
+        metadata.metadataRef = hash("quest:" + safeProvider + ":" + metadata.contentId + ":" + metadata.titleEn + ":" + metadata.descriptionEn);
+
+        ActivityModels.QuestEvent event = new ActivityModels.QuestEvent();
+        event.metadataRef = metadata.metadataRef;
+        event.provider = safeProvider;
+        event.completedAt = System.currentTimeMillis();
+        event.source = "incremental";
+        event.eventId = hash(state.clientSessionId + ":" + currentWorld().key + ":" + modpackIdentity() + ":" + safeProvider + ":" + metadata.contentId);
+
+        ActivityModels.Batch batch = newBaseBatch();
+        batch.metadata.add(metadata);
+        batch.questCompletions.add(event);
+        LOGGER.info("[MT-TELEMETRY-DEBUG] queueQuest id={} title={} descLen={}", questId, metadata.titleEn, metadata.descriptionEn.length());
+        queue(batch);
+        flush();
+    }
+
+    private static String safe(String value) {
+        return value == null ? "" : value;
+    }
+
     private static void queueAdvancement(String advancementId, Object holder, String source) {
-        if (!enabled) return;
+        if (!enabled || shouldSkipTelemetry()) return;
 
         ActivityModels.Metadata metadata = metadataForAdvancement(advancementId, holder);
         ActivityModels.AdvancementEvent event = new ActivityModels.AdvancementEvent();
@@ -256,17 +329,23 @@ public class ActivityTelemetry {
         });
     }
 
-    private static void flushBlocking() {
-        // On shutdown, make a final attempt even if we're mid-backoff (but not if we've
-        // already hit the failure cap for this session).
-        if (!markFlushRunning(true)) return;
-        boolean success = false;
+    // Submits a flush task to the same single-threaded executor and waits up to 10 s.
+    // Running on the executor guarantees we queue behind any in-flight async flush,
+    // so flushRunning will be false by the time our task executes.
+    private static void flushSync() {
         try {
-            success = drainQueue();
-        } catch (Throwable ignored) {
-        } finally {
-            recordFlushResult(success);
-            flushRunning = false;
+            EXECUTOR.submit(() -> {
+                if (!markFlushRunning(true)) return;
+                boolean success = false;
+                try {
+                    success = drainQueue();
+                } catch (Throwable ignored) {
+                } finally {
+                    recordFlushResult(success);
+                    flushRunning = false;
+                }
+            }).get(10, TimeUnit.SECONDS);
+        } catch (Exception ignored) {
         }
     }
 
@@ -319,10 +398,10 @@ public class ActivityTelemetry {
             LOGGER.info("[MT-TELEMETRY-DEBUG] POST batch seq={} advancements={} playtime={} bodyBytes={} -> {}",
                     batch.sequence, batch.advancements.size(), batch.playtime != null, json.getBytes(StandardCharsets.UTF_8).length, url);
 
-            // Raw request so we can log the exact return code + full raw response body, before
+            // Raw request so we can log the return code + raw response body, before
             // any typed parsing (the typed parse throws when the server omits the "status" field,
-            // which hides what actually came back). Also log the auth header lengths since the
-            // server rejects with "Key or secret are too short".
+            // which hides what actually came back). Log only auth header lengths; the header
+            // values are credentials.
             EngineRequest request = MineTogether.WEB_ENGINE.newRequest();
             request.method("POST", WebBody.string(json, WebConstants.JSON));
             request.url(url);
@@ -330,7 +409,7 @@ public class ActivityTelemetry {
             for (String name : new String[]{"Authorization", "Fingerprint", "Identifier"}) {
                 String value = authHeaders.get(name);
                 request.header(name, value == null ? "" : value);
-                LOGGER.info("[MT-TELEMETRY-DEBUG] auth header {}: {}", name, value == null ? "<MISSING>" : "len=" + value.length() + " value=" + value);
+                LOGGER.info("[MT-TELEMETRY-DEBUG] auth header {}: {}", name, value == null ? "<MISSING>" : "len=" + value.length());
             }
 
             int statusCode;

@@ -107,4 +107,7 @@ public class LocalConfig {
     @Comment ("The ID of the currently equipped cape cosmetic, or empty for none.")
     public String selectedCapeId = "";
 
+    @Comment ("If activity telemetry (advancements, quest completions, playtime) is enabled.")
+    public boolean activityTelemetry = true;
+
 }
