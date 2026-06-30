@@ -7,6 +7,25 @@ plugins {
 def generatedResources = project(":common").file("src/generated/resources/")
 def commonResources = project(":common").file("src/main/resources")
 def commonAccessTransformer = project(":common").file("src/main/resources/META-INF/accesstransformer.cfg")
+def quackRuntime = configurations.detachedConfiguration(dependencies.create("net.covers1624:Quack:${quack_version}") {
+    transitive = false
+})
+
+def stripQuackForNeoForgeRuntime = tasks.register('stripQuackForNeoForgeRuntime', Jar) {
+    archiveBaseName = 'Quack'
+    archiveVersion = quack_version
+    archiveClassifier = 'neoforge-runtime'
+    destinationDirectory = layout.buildDirectory.dir('strippedRuntimeLibs')
+    from({ zipTree(quackRuntime.singleFile) }) {
+        exclude 'META-INF/MANIFEST.MF'
+        exclude 'META-INF/*.SF'
+        exclude 'META-INF/*.RSA'
+        exclude 'META-INF/*.DSA'
+    }
+    manifest {
+        attributes 'Automatic-Module-Name': 'net.covers1624.quack'
+    }
+}
 
 neoForge {
     version = neoforge_version
@@ -17,6 +36,7 @@ neoForge {
         configureEach {
             systemProperty('neoforge.enabledGameTestNamespaces', mod_id)
             ideName = "NeoForge ${it.name.capitalize()} (${project.path})"
+            taskBefore(stripQuackForNeoForgeRuntime)
         }
         client {
             client()
@@ -56,6 +76,7 @@ dependencies {
         exclude group: "net.creeperhost", module: "MineTogetherLib"
         exclude group: "net.covers1624", module: "Quack"
     }
+    runtimeOnly(files(stripQuackForNeoForgeRuntime.flatMap { it.archiveFile }))
 
     implementation 'org.nanohttpd:nanohttpd:2.3.1'
     implementation 'org.apache.httpcomponents:httpclient:4.5.14'
