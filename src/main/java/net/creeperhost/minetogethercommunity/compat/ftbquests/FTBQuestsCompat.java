@@ -81,7 +81,7 @@ public class FTBQuestsCompat {
             for (Object quest : quests(file)) {
                 Object complete = invokeAny(quest, false, new String[]{"isComplete"}, data);
                 if (Boolean.TRUE.equals(complete)) {
-                    queueQuest(quest, !seeded);
+                    queueQuest(quest, seeded);
                 }
             }
             seeded = true;
@@ -130,7 +130,7 @@ public class FTBQuestsCompat {
         if (!remember(key)) return;
         if (!emit) return;
 
-        ActivityTelemetry.queueQuest(questId, title, description, icon);
+        ActivityTelemetry.queueQuestAsync(questId, title, description, icon);
     }
 
     private static Object findQuest(Object event) {

@@ -153,6 +153,15 @@ public final class ActivityTelemetry {
         flushSync();
     }
 
+    public static void queueQuestAsync(final String questId, final String title, final String description, final String iconItemId) {
+        EXECUTOR.execute(new Runnable() {
+            @Override
+            public void run() {
+                queueQuest(questId, title, description, iconItemId);
+            }
+        });
+    }
+
     public static void queueQuest(String questId, String title, String description, String iconItemId) {
         if (!enabled || shouldSkipTelemetry()) return;
 
