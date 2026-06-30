@@ -2,16 +2,22 @@ package net.creeperhost.minetogethercommunity.compat.ftbquests;
 
 import net.creeperhost.minetogethercommunity.activity.ActivityTelemetry;
 import net.minecraft.ChatFormatting;
+import net.minecraft.client.Minecraft;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.network.chat.Component;
 import net.minecraft.world.item.ItemStack;
 
+import java.util.Iterator;
+import java.util.LinkedHashSet;
+import java.util.Set;
 import java.lang.reflect.Method;
 import java.lang.reflect.Proxy;
 import java.util.function.Consumer;
 
 public class FTBQuestsCompat {
     private static final String FALLBACK_ICON = "minecraft:flower_banner_pattern";
+    private static final int MAX_SEEN_COMPLETIONS = 512;
+    private static final Set<String> SEEN_COMPLETIONS = new LinkedHashSet<>();
     private static boolean fabricRegistered;
     private static boolean neoForgeRegistered;
 
@@ -74,16 +80,21 @@ public class FTBQuestsCompat {
             if (isServerProgressData(progressData)) return;
 
             Object quest = invokeNoArg(progressData, "object");
+            String questId = String.valueOf(invokeNoArg(quest, "getCodeString"));
+            if (!rememberCompletion(questId)) return;
+
             String title = text(invokeNoArg(quest, "getTitle"));
             String description = description(quest);
             String iconItemId = resolveIconItemId(invokeNoArg(quest, "getIcon"));
-            ActivityTelemetry.queueQuestAsync(String.valueOf(invokeNoArg(quest, "getCodeString")), title, description, iconItemId);
+            ActivityTelemetry.queueQuestAsync(questId, title, description, iconItemId);
         } catch (Throwable ignored) {
             // Optional integration: FTB Quests internals differ between versions and should never break MineTogether.
         }
     }
 
     private static boolean isServerProgressData(Object progressData) {
+        if (Minecraft.getInstance().hasSingleplayerServer()) return false;
+
         try {
             Object teamData = invokeNoArg(progressData, "teamData");
             if (teamData != null) {
@@ -101,6 +112,19 @@ public class FTBQuestsCompat {
         }
 
         return false;
+    }
+
+    private static boolean rememberCompletion(String questId) {
+        synchronized (SEEN_COMPLETIONS) {
+            if (!SEEN_COMPLETIONS.add(questId)) return false;
+            while (SEEN_COMPLETIONS.size() > MAX_SEEN_COMPLETIONS) {
+                Iterator<String> iterator = SEEN_COMPLETIONS.iterator();
+                if (!iterator.hasNext()) break;
+                iterator.next();
+                iterator.remove();
+            }
+            return true;
+        }
     }
 
     private static String description(Object quest) throws ReflectiveOperationException {
