@@ -15,9 +15,12 @@ import net.creeperhost.minetogethercommunity.chat.FriendChatNotifier;
 import net.creeperhost.minetogethercommunity.chat.MineTogetherChat;
 import net.creeperhost.minetogethercommunity.chat.gui.ChatScreenInjection;
 import net.creeperhost.minetogethercommunity.compat.Integration;
+import net.creeperhost.minetogethercommunity.compat.MTPartners;
 import net.creeperhost.minetogethercommunity.compat.companion.FTBPackCompanionCompat;
 import net.creeperhost.minetogethercommunity.compat.ftbquests.FTBQuestsCompat;
-import net.creeperhost.minetogethercommunity.compat.MTPartners;
+import net.creeperhost.minetogethercommunity.compat.quests.BountifulCompat;
+import net.creeperhost.minetogethercommunity.compat.quests.HQMCompat;
+import net.creeperhost.minetogethercommunity.compat.quests.HeraclesCompat;
 import net.creeperhost.minetogethercommunity.config.Config;
 import net.creeperhost.minetogethercommunity.connect.MineTogetherConnect;
 import net.creeperhost.minetogethercommunity.cosmetic.CosmeticApiClient;
@@ -82,6 +85,9 @@ public class MineTogetherClient {
 
         Integration.runOptional("ftbpc", () -> FTBPackCompanionCompat::init);
         Integration.runOptional("ftbquests", () -> FTBQuestsCompat::registerArchitecturyEvents);
+        Integration.runOptional("bountiful", () -> BountifulCompat::register);
+        Integration.runOptional("hardcorequesting", () -> HQMCompat::register);
+        Integration.runOptional("heracles", () -> HeraclesCompat::register);
 
         // Kick off cosmetic catalog download and profile fetch as soon as the player enters a world,
         // so the data is ready (or already cached) by the time they open the cosmetics GUI.
