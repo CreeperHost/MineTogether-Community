@@ -42,3 +42,6 @@ config = "minetogethercommunity-neoforge.mixins.json"
 
 [[mixins]]
 config = "minetogethercommunity-common.mixins.json"
+
+[[mixins]]
+config = "minetogethercommunity-ftbquests.mixins.json"
