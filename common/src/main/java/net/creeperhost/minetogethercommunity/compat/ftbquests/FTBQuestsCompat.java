@@ -71,14 +71,36 @@ public class FTBQuestsCompat {
             if (!"COMPLETED".equals(String.valueOf(type))) return;
 
             Object progressData = invokeNoArg(eventData, "progressData");
+            if (isServerProgressData(progressData)) return;
+
             Object quest = invokeNoArg(progressData, "object");
             String title = text(invokeNoArg(quest, "getTitle"));
             String description = description(quest);
             String iconItemId = resolveIconItemId(invokeNoArg(quest, "getIcon"));
-            ActivityTelemetry.queueQuest(String.valueOf(invokeNoArg(quest, "getCodeString")), title, description, iconItemId);
+            ActivityTelemetry.queueQuestAsync(String.valueOf(invokeNoArg(quest, "getCodeString")), title, description, iconItemId);
         } catch (Throwable ignored) {
             // Optional integration: FTB Quests internals differ between versions and should never break MineTogether.
         }
+    }
+
+    private static boolean isServerProgressData(Object progressData) {
+        try {
+            Object teamData = invokeNoArg(progressData, "teamData");
+            if (teamData != null) {
+                var field = teamData.getClass().getDeclaredField("serverSide");
+                field.setAccessible(true);
+                if (Boolean.TRUE.equals(field.get(teamData))) return true;
+            }
+        } catch (Throwable ignored) {
+        }
+
+        try {
+            Object onlineMembers = invokeNoArg(progressData, "onlineMembers");
+            if (onlineMembers instanceof Iterable<?> members && members.iterator().hasNext()) return true;
+        } catch (Throwable ignored) {
+        }
+
+        return false;
     }
 
     private static String description(Object quest) throws ReflectiveOperationException {
