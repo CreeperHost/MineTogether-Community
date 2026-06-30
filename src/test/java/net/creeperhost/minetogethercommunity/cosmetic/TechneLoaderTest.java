@@ -75,6 +75,43 @@ public class TechneLoaderTest {
         assertCuboid(cuboids.get(1), 0.0F, 13.0F, 0.0F, 0.0F, 0.0F, 0.0F, -6.0F, 0.0F, -6.0F);
     }
 
+    @Test
+    public void readsShapesInsideNestedNullContainers() throws Exception {
+        TechneLoader.ParsedTechne parsed = TechneLoader.parseModel(archive("{\n"
+                + "  \"Techne\": {\n"
+                + "    \"Models\": [{\"Model\": {\n"
+                + "      \"TextureSize\": \"64,32\",\n"
+                + "      \"@texture\": \"Newtexture.png\",\n"
+                + "      \"Geometry\": {\"Null\": [{\n"
+                + "        \"Position\": \"1,2,3\",\n"
+                + "        \"Rotation\": \"0.1,0.2,0.3\",\n"
+                + "        \"Children\": {\"Null\": {\n"
+                + "          \"Position\": \"4,5,6\",\n"
+                + "          \"Rotation\": \"0.4,0.5,0.6\",\n"
+                + "          \"Children\": {\"Shape\": {\n"
+                + "            \"@Type\": \"d9e621f7-957f-4b77-b1ae-20dcd0da7751\",\n"
+                + "            \"Position\": \"7,8,9\",\n"
+                + "            \"Offset\": \"1,2,3\",\n"
+                + "            \"Rotation\": \"0.7,0.8,0.9\",\n"
+                + "            \"Size\": \"4,5,6\",\n"
+                + "            \"TextureOffset\": \"9,10\"\n"
+                + "          }}\n"
+                + "        }}\n"
+                + "      }]}\n"
+                + "    }}]\n"
+                + "  }\n"
+                + "}"), "nested");
+
+        assertEquals(1, parsed.cuboids().size());
+        HatCuboid cuboid = parsed.cuboids().get(0);
+        assertCuboid(cuboid,
+                12.0F, 15.0F, 18.0F,
+                1.2F, 1.5F, 1.8F,
+                1.0F, 2.0F, 3.0F);
+        assertEquals(9, cuboid.texU());
+        assertEquals(10, cuboid.texV());
+    }
+
     private static byte[] archive(String modelJson) throws IOException {
         ByteArrayOutputStream bytes = new ByteArrayOutputStream();
         ZipOutputStream zip = new ZipOutputStream(bytes);

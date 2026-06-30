@@ -91,41 +91,7 @@ public final class TechneLoader {
         JsonObject geometry = model.getAsJsonObject("Geometry");
         boolean turboModelThingy = isTurboModelThingy(techne);
         if (geometry != null) {
-            JsonElement shapesElement = geometry.get("Shape");
-            if (shapesElement != null) {
-                JsonArray shapes;
-                if (shapesElement.isJsonArray()) {
-                    shapes = shapesElement.getAsJsonArray();
-                } else {
-                    shapes = new JsonArray();
-                    shapes.add(shapesElement.getAsJsonObject());
-                }
-                for (JsonElement element : shapes) {
-                    JsonObject shape = element.getAsJsonObject();
-                    JsonElement typeElement = shape.get("@Type");
-                    if (typeElement == null || !CUBE_TYPE.equals(typeElement.getAsString())) continue;
-
-                    float[] pos = parseVec3(shape.get("Position").getAsString());
-                    float[] off = shape.has("Offset") ? parseVec3(shape.get("Offset").getAsString()) : new float[3];
-                    float[] rot = shape.has("Rotation") ? parseVec3(shape.get("Rotation").getAsString()) : new float[3];
-                    float[] size = parseVec3(shape.get("Size").getAsString());
-                    int[] texOff = parseVec2i(shape.get("TextureOffset").getAsString());
-                    if (turboModelThingy) {
-                        boolean rotated = rot[0] != 0.0F || rot[1] != 0.0F || rot[2] != 0.0F;
-                        off[0] -= size[0] / 2.0F;
-                        off[2] -= size[2] / 2.0F;
-                        if (rotated) {
-                            pos[2] += 8.0F;
-                        }
-                        rot[0] = 0.0F;
-                        rot[1] = 0.0F;
-                        rot[2] = 0.0F;
-                    }
-
-                    cuboids.add(new HatCuboid(pos[0], pos[1], pos[2], rot[0], rot[1], rot[2],
-                            off[0], off[1], off[2], size[0], size[1], size[2], texOff[0], texOff[1]));
-                }
-            }
+            readTechneContainer(geometry, new float[3], new float[3], turboModelThingy, cuboids);
         }
 
         return new ParsedTechne(textureBytes, texW, texH, cuboids);
@@ -140,6 +106,64 @@ public final class TechneLoader {
             }
         }
         return textureFiles.values().iterator().next();
+    }
+
+    private static void readTechneContainer(JsonObject container, float[] parentPos, float[] parentRot,
+                                            boolean turboModelThingy, List<HatCuboid> cuboids) {
+        JsonElement shapesElement = container.get("Shape");
+        if (shapesElement != null) {
+            for (JsonElement element : asArray(shapesElement)) {
+                JsonObject shape = element.getAsJsonObject();
+                JsonElement typeElement = shape.get("@Type");
+                if (typeElement == null || !CUBE_TYPE.equals(typeElement.getAsString())) continue;
+
+                float[] pos = shape.has("Position") ? parseVec3(shape.get("Position").getAsString()) : new float[3];
+                float[] off = shape.has("Offset") ? parseVec3(shape.get("Offset").getAsString()) : new float[3];
+                float[] rot = shape.has("Rotation") ? parseVec3(shape.get("Rotation").getAsString()) : new float[3];
+                float[] size = parseVec3(shape.get("Size").getAsString());
+                int[] texOff = parseVec2i(shape.get("TextureOffset").getAsString());
+                if (turboModelThingy) {
+                    boolean rotated = rot[0] != 0.0F || rot[1] != 0.0F || rot[2] != 0.0F;
+                    off[0] -= size[0] / 2.0F;
+                    off[2] -= size[2] / 2.0F;
+                    if (rotated) {
+                        pos[2] += 8.0F;
+                    }
+                    rot[0] = 0.0F;
+                    rot[1] = 0.0F;
+                    rot[2] = 0.0F;
+                }
+
+                cuboids.add(new HatCuboid(
+                        parentPos[0] + pos[0], parentPos[1] + pos[1], parentPos[2] + pos[2],
+                        parentRot[0] + rot[0], parentRot[1] + rot[1], parentRot[2] + rot[2],
+                        off[0], off[1], off[2],
+                        size[0], size[1], size[2],
+                        texOff[0], texOff[1]));
+            }
+        }
+
+        JsonElement nullsElement = container.get("Null");
+        if (nullsElement == null) return;
+
+        for (JsonElement element : asArray(nullsElement)) {
+            JsonObject group = element.getAsJsonObject();
+            JsonObject children = group.getAsJsonObject("Children");
+            if (children == null) continue;
+
+            float[] groupPos = group.has("Position") ? parseVec3(group.get("Position").getAsString()) : new float[3];
+            float[] groupRot = group.has("Rotation") ? parseVec3(group.get("Rotation").getAsString()) : new float[3];
+            float[] nextPos = new float[] {parentPos[0] + groupPos[0], parentPos[1] + groupPos[1], parentPos[2] + groupPos[2]};
+            float[] nextRot = new float[] {parentRot[0] + groupRot[0], parentRot[1] + groupRot[1], parentRot[2] + groupRot[2]};
+            readTechneContainer(children, nextPos, nextRot, turboModelThingy, cuboids);
+        }
+    }
+
+    private static JsonArray asArray(JsonElement element) {
+        if (element.isJsonArray()) return element.getAsJsonArray();
+        JsonArray array = new JsonArray();
+        array.add(element);
+        return array;
     }
 
     private static boolean isTurboModelThingy(JsonObject techne) {
