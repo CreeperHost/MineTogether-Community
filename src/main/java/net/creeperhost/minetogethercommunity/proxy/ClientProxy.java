@@ -11,6 +11,9 @@ import net.creeperhost.minetogethercommunity.client.MineTogetherSettingsCommand;
 import net.creeperhost.minetogethercommunity.client.OpenFriendChatCommand;
 import net.creeperhost.minetogethercommunity.compat.Integration;
 import net.creeperhost.minetogethercommunity.compat.ftbquests.FTBQuestsCompat;
+import net.creeperhost.minetogethercommunity.compat.legacyquests.BetterQuestingCompat;
+import net.creeperhost.minetogethercommunity.compat.legacyquests.BountifulCompat;
+import net.creeperhost.minetogethercommunity.compat.legacyquests.HQMCompat;
 import net.creeperhost.minetogethercommunity.connect.ConnectHandler;
 import net.creeperhost.minetogethercommunity.cosmetic.CosmeticApiClient;
 import net.creeperhost.minetogethercommunity.cosmetic.CosmeticDownloader;
@@ -70,6 +73,10 @@ public class ClientProxy extends CommonProxy {
         ConnectHandler.init();
         MinecraftForge.EVENT_BUS.register(new ClientEvents());
         Integration.runOptional("ftbquests", () -> () -> MinecraftForge.EVENT_BUS.register(new FTBQuestsCompat()));
+        Integration.runOptional("betterquesting", () -> BetterQuestingCompat::register);
+        Integration.runOptional("bountiful", () -> BountifulCompat::register);
+        Integration.runOptional("hardcorequesting", () -> HQMCompat::register);
+        Integration.runOptional("hqm", () -> HQMCompat::register);
         registerCosmeticLayers();
     }
 
