@@ -70,40 +70,7 @@ public class TechneLoader {
 
         JsonObject geometry = model.getAsJsonObject("Geometry");
         if (geometry != null) {
-            JsonElement shapesEl = geometry.get("Shape");
-            if (shapesEl != null) {
-                // Shape can be a single object or an array
-                JsonArray shapes = shapesEl.isJsonArray() ? shapesEl.getAsJsonArray() : null;
-                if (shapes == null) {
-                    JsonObject single = shapesEl.getAsJsonObject();
-                    shapes = new JsonArray();
-                    shapes.add(single);
-                }
-
-                for (JsonElement el : shapes) {
-                    JsonObject shape = el.getAsJsonObject();
-                    JsonElement typeEl = shape.get("@Type");
-                    if (typeEl == null || !CUBE_TYPE.equals(typeEl.getAsString())) continue;
-
-                    float[] pos  = parseVec3(shape.get("Position").getAsString());
-                    float[] off  = shape.has("Offset")   ? parseVec3(shape.get("Offset").getAsString())   : new float[3];
-                    float[] rot  = shape.has("Rotation") ? parseVec3(shape.get("Rotation").getAsString()) : new float[3];
-                    float[] size = parseVec3(shape.get("Size").getAsString());
-                    int[] texOff = parseVec2i(shape.get("TextureOffset").getAsString());
-
-                    // Store raw Techne values unchanged.
-                    // HatLayer applies scale(-1,-1,1) which exactly replicates the iChunUtil
-                    // rendering convention, so no coordinate transformation is needed here.
-                    // Position = the ModelRenderer rotation pivot (setRotationPoint).
-                    // Offset   = the box corner relative to that pivot (addBox x/y/z args).
-                    cuboids.add(new HatCuboid(
-                            pos[0], pos[1], pos[2],          // pivot = Position
-                            rot[0], rot[1], rot[2],          // rotation = Rotation (radians)
-                            off[0], off[1], off[2],          // box origin = Offset
-                            size[0], size[1], size[2],       // box size = Size
-                            texOff[0], texOff[1]));
-                }
-            }
+            readTechneContainer(geometry, new float[3], new float[3], cuboids);
         }
 
         ResourceLocation texLoc = ResourceLocation.fromNamespaceAndPath(MOD_ID, "dynamic/hats/" + id);
@@ -137,5 +104,59 @@ public class TechneLoader {
                 Integer.parseInt(parts[0].trim()),
                 Integer.parseInt(parts[1].trim())
         };
+    }
+
+    private static void readTechneContainer(JsonObject container, float[] parentPos, float[] parentRot, List<HatCuboid> cuboids) {
+        JsonElement shapesEl = container.get("Shape");
+        if (shapesEl != null) {
+            for (JsonElement el : asArray(shapesEl)) {
+                JsonObject shape = el.getAsJsonObject();
+                JsonElement typeEl = shape.get("@Type");
+                if (typeEl == null || !CUBE_TYPE.equals(typeEl.getAsString())) continue;
+
+                float[] pos  = shape.has("Position") ? parseVec3(shape.get("Position").getAsString()) : new float[3];
+                float[] off  = shape.has("Offset") ? parseVec3(shape.get("Offset").getAsString()) : new float[3];
+                float[] rot  = shape.has("Rotation") ? parseVec3(shape.get("Rotation").getAsString()) : new float[3];
+                float[] size = parseVec3(shape.get("Size").getAsString());
+                int[] texOff = parseVec2i(shape.get("TextureOffset").getAsString());
+
+                cuboids.add(new HatCuboid(
+                        parentPos[0] + pos[0], parentPos[1] + pos[1], parentPos[2] + pos[2],
+                        parentRot[0] + rot[0], parentRot[1] + rot[1], parentRot[2] + rot[2],
+                        off[0], off[1], off[2],
+                        size[0], size[1], size[2],
+                        texOff[0], texOff[1]));
+            }
+        }
+
+        JsonElement nullsEl = container.get("Null");
+        if (nullsEl == null) return;
+
+        for (JsonElement el : asArray(nullsEl)) {
+            JsonObject group = el.getAsJsonObject();
+            JsonObject children = group.getAsJsonObject("Children");
+            if (children == null) continue;
+
+            float[] groupPos = group.has("Position") ? parseVec3(group.get("Position").getAsString()) : new float[3];
+            float[] groupRot = group.has("Rotation") ? parseVec3(group.get("Rotation").getAsString()) : new float[3];
+            float[] nextPos = new float[]{
+                    parentPos[0] + groupPos[0],
+                    parentPos[1] + groupPos[1],
+                    parentPos[2] + groupPos[2]
+            };
+            float[] nextRot = new float[]{
+                    parentRot[0] + groupRot[0],
+                    parentRot[1] + groupRot[1],
+                    parentRot[2] + groupRot[2]
+            };
+            readTechneContainer(children, nextPos, nextRot, cuboids);
+        }
+    }
+
+    private static JsonArray asArray(JsonElement element) {
+        if (element.isJsonArray()) return element.getAsJsonArray();
+        JsonArray array = new JsonArray();
+        array.add(element);
+        return array;
     }
 }
