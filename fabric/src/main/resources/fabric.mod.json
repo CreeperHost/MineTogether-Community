@@ -34,6 +34,7 @@
         "flamingo": "*"
     },
     "mixins": [
-        "minetogethercommunity-common.mixins.json"
+        "minetogethercommunity-common.mixins.json",
+        "minetogethercommunity-ftbquests.mixins.json"
     ]
 }
