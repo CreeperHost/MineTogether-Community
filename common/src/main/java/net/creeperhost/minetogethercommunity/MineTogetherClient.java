@@ -10,7 +10,7 @@ import net.creeperhost.minetogether.session.MineTogetherSession;
 import net.creeperhost.minetogethercommunity.chat.FriendChatNotifier;
 import net.creeperhost.minetogethercommunity.chat.MineTogetherChat;
 import net.creeperhost.minetogethercommunity.chat.gui.ChatScreenInjection;
-import net.creeperhost.minetogethercommunity.compat.MTPartners;
+
 import net.creeperhost.minetogethercommunity.config.Config;
 import net.creeperhost.minetogethercommunity.connect.MineTogetherConnect;
 import net.creeperhost.minetogethercommunity.gui.SettingGui;
@@ -77,12 +77,6 @@ public class MineTogetherClient {
     }
 
     public static void openOrderUI(ModularGui gui) {
-        if (Platform.isModLoaded("minetogetherpartners")) {
-            LOGGER.info("minetogetherpartners loaded, Using minetogetherpartners order form");
-            MTPartners.openOrderUI(gui);
-            return;
-        }
-        LOGGER.info("using minetogethercommunity order form");
         gui.mc().setScreen(new OrderGui.Screen(gui.getScreen(), true));
     }
 
