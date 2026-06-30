@@ -92,7 +92,7 @@ public class PublicChatGui implements GuiProvider {
                 .setEnabled(() -> MineTogetherChat.getOurProfile().isBanned())
                 .setTooltip(Component.translatable("minetogether:gui.button.banned.info"))
                 .setTooltipDelay(0)
-                .onPress(() -> gui.mc().setScreen(new ProfileGui.Screen(gui.getScreen())));
+                .onPress(() -> gui.mc().gui.setScreen(new ProfileGui.Screen(gui.getScreen())));
 
         Constraints.bind(banned, textBoxBg);
 
@@ -103,7 +103,7 @@ public class PublicChatGui implements GuiProvider {
                 .constrain(BOTTOM, relative(textBoxBg.get(TOP), -4));
 
         GuiButton back = MTStyle.Flat.button(root, Component.translatable("minetogether:gui.button.back_arrow"))
-                .onPress(() -> gui.mc().setScreen(gui.getParentScreen()))
+                .onPress(() -> gui.mc().gui.setScreen(gui.getParentScreen()))
                 .constrain(BOTTOM, relative(chatBg.get(TOP), -4))
                 .constrain(LEFT, match(chatBg.get(LEFT)))
                 .constrain(WIDTH, literal(50))
@@ -112,7 +112,7 @@ public class PublicChatGui implements GuiProvider {
         GuiButton settings = MTStyle.Flat.button(root, (Supplier<Component>) null)
                 .setTooltip(Component.translatable("minetogether:gui.button.settings.info"))
                 .setTooltipDelay(0)
-                .onPress(() -> gui.mc().setScreen(new SettingGui.Screen(gui.getScreen())))
+                .onPress(() -> gui.mc().gui.setScreen(new SettingGui.Screen(gui.getScreen())))
                 .constrain(BOTTOM, match(back.get(BOTTOM)))
                 .constrain(RIGHT, match(chatBg.get(RIGHT)))
                 .constrain(WIDTH, literal(14))
@@ -125,7 +125,7 @@ public class PublicChatGui implements GuiProvider {
                 //Keep the same parent screen, So the back button always takes us to the 'first' screen (Main Menu / Pause Menu)
                 .setTooltip(Component.translatable("minetogether:gui.button.friends.info"))
                 .setTooltipDelay(0)
-                .onPress(() -> gui.mc().setScreen(new FriendChatGui.Screen(gui.getParentScreen())))
+                .onPress(() -> gui.mc().gui.setScreen(new FriendChatGui.Screen(gui.getParentScreen())))
                 .constrain(BOTTOM, match(back.get(BOTTOM)))
                 .constrain(RIGHT, relative(settings.get(LEFT), -2))
                 .constrain(WIDTH, literal(16))

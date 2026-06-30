@@ -21,7 +21,6 @@ import net.creeperhost.minetogethercommunity.util.ModPackInfo;
 import net.creeperhost.polylib.client.modulargui.ModularGuiScreen;
 import net.creeperhost.polylib.client.toast.SimpleToast;
 import net.minecraft.client.Minecraft;
-import net.minecraft.client.gui.Gui;
 import net.minecraft.client.gui.components.ChatComponent;
 import net.minecraft.client.gui.components.Tooltip;
 import net.minecraft.client.gui.components.toasts.Toast;
@@ -72,13 +71,13 @@ public class MineTogetherChat {
         ChatStatistics.pollStats();
     }
 
-    public static void initChat(Gui gui) {
+    public static void initChat(ChatComponent vanillaChatComponent) {
         if (CHAT_STATE == null) {
             init();
         }
 
         Minecraft mc = Minecraft.getInstance();
-        vanillaChat = gui.getChat();
+        vanillaChat = vanillaChatComponent;
         publicChat = new MTChatComponent(ChatTarget.PUBLIC, mc);
         groupChat = new MTChatComponent(ChatTarget.GROUP, mc);
         if (LocalConfig.instance().chatEnabled) {
@@ -91,7 +90,7 @@ public class MineTogetherChat {
                 if (channel == CHAT_STATE.ircClient.getPrimaryChannel()) {
                     publicChat.attach(channel);
 
-                    Screen screen = Minecraft.getInstance().screen;
+                    Screen screen = Minecraft.getInstance().gui.screen();
 
                     // If we have the ChatScreen open. Attach to main chat.
                     if (screen instanceof ModularGuiScreen mgui && mgui.getModularGui().getProvider() instanceof PublicChatGui chat) {
@@ -169,7 +168,7 @@ public class MineTogetherChat {
 
     private static void addToast(Toast toast) {
         if (hasHitLoadingScreen) {
-            Minecraft.getInstance().getToastManager().addToast(toast);
+            Minecraft.getInstance().gui.toastManager().addToast(toast);
         } else {
             // YEET, too bad.
         }
@@ -196,16 +195,16 @@ public class MineTogetherChat {
 
     private static void addMenuButtons(Screen screen) {
         int buttonPos = 4;
-        IconButton settings = new IconButton(screen.width - (buttonPos += 21), 5, 3, Constants.WIDGETS_SHEET, e -> Minecraft.getInstance().setScreen(new SettingGui.Screen(screen)));
+        IconButton settings = new IconButton(screen.width - (buttonPos += 21), 5, 3, Constants.WIDGETS_SHEET, e -> Minecraft.getInstance().gui.setScreen(new SettingGui.Screen(screen)));
         settings.setTooltip(Tooltip.create(Component.translatable("minetogether:gui.button.settings.info")));
         screen.addRenderableWidget(settings);
 
-        IconButton friendChat = new IconButton(screen.width - (buttonPos += 21), 5, 7, Constants.WIDGETS_SHEET, e -> Minecraft.getInstance().setScreen(new FriendChatGui.Screen(screen)));
+        IconButton friendChat = new IconButton(screen.width - (buttonPos += 21), 5, 7, Constants.WIDGETS_SHEET, e -> Minecraft.getInstance().gui.setScreen(new FriendChatGui.Screen(screen)));
         friendChat.setTooltip(Tooltip.create(Component.translatable("minetogether:gui.button.friends.info")));
         screen.addRenderableWidget(friendChat);
 
         if (LocalConfig.instance().chatEnabled) {
-            IconButton publicChat = new IconButton(screen.width - (buttonPos += 21), 5, 1, Constants.WIDGETS_SHEET, e -> Minecraft.getInstance().setScreen(new PublicChatGui.Screen(screen)));
+            IconButton publicChat = new IconButton(screen.width - (buttonPos += 21), 5, 1, Constants.WIDGETS_SHEET, e -> Minecraft.getInstance().gui.setScreen(new PublicChatGui.Screen(screen)));
             publicChat.setTooltip(Tooltip.create(Component.translatable("minetogether:gui.button.global_chat.info")));
             screen.addRenderableWidget(publicChat);
         }

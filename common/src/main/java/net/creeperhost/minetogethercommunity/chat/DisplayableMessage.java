@@ -45,7 +45,7 @@ public abstract class DisplayableMessage<M> {
     }
 
     public void format() {
-        int addTime = builtMessage != null ? builtMessage.addedTime() : mc.gui.getGuiTicks();
+        int addTime = builtMessage != null ? builtMessage.addedTime() : mc.gui.hud.getGuiTicks();
         builtMessage = new GuiMessage(addTime, MessageFormatter.formatMessage(message), null, GuiMessageSource.PLAYER, null);
         trimmedLines.clear();
 

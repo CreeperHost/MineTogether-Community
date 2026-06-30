@@ -9,7 +9,6 @@ import net.minecraft.client.gui.Font;
 import net.minecraft.client.gui.GuiGraphicsExtractor;
 import net.minecraft.client.gui.components.ChatComponent;
 import net.minecraft.client.renderer.RenderPipelines;
-import net.minecraft.util.Mth;
 import org.spongepowered.asm.mixin.Final;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.Shadow;
@@ -33,23 +32,16 @@ abstract class ChatComponentMixin {
     )
     private void onExtractRenderState(GuiGraphicsExtractor graphics, Font font, int ticks, int mouseX, int mouseY, ChatComponent.DisplayMode displayMode, boolean changeCursorOnInsertions, CallbackInfo ci) {
         // Don't render our additional background blackout if chat is not enabled, or chat is not focused.
-        if (!displayMode.foreground || !LocalConfig.instance().chatEnabled || Minecraft.getInstance().options.hideGui || !((ChatComponent) (Object) this).isChatFocused()) return;
-
-        //This does not *perfectly* match vanilla, but its very close, and a lot less dumb.
-        //It also just happens to fix the vanilla scroll bar
+        if (!displayMode.foreground || !LocalConfig.instance().chatEnabled || Minecraft.getInstance().gui.hud.isHidden() || !((ChatComponent) (Object) this).isChatFocused()) return;
 
         ChatComponent chatComponent = (ChatComponent) (Object) this;
-        float scale = (float) chatComponent.getScale();
-        int width = Mth.ceil((float) chatComponent.getWidth() + (12 * scale));
-        int height = Mth.ceil(chatComponent.getHeight() * scale);
-        int guiHeight = graphics.guiHeight();
-        int maxYPos = guiHeight - 40;
-
-        // Render new 'filled' background under all chat lines.
-        graphics.fill(0, maxYPos - height, width, maxYPos, minecraft.options.getBackgroundColor(0x80000000));
 
         // If we are on a MineTogether tab, draw our logo.
         if (MineTogetherChat.getTarget() != ChatTarget.VANILLA){
+            float scale = (float) chatComponent.getScale();
+            int width = (int) Math.ceil((float) chatComponent.getWidth() + (12 * scale));
+            int height = (int) Math.ceil(chatComponent.getHeight() * scale);
+            int maxYPos = graphics.guiHeight() - 40;
             int logoSize = (int) (Math.min(width, height) * 0.9D);
             drawLogo(graphics, minecraft.font, -4 + (width / 2) - (logoSize / 2), maxYPos - (height / 2) - (logoSize / 2), logoSize, logoSize);
         }
@@ -60,8 +52,13 @@ abstract class ChatComponentMixin {
             at = @At("HEAD")
     )
     private void onRescaleChat(CallbackInfo ci) {
-        if (MineTogetherChat.getTarget() == ChatTarget.VANILLA) {
-            MineTogetherChat.publicChat.rescaleChat();
+        if ((Object) this == MineTogetherChat.vanillaChat) {
+            if (MineTogetherChat.publicChat != null) {
+                MineTogetherChat.publicChat.rescaleLocalChat();
+            }
+            if (MineTogetherChat.groupChat != null) {
+                MineTogetherChat.groupChat.rescaleLocalChat();
+            }
         }
     }
 

@@ -88,10 +88,10 @@ abstract class ChatScreenMixin extends Screen {
     )
     private void onInit(CallbackInfo ci) {
         Minecraft mc = Minecraft.getInstance();
-        if (!LocalConfig.instance().chatEnabled || mc.options.hideGui) return;
+        if (!LocalConfig.instance().chatEnabled || mc.gui.hud.isHidden()) return;
         input.setValue(initial);
 
-        ChatComponent chat = mc.gui.getChat();
+        ChatComponent chat = mc.gui.hud.getChat();
         float cScale = (float) chat.getScale();
         int cWidth = Mth.ceil((float) chat.getWidth() + (12 * cScale)); //Vanilla does some wired s%$#. This mostly accounts for it.
         int cHeight = Mth.ceil(chat.getHeight() * cScale);
@@ -117,7 +117,7 @@ abstract class ChatScreenMixin extends Screen {
                 .onPressed(e -> MineTogetherChat.setTarget(ChatTarget.GROUP))
                 .onRelease(() -> setFocused(input));
 
-        settingsButton = addRenderableWidget(new IconButton(0, 0, 12, 12, Identifier.fromNamespaceAndPath(MineTogether.MOD_ID, "textures/gui/buttons/gear.png"), e -> mc.setScreen(new SettingGui.Screen(mc.screen))));
+        settingsButton = addRenderableWidget(new IconButton(0, 0, 12, 12, Identifier.fromNamespaceAndPath(MineTogether.MOD_ID, "textures/gui/buttons/gear.png"), e -> mc.gui.setScreen(new SettingGui.Screen(mc.gui.screen()))));
 
         chatScaleSlider = addRenderableWidget(new SlideButton(0, 0, 12, 200))
                 .setDynamicMessage(() -> Component.translatable("options.percent_value", Component.translatable("options.chat.scale"), (int) (mc.options.chatScale().get() * 100.0)))
@@ -139,7 +139,6 @@ abstract class ChatScreenMixin extends Screen {
                 })
                 .withTextScale(0.75F)
                 .onRelease(() -> setFocused(input))
-                .setApplyOnRelease(true)
                 .setEnabled(() -> commandSuggestions.suggestions == null && LocalConfig.instance().chatSettingsSliders)
                 .withAutoScaleText(3);
 
@@ -193,10 +192,10 @@ abstract class ChatScreenMixin extends Screen {
 
     private void updateButtons() {
         Minecraft mc = Minecraft.getInstance();
-        if (!LocalConfig.instance().chatEnabled || mc.options.hideGui) {
+        if (!LocalConfig.instance().chatEnabled || mc.gui.hud.isHidden()) {
             return;
         }
-        ChatComponent chat = mc.gui.getChat();
+        ChatComponent chat = mc.gui.hud.getChat();
         float cScale = (float) chat.getScale();
         int cWidth = Mth.ceil((float) chat.getWidth() + (12 * cScale)); //Vanilla does some wired s%$#. This mostly accounts for it.
         int cHeight = Mth.ceil(chat.getHeight() * cScale) - 12;
@@ -242,12 +241,12 @@ abstract class ChatScreenMixin extends Screen {
             ClickEvent clickEvent = style.getClickEvent();
             if (clickEvent instanceof FriendChatNotifier.OpenFriendEvent openFriendEvent) {
                 FriendChatGui.setSelected(openFriendEvent.profile);
-                Minecraft.getInstance().setScreen(new FriendChatGui.Screen(null));
+                Minecraft.getInstance().gui.setScreen(new FriendChatGui.Screen(null));
                 cir.setReturnValue(true);
             }
         }
 
-        if (!LocalConfig.instance().chatEnabled || Minecraft.getInstance().options.hideGui) return;
+        if (!LocalConfig.instance().chatEnabled || Minecraft.getInstance().gui.hud.isHidden()) return;
 
         //Link clicks get blocked by our tryClickMTChat function, so we need to do it ourselves here.
         if (MineTogetherChat.getTarget() == ChatTarget.PUBLIC && button == 0) {
@@ -265,7 +264,7 @@ abstract class ChatScreenMixin extends Screen {
     @Override
     public boolean mouseReleased(MouseButtonEvent event) {
         Minecraft mc = Minecraft.getInstance();
-        if (!LocalConfig.instance().chatEnabled || mc.options.hideGui) {
+        if (!LocalConfig.instance().chatEnabled || mc.gui.hud.isHidden()) {
             return super.mouseReleased(event);
         }
 
@@ -298,10 +297,10 @@ abstract class ChatScreenMixin extends Screen {
             int y = height - 43 - (minecraft.font.lineHeight * Math.max(Math.min(chatComponent.getRecentChat().size(), chatComponent.getLinesPerPage()), 20));
             graphics.fill(0, y, chatComponent.getWidth() + 6, chatComponent.getHeight() + 10 + y, 0x99000000);
 
-            graphics.centeredText(font, Component.translatable("minetogether:new_user.1"), (chatComponent.getWidth() / 2) + 3, height - ((chatComponent.getHeight() + 80) / 2), 0xFFFFFF);
-            graphics.centeredText(font, Component.translatable("minetogether:new_user.2"), (chatComponent.getWidth() / 2) + 3, height - ((chatComponent.getHeight() + 80) / 2) + 10, 0xFFFFFF);
-            graphics.centeredText(font, Component.translatable("minetogether:new_user.3"), (chatComponent.getWidth() / 2) + 3, height - ((chatComponent.getHeight() + 80) / 2) + 20, 0xFFFFFF);
-            graphics.centeredText(font, Component.translatable("minetogether:new_user.4", ChatStatistics.userCount), (chatComponent.getWidth() / 2) + 3, height - ((chatComponent.getHeight() + 80) / 2) + 30, 0xFFFFFF);
+            graphics.centeredText(font, Component.translatable("minetogether:new_user.1"), (chatComponent.getWidth() / 2) + 3, height - ((chatComponent.getHeight() + 80) / 2), 0xFFFFFFFF);
+            graphics.centeredText(font, Component.translatable("minetogether:new_user.2"), (chatComponent.getWidth() / 2) + 3, height - ((chatComponent.getHeight() + 80) / 2) + 10, 0xFFFFFFFF);
+            graphics.centeredText(font, Component.translatable("minetogether:new_user.3"), (chatComponent.getWidth() / 2) + 3, height - ((chatComponent.getHeight() + 80) / 2) + 20, 0xFFFFFFFF);
+            graphics.centeredText(font, Component.translatable("minetogether:new_user.4", ChatStatistics.userCount), (chatComponent.getWidth() / 2) + 3, height - ((chatComponent.getHeight() + 80) / 2) + 30, 0xFFFFFFFF);
 
             // Render these manually after the grey-out, so they are on top of it.
             newUserButton.extractRenderState(graphics, mouseX, mouseY, partialTicks);

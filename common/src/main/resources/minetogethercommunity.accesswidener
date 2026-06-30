@@ -15,24 +15,22 @@ accessible field net/minecraft/client/gui/components/ChatComponent newMessageSin
 
 accessible field net/minecraft/client/gui/components/CommandSuggestions suggestions Lnet/minecraft/client/gui/components/CommandSuggestions$SuggestionsList;
 
-accessible field net/minecraft/client/gui/Gui chat Lnet/minecraft/client/gui/components/ChatComponent;
 accessible field net/minecraft/client/Minecraft services Lnet/minecraft/server/Services;
 
 accessible field net/minecraft/server/network/ServerConnectionListener channels Ljava/util/List;
 accessible field net/minecraft/server/network/ServerConnectionListener connections Ljava/util/List;
 
 accessible field net/minecraft/client/server/IntegratedServer publishedPort I
-accessible field net/minecraft/client/server/IntegratedServer publishedGameType Lnet/minecraft/world/level/GameType;
+accessible field net/minecraft/client/server/IntegratedServer gameTypeForOtherPlayers Lnet/minecraft/world/level/GameType;
+accessible field net/minecraft/client/server/IntegratedServer commandsAllowedForOtherPlayers Ljava/lang/Boolean;
+accessible method net/minecraft/client/server/IntegratedServer setMultiplayerScope (Lnet/minecraft/server/MinecraftServer$MultiplayerScope;)V
+accessible method net/minecraft/client/server/IntegratedServer updateCommandsAllowedForOtherPlayers ()V
 accessible field net/minecraft/server/MinecraftServer storageSource Lnet/minecraft/world/level/storage/LevelStorageSource$LevelStorageAccess;
 
 accessible field net/minecraft/client/gui/screens/ConnectScreen connection Lnet/minecraft/network/Connection;
 
 extendable method net/minecraft/client/gui/screens/ConnectScreen <init> (Lnet/minecraft/client/gui/screens/Screen;Lnet/minecraft/network/chat/Component;)V
 accessible method net/minecraft/client/gui/screens/ConnectScreen <init> (Lnet/minecraft/client/gui/screens/Screen;Lnet/minecraft/network/chat/Component;)V
-
-accessible field net/minecraft/client/gui/screens/ShareToLanScreen portEdit Lnet/minecraft/client/gui/components/EditBox;
-accessible field net/minecraft/client/gui/screens/ShareToLanScreen gameMode Lnet/minecraft/world/level/GameType;
-accessible field net/minecraft/client/gui/screens/ShareToLanScreen commands Z
 
 accessible field net/minecraft/client/gui/screens/Screen renderables Ljava/util/List;
 accessible field net/minecraft/client/gui/screens/Screen narratables Ljava/util/List;

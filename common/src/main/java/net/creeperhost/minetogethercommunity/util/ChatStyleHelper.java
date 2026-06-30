@@ -16,7 +16,7 @@ public class ChatStyleHelper {
         int screenHeight = minecraft.getWindow().getGuiScaledHeight();
         ActiveTextCollector.ClickableStyleFinder finder = new ActiveTextCollector.ClickableStyleFinder(font, (int) mouseX, (int) mouseY)
                 .includeInsertions(includeInsertions);
-        minecraft.gui.getChat().captureClickableText(finder, screenHeight, minecraft.gui.getGuiTicks(), displayMode);
+        minecraft.gui.hud.getChat().captureClickableText(finder, screenHeight, minecraft.gui.hud.getGuiTicks(), displayMode);
         return finder.result();
     }
 

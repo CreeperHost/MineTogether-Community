@@ -6,7 +6,7 @@
       "chat.ChatScreenMixin",
       "chat.ScreenMixin",
       "chat.ingame.ChatComponentMixin",
-      "chat.ingame.GuiMixin",
+      "chat.ingame.HudMixin",
       "activity.ClientPacketListenerMixin",
       "connect.IntegratedServerMixin",
       "connect.JoinMultiplayerScreenMixin",

@@ -129,8 +129,16 @@ public class MTChatComponent extends ChatComponent {
 
     @Override
     public void rescaleChat() {
+        rescaleChat(true);
+    }
+
+    public void rescaleLocalChat() {
+        rescaleChat(false);
+    }
+
+    private void rescaleChat(boolean propagateToVanilla) {
         // If we are the target, propagate to the others.
-        if (MineTogetherChat.getTarget() == target && MineTogetherChat.vanillaChat != null) {
+        if (propagateToVanilla && MineTogetherChat.getTarget() == target && MineTogetherChat.vanillaChat != null) {
             MineTogetherChat.vanillaChat.rescaleChat();
         }
 
