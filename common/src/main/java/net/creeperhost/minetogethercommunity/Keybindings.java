@@ -29,11 +29,11 @@ public class Keybindings {
 
     private static void clientTick(Minecraft mc) {
         if (OPEN_FRIEND_CHAT.consumeClick()) {
-            mc.setScreen(new FriendChatGui.Screen(null));
+            mc.gui.setScreen(new FriendChatGui.Screen(null));
         } else if (OPEN_GLOBAL_CHAT.consumeClick()) {
-            mc.setScreen(new PublicChatGui.Screen(null));
+            mc.gui.setScreen(new PublicChatGui.Screen(null));
         } else if (OPEN_SETTINGS.consumeClick()) {
-            mc.setScreen(new SettingGui.Screen(null));
+            mc.gui.setScreen(new SettingGui.Screen(null));
         }
     }
 }

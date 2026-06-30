@@ -34,6 +34,7 @@ import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.components.AbstractWidget;
 import net.minecraft.client.gui.components.Button;
 import net.minecraft.client.gui.components.Renderable;
+import net.minecraft.client.gui.components.SpriteIconButton;
 import net.minecraft.client.gui.components.events.GuiEventListener;
 import net.minecraft.client.gui.narration.NarratableEntry;
 import net.minecraft.client.gui.screens.ChatScreen;
@@ -42,6 +43,7 @@ import net.minecraft.client.gui.screens.PauseScreen;
 import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.client.player.AbstractClientPlayer;
 import net.minecraft.network.chat.Component;
+import net.minecraft.resources.Identifier;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
@@ -128,7 +130,7 @@ public class MineTogetherClient {
     public static <S> void registerClientCommands(CommandDispatcher<S> dispatcher) {
         dispatcher.register(LiteralArgumentBuilder.<S>literal("minetogether_settings")
                 .executes(c -> {
-                    Minecraft.getInstance().setScreen(new SettingGui.Screen(null));
+                    Minecraft.getInstance().gui.setScreen(new SettingGui.Screen(null));
                     return 0;
                 })
         );
@@ -141,7 +143,7 @@ public class MineTogetherClient {
             return;
         }
         LOGGER.info("using minetogethercommunity order form");
-        gui.mc().setScreen(new OrderGui.Screen(gui.getScreen(), true));
+        gui.mc().gui.setScreen(new OrderGui.Screen(gui.getScreen(), true));
     }
 
     private static void onScreenOpen(Minecraft client, Screen screen, int scaledWidth, int scaledHeight) {
@@ -154,18 +156,31 @@ public class MineTogetherClient {
             // Replace bugs button with our own button.
             AbstractWidget bugs = ButtonHelper.findButton("menu.reportBugs", screen);
             if (bugs != null && Config.instance().issueTrackerUrl != null) {
-                Button ourBugsButton = Button.builder(Component.translatable("menu.reportBugs"), (button) -> {
+                Button.OnPress openIssueTracker = (button) -> {
                             String s = Config.instance().issueTrackerUrl;
-                            Minecraft.getInstance().setScreen(new ConfirmLinkScreen((p_213069_2_) -> {
+                            Minecraft.getInstance().gui.setScreen(new ConfirmLinkScreen((p_213069_2_) -> {
                                 if (p_213069_2_) {
                                     Util.getPlatform().openUri(s);
                                 }
 
-                                Minecraft.getInstance().setScreen(screen);
+                                Minecraft.getInstance().gui.setScreen(screen);
                             }, s, true));
-                        })
-                        .bounds(bugs.getX(), bugs.getY(), bugs.getWidth(), bugs.getHeight())
-                        .build();
+                        };
+                Button ourBugsButton;
+                if (isCompactIconButton(bugs)) {
+                    ourBugsButton = SpriteIconButton.builder(Component.translatable("menu.reportBugs"), openIssueTracker, true)
+                            .size(bugs.getWidth(), bugs.getHeight())
+                            .sprite(Identifier.withDefaultNamespace("pause_menu/bug"), 15, 15)
+                            .withTootip()
+                            .build();
+                    ourBugsButton.setX(bugs.getX());
+                    ourBugsButton.setY(bugs.getY());
+                } else {
+                    ourBugsButton = Button.builder(Component.translatable("menu.reportBugs"), openIssueTracker)
+                            .bounds(bugs.getX(), bugs.getY(), bugs.getWidth(), bugs.getHeight())
+                            .build();
+                }
+                ourBugsButton.active = bugs.active;
                 // We have to keep these indexes the same and remove the old button due to how Mod Menu works...
                 children.set(children.indexOf(bugs), ourBugsButton);
                 renderables.set(renderables.indexOf(bugs), ourBugsButton);
@@ -173,5 +188,9 @@ public class MineTogetherClient {
                 bugs = ourBugsButton;
             }
         }
+    }
+
+    private static boolean isCompactIconButton(AbstractWidget widget) {
+        return widget.getWidth() <= 40 && widget.getHeight() <= 24;
     }
 }

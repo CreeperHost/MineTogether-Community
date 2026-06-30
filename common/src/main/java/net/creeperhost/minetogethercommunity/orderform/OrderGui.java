@@ -165,7 +165,7 @@ public class OrderGui implements GuiProvider {
                 .constrain(BOTTOM, relative(priceBg.get(TOP), -2));
 
         GuiButton back = MTStyle.Flat.button(root, Component.translatable("minetogether:gui.button.back_arrow"))
-                .onPress(() -> gui.mc().setScreen(gui.getParentScreen()))
+                .onPress(() -> gui.mc().gui.setScreen(gui.getParentScreen()))
                 .constrain(BOTTOM, relative(orderBg.get(TOP), -4))
                 .constrain(LEFT, match(orderBg.get(LEFT)))
                 .constrain(WIDTH, literal(50))
@@ -267,7 +267,7 @@ public class OrderGui implements GuiProvider {
                 .setScroll(false)
                 .setLineSpacing(1)
                 .setVerticalAlign(Align.CENTER)
-                .setTextColour(GREEN.getColor())
+                .setTextColour(0xFF55FF55)
                 .setEnabled(() -> summary.summaryError.isEmpty())
                 .constrain(TOP, relative(lastElement.get(BOTTOM), 4))
                 .constrain(LEFT, left)
@@ -298,7 +298,7 @@ public class OrderGui implements GuiProvider {
 
         lastElement = new GuiText(scrollPane, () -> Component.literal(getDCName(order.serverLocation)))
                 .setEnabled(() -> summary.summaryError.isEmpty())
-                .setTextColour(GREEN.getColor())
+                .setTextColour(0xFF55FF55)
                 .setWrap(true)
                 .constrain(TOP, relative(lastElement.get(BOTTOM), 2))
                 .constrain(LEFT, left)
@@ -315,7 +315,7 @@ public class OrderGui implements GuiProvider {
 
         lastElement = new GuiText(scrollPane, () -> Component.literal(summary.serverHostName))
                 .setEnabled(() -> summary.summaryError.isEmpty())
-                .setTextColour(GREEN.getColor())
+                .setTextColour(0xFF55FF55)
                 .constrain(TOP, relative(lastElement.get(BOTTOM), 2))
                 .constrain(LEFT, left)
                 .constrain(RIGHT, right)
@@ -332,7 +332,7 @@ public class OrderGui implements GuiProvider {
         for (int i = 1; i < 6; i++) {
             lastElement = new GuiText(scrollPane, Component.translatable("minetogether:gui.order.summary.feature" + i))
                     .setEnabled(() -> summary.summaryError.isEmpty())
-                    .setTextColour(GREEN.getColor())
+                    .setTextColour(0xFF55FF55)
                     .constrain(TOP, relative(lastElement.get(BOTTOM), i == 1 ? 2 : 1))
                     .constrain(LEFT, left)
                     .constrain(RIGHT, right)
@@ -350,7 +350,7 @@ public class OrderGui implements GuiProvider {
 
         lastElement = new GuiText(scrollPane, Component.translatable("minetogether:gui.order.summary.paying_for_details1"))
                 .setEnabled(() -> summary.summaryError.isEmpty())
-                .setTextColour(GREEN.getColor())
+                .setTextColour(0xFF55FF55)
                 .setWrap(true)
                 .constrain(TOP, relative(lastElement.get(BOTTOM), 2))
                 .constrain(LEFT, left)
@@ -359,7 +359,7 @@ public class OrderGui implements GuiProvider {
 
         lastElement = new GuiText(scrollPane, Component.translatable("minetogether:gui.order.summary.paying_for_details2"))
                 .setEnabled(() -> summary.summaryError.isEmpty())
-                .setTextColour(GREEN.getColor())
+                .setTextColour(0xFF55FF55)
                 .setWrap(true)
                 .constrain(TOP, relative(lastElement.get(BOTTOM), 1))
                 .constrain(LEFT, left)

@@ -145,7 +145,7 @@ public class DetailsElement extends GuiElement<DetailsElement> {
                     gui.order.emailAddress = s;
                     gui.emailDirty();
                 }));
-        textField.setSuggestionColour(() -> 0xFFFFFF);
+        textField.setSuggestionColour(() -> 0xFFFFFFFF);
         highlight.setEnabled(textField::isFocused);
 
         Constraints.bind(textField, background, 0, 2, 0, 2);
@@ -167,7 +167,7 @@ public class DetailsElement extends GuiElement<DetailsElement> {
                 .setSuggestion(suggestion)
                 .setFormatter((s, integer) -> Component.literal(StringUtils.repeat('*', s.length())).getVisualOrderText())
                 .setTextState(textState);
-        textField.setSuggestionColour(() -> 0xFFFFFF);
+        textField.setSuggestionColour(() -> 0xFFFFFFFF);
         highlight.setEnabled(textField::isFocused);
 
         Constraints.bind(textField, background, 0, 2, 0, 2);
@@ -188,7 +188,7 @@ public class DetailsElement extends GuiElement<DetailsElement> {
         GuiTextField textField = new GuiTextField(background)
                 .setSuggestion(suggestion)
                 .setTextState(textState);
-        textField.setSuggestionColour(() -> 0xFFFFFF);
+        textField.setSuggestionColour(() -> 0xFFFFFFFF);
         highlight.setEnabled(textField::isFocused);
 
         Constraints.bind(textField, background, 0, 2, 0, 2);

@@ -159,11 +159,11 @@ public class SettingGui implements GuiProvider {
 
         GuiButton link = MTStyle.Flat.button(settings, Component.translatable("minetogether:gui.settings.button.link"))
                 .onPress(() -> {
-                    gui.mc().setScreen(new ConfirmScreen(b -> {
+                    gui.mc().gui.setScreen(new ConfirmScreen(b -> {
                         if (b) {
                             KeycloakOAuth.main(new String[0]);
                         }
-                        gui.mc().setScreen(gui.getScreen());
+                        gui.mc().gui.setScreen(gui.getScreen());
                     }, Component.translatable("minetogether:linkaccount1"), Component.translatable("minetogether:linkaccount2")));
                 })
                 .setDisabled(() -> MineTogetherChat.getOurProfile().hasAccount())
@@ -174,14 +174,14 @@ public class SettingGui implements GuiProvider {
 
         // Row 5: Edit Profile | Cosmetics
         GuiButton profileScreen = MTStyle.Flat.button(settings, () -> Component.translatable("minetogether:gui.settings.button.profile"))
-                .onPress(() -> gui.mc().setScreen(new ProfileGui.Screen(gui.getScreen())))
+                .onPress(() -> gui.mc().gui.setScreen(new ProfileGui.Screen(gui.getScreen())))
                 .constrain(TOP, relative(blocked.get(BOTTOM), 4))
                 .constrain(LEFT, match(settings.get(LEFT)))
                 .constrain(RIGHT, midPoint(settings.get(LEFT), settings.get(RIGHT), -2))
                 .constrain(HEIGHT, literal(buttonHeight));
 
         GuiButton cosmetics = MTStyle.Flat.button(settings, Component.translatable("minetogether:gui.settings.button.cosmetics"))
-                .onPress(() -> gui.mc().setScreen(new CosmeticsGui.Screen(gui.getScreen())))
+                .onPress(() -> gui.mc().gui.setScreen(new CosmeticsGui.Screen(gui.getScreen())))
                 .constrain(TOP, match(profileScreen.get(TOP)))
                 .setDisabled(Minecraft.getInstance().player == null)
                 .constrain(LEFT, midPoint(settings.get(LEFT), settings.get(RIGHT), 2))
@@ -191,14 +191,14 @@ public class SettingGui implements GuiProvider {
         // Back — full width
         // Row 6: Modpack Identity
         GuiButton modpack = MTStyle.Flat.button(settings, Component.translatable("minetogether:gui.settings.button.modpack"))
-                .onPress(() -> gui.mc().setScreen(new ConnectPackSelectionScreen.Screen(gui.getScreen())))
+                .onPress(() -> gui.mc().gui.setScreen(new ConnectPackSelectionScreen.Screen(gui.getScreen())))
                 .constrain(TOP, relative(profileScreen.get(BOTTOM), 4))
                 .constrain(LEFT, match(settings.get(LEFT)))
                 .constrain(RIGHT, match(settings.get(RIGHT)))
                 .constrain(HEIGHT, literal(buttonHeight));
 
         GuiButton back = MTStyle.Flat.button(settings, Component.translatable("minetogether:gui.button.back"))
-                .onPress(() -> gui.mc().setScreen(gui.getParentScreen()))
+                .onPress(() -> gui.mc().gui.setScreen(gui.getParentScreen()))
                 .constrain(TOP, relative(modpack.get(BOTTOM), 16))
                 .constrain(LEFT, match(settings.get(LEFT)))
                 .constrain(RIGHT, match(settings.get(RIGHT)))

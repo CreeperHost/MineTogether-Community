@@ -115,7 +115,7 @@ public class CosmeticsGui implements GuiProvider {
                 .constrain(HEIGHT, literal(18));
 
         MTStyle.Flat.button(header, Component.translatable("minetogether:gui.button.back_arrow"))
-                .onPress(() -> gui.mc().setScreen(gui.getParentScreen()))
+                .onPress(() -> gui.mc().gui.setScreen(gui.getParentScreen()))
                 .constrain(TOP, relative(header.get(TOP), 8))
                 .constrain(RIGHT, relative(header.get(RIGHT), -32))
                 .constrain(WIDTH, literal(18))

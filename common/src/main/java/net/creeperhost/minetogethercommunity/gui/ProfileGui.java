@@ -60,7 +60,7 @@ public class ProfileGui implements GuiProvider {
         Constraints.size(nameTitle, uiWidth, 8);
         Constraints.placeOutside(nameTitle, screenTitle, Constraints.LayoutPos.BOTTOM_CENTER, 0, 50);
 
-        var nameField = GuiTextField.create(root, 0xFF000000, 0xFF303030, 0xFFFFFF);
+        var nameField = GuiTextField.create(root, 0xFF000000, 0xFF303030, 0xFFFFFFFF);
         nameField.primary.setFocusable(premium);
         Constraints.size(nameField.container, uiWidth - 50, 14);
         Constraints.placeInside(nameField.container, nameTitle, Constraints.LayoutPos.BOTTOM_LEFT, 0, 18);
@@ -86,7 +86,7 @@ public class ProfileGui implements GuiProvider {
         Constraints.placeOutside(canChange, nameTitle, Constraints.LayoutPos.BOTTOM_CENTER, 0, 20);
 
         GuiButton back = MTStyle.Flat.button(root, Component.translatable("minetogether:gui.button.back"))
-                .onPress(() -> gui.mc().setScreen(gui.getParentScreen()))
+                .onPress(() -> gui.mc().gui.setScreen(gui.getParentScreen()))
                 .constrain(BOTTOM, relative(root.get(BOTTOM), -30))
                 .constrain(LEFT, midPoint(root.get(LEFT), root.get(RIGHT), -150 / 2D))
                 .constrain(WIDTH, literal(150))
@@ -251,7 +251,7 @@ public class ProfileGui implements GuiProvider {
         Constraints.placeOutside(submitButton, appealText.container, Constraints.LayoutPos.BOTTOM_CENTER, 0, 2);
 
         GuiButton back = MTStyle.Flat.button(root, Component.translatable("minetogether:gui.button.back"))
-                .onPress(() -> root.mc().setScreen(root.getModularGui().getParentScreen()))
+                .onPress(() -> root.mc().gui.setScreen(root.getModularGui().getParentScreen()))
                 .constrain(BOTTOM, relative(root.get(BOTTOM), -30))
                 .constrain(LEFT, midPoint(root.get(LEFT), root.get(RIGHT), -150 / 2D))
                 .constrain(WIDTH, literal(150))

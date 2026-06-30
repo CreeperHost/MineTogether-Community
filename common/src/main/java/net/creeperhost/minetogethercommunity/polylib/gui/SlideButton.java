@@ -189,7 +189,7 @@ public class SlideButton extends Button {
     @Override
     protected void extractContents(GuiGraphicsExtractor graphics, int mouseX, int mouseY, float partialTicks) {
         if (!isEnabled()) return;
-        int textColor = 0xFFFFFF;
+        int textColor = 0xFFFFFFFF;
         int fillColor = 0x80000000;
         int sliderColor = 0x64808080;
 
