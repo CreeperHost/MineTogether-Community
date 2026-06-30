@@ -17,6 +17,9 @@ import net.creeperhost.minetogethercommunity.chat.gui.ChatScreenInjection;
 import net.creeperhost.minetogethercommunity.compat.Integration;
 import net.creeperhost.minetogethercommunity.compat.MTPartners;
 import net.creeperhost.minetogethercommunity.compat.ftbquests.FTBQuestsCompat;
+import net.creeperhost.minetogethercommunity.compat.quests.BountifulCompat;
+import net.creeperhost.minetogethercommunity.compat.quests.HQMCompat;
+import net.creeperhost.minetogethercommunity.compat.quests.HeraclesCompat;
 import net.creeperhost.minetogethercommunity.config.Config;
 import net.creeperhost.minetogethercommunity.connect.MineTogetherConnect;
 import net.creeperhost.minetogethercommunity.cosmetic.CosmeticApiClient;
@@ -74,6 +77,9 @@ public class MineTogetherClient {
         ActivityTelemetry.init();
         Keybindings.init();
         Integration.runOptional("ftbquests", () -> FTBQuestsCompat::registerArchitecturyEvents);
+        Integration.runOptional("bountiful", () -> BountifulCompat::register);
+        Integration.runOptional("hardcorequesting", () -> HQMCompat::register);
+        Integration.runOptional("heracles", () -> HeraclesCompat::register);
 
         ModularGuiInjector.registerInjection(e -> e instanceof ChatScreen, e -> new ChatScreenInjection());
 

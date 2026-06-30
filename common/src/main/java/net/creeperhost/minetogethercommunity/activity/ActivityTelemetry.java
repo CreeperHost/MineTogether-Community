@@ -232,9 +232,13 @@ public class ActivityTelemetry {
     }
 
     public static void queueQuestAsync(String questId, String rawTitle, String rawDescription, String iconItemId) {
+        queueQuestAsync("ftbquests", questId, rawTitle, rawDescription, iconItemId);
+    }
+
+    public static void queueQuestAsync(String provider, String questId, String rawTitle, String rawDescription, String iconItemId) {
         EXECUTOR.execute(() -> {
             try {
-                queueQuest(questId, rawTitle, rawDescription, iconItemId);
+                queueQuest(provider, questId, rawTitle, rawDescription, iconItemId);
             } catch (Throwable t) {
                 LOGGER.warn("[MT-TELEMETRY-DEBUG] async quest queue threw", t);
             }
@@ -242,24 +246,30 @@ public class ActivityTelemetry {
     }
 
     public static void queueQuest(String questId, String rawTitle, String rawDescription, String iconItemId) {
+        queueQuest("ftbquests", questId, rawTitle, rawDescription, iconItemId);
+    }
+
+    public static void queueQuest(String provider, String questId, String rawTitle, String rawDescription, String iconItemId) {
         if (!enabled || shouldSkipTelemetry()) return;
+        String safeProvider = safe(provider);
+        if (safeProvider.isEmpty()) safeProvider = "unknown";
 
         ActivityModels.Metadata metadata = new ActivityModels.Metadata();
         metadata.type = "quest";
-        metadata.provider = "ftbquests";
-        metadata.contentId = questId;
-        metadata.titleEn = rawTitle != null ? rawTitle : "";
-        metadata.descriptionEn = rawDescription != null ? rawDescription : "";
-        metadata.iconItemId = iconItemId != null ? iconItemId : "";
+        metadata.provider = safeProvider;
+        metadata.contentId = safe(questId);
+        metadata.titleEn = safe(rawTitle);
+        metadata.descriptionEn = safe(rawDescription);
+        metadata.iconItemId = safe(iconItemId);
         metadata.locale = "en_us";
-        metadata.metadataRef = hash("quest:ftbquests:" + questId + ":" + metadata.titleEn + ":" + metadata.descriptionEn);
+        metadata.metadataRef = hash("quest:" + safeProvider + ":" + metadata.contentId + ":" + metadata.titleEn + ":" + metadata.descriptionEn);
 
         ActivityModels.QuestEvent event = new ActivityModels.QuestEvent();
         event.metadataRef = metadata.metadataRef;
-        event.provider = "ftbquests";
+        event.provider = safeProvider;
         event.completedAt = System.currentTimeMillis();
         event.source = "incremental";
-        event.eventId = hash(state.clientSessionId + ":" + currentWorld().key + ":" + modpackIdentity() + ":" + questId);
+        event.eventId = hash(state.clientSessionId + ":" + currentWorld().key + ":" + modpackIdentity() + ":" + safeProvider + ":" + metadata.contentId);
 
         ActivityModels.Batch batch = newBaseBatch();
         batch.metadata.add(metadata);
@@ -267,6 +277,10 @@ public class ActivityTelemetry {
         LOGGER.info("[MT-TELEMETRY-DEBUG] queueQuest id={} title={} descLen={}", questId, metadata.titleEn, metadata.descriptionEn.length());
         queue(batch);
         flush();
+    }
+
+    private static String safe(String value) {
+        return value == null ? "" : value;
     }
 
     private static void queueAdvancement(String advancementId, Object holder, String source) {
