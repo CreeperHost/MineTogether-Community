@@ -7,7 +7,12 @@ import net.creeperhost.minetogethercommunity.activity.ActivityTelemetry;
 import net.creeperhost.minetogethercommunity.chat.FriendChatNotifier;
 import net.creeperhost.minetogethercommunity.chat.MineTogetherChat;
 import net.creeperhost.minetogethercommunity.chat.gui.ChatScreenInjection;
+import net.creeperhost.minetogethercommunity.compat.Integration;
 import net.creeperhost.minetogethercommunity.compat.MTPartners;
+import net.creeperhost.minetogethercommunity.compat.ftbquests.FTBQuestsCompat;
+import net.creeperhost.minetogethercommunity.compat.quests.BountifulCompat;
+import net.creeperhost.minetogethercommunity.compat.quests.HQMCompat;
+import net.creeperhost.minetogethercommunity.compat.quests.HeraclesCompat;
 import net.creeperhost.minetogethercommunity.config.Config;
 import net.creeperhost.minetogethercommunity.connect.MineTogetherConnect;
 import net.creeperhost.minetogethercommunity.cosmetic.CosmeticApiClient;
@@ -111,6 +116,13 @@ public class MineTogetherClient {
         MineTogetherConnect.init();
         FriendChatNotifier.init();
         ActivityTelemetry.init();
+        Integration.runOptional("ftbquests", () -> () -> {
+            FTBQuestsCompat.registerFabricEvents();
+            FTBQuestsCompat.registerNeoForgeEvents();
+        });
+        Integration.runOptional("bountiful", () -> BountifulCompat::register);
+        Integration.runOptional("hardcorequesting", () -> HQMCompat::register);
+        Integration.runOptional("heracles", () -> HeraclesCompat::register);
     }
 
     public static <S> void registerClientCommands(CommandDispatcher<S> dispatcher) {
