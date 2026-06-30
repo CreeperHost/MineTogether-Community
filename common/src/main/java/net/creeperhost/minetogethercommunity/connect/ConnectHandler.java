@@ -12,8 +12,7 @@ import net.creeperhost.minetogether.session.MineTogetherSession;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.server.IntegratedServer;
 import net.minecraft.network.chat.Component;
-import net.minecraft.server.level.ServerPlayer;
-import net.minecraft.server.permissions.PermissionSet;
+import net.minecraft.server.MinecraftServer;
 import net.minecraft.world.level.GameType;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -71,23 +70,17 @@ public class ConnectHandler {
         } else {
             didWeShareFirst = true;
             server.publishedPort = 0; // Doesn't matter, just set to _something_.
+            server.setMultiplayerScope(getProxyMultiplayerScope());
         }
-        server.publishedGameType = gameType;
-        server.getPlayerList().setAllowCommandsForAllPlayers(cheats);
-        PermissionSet permissions = server.getProfilePermissions(mc.player.nameAndId());
-        mc.player.setPermissions(permissions);
-        mc.player.refreshChatAbilities();
-
-        for (ServerPlayer player : server.getPlayerList().getPlayers()) {
-            server.getCommands().sendCommands(player);
-        }
+        server.setGameTypeForOtherPlayers(gameType);
+        server.setCommandsAllowedForOtherPlayers(cheats);
 
         CompletableFuture.runAsync(() -> {
             try { // TODO, This should be done outside somewhere.
                 JWebToken token = MineTogetherSession.getDefault().getTokenAsync().get();
                 publishedServer = NettyClient.publishServer(server, getEndpoint(), token, getModpackKey(), maxPlayers);
             } catch (Exception e) {
-                Minecraft.getInstance().gui.getChat().addClientSystemMessage(Component.translatable("minetogether.connect.open.failed", e.getMessage()));
+                Minecraft.getInstance().gui.hud.getChat().addClientSystemMessage(Component.translatable("minetogether.connect.open.failed", e.getMessage()));
                 LOGGER.error("Failed to open to friends", e);
                 unPublish();
             }
@@ -107,12 +100,23 @@ public class ConnectHandler {
         if (didWeShareFirst) {
             //Un-Share the world.
             server.publishedPort = -1;
-            server.publishedGameType = null;
+            server.setMultiplayerScope(MinecraftServer.MultiplayerScope.OFF);
+            server.gameTypeForOtherPlayers = null;
+            server.commandsAllowedForOtherPlayers = null;
+            server.updateCommandsAllowedForOtherPlayers();
         }
     }
 
     public static boolean isPublished() {
         return publishedServer != null;
+    }
+
+    private static MinecraftServer.MultiplayerScope getProxyMultiplayerScope() {
+        try {
+            return MinecraftServer.MultiplayerScope.valueOf("ONLINE");
+        } catch (IllegalArgumentException ignored) {
+            return MinecraftServer.MultiplayerScope.LAN;
+        }
     }
 
     public static int getPublishedMaxPlayers() {

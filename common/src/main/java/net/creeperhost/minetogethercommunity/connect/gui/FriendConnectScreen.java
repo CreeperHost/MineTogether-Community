@@ -50,7 +50,7 @@ public class FriendConnectScreen extends ConnectScreen {
         minecraft.prepareForMultiplayer();
         minecraft.updateReportEnvironment(ReportEnvironment.thirdParty(serverData.getAddress()));
         minecraft.quickPlayLog().setWorldData(QuickPlayLog.Type.MULTIPLAYER, serverData.getAddress(), "MT Friend Server"); //< TODO Ideally we want the world or the friend name here
-        minecraft.setScreen(connectScreen);
+        minecraft.gui.setScreen(connectScreen);
         connectScreen.connect(minecraft, server);
     }
 
@@ -86,7 +86,7 @@ public class FriendConnectScreen extends ConnectScreen {
 
                     String string = loggedException.getMessage();
                     minecraft.execute(() -> {
-                        minecraft.setScreen(new DisconnectedScreen(parent, CommonComponents.CONNECT_FAILED, Component.translatable("disconnect.genericReason", string)));
+                        minecraft.gui.setScreen(new DisconnectedScreen(parent, CommonComponents.CONNECT_FAILED, Component.translatable("disconnect.genericReason", string)));
                     });
                 }
 
@@ -122,7 +122,7 @@ public class FriendConnectScreen extends ConnectScreen {
                                 connection.disconnect(Component.translatable("connect.aborted"));
                             }
 
-                            minecraft.setScreen(parent);
+                            minecraft.gui.setScreen(parent);
                         })
                         .bounds(width / 2 - 100, height / 4 + 120 + 12, 200, 20)
                         .build()
@@ -138,6 +138,6 @@ public class FriendConnectScreen extends ConnectScreen {
             minecraft.getNarrator().saySystemNow(Component.translatable("narrator.joining"));
         }
 
-        graphics.centeredText(font, status, width / 2, height / 2 - 50, 16777215);
+        graphics.centeredText(font, status, width / 2, height / 2 - 50, 0xFFFFFFFF);
     }
 }

@@ -46,7 +46,7 @@ public class ConnectPackSelectionScreen implements GuiProvider {
             return;
         }
         promptShown = true;
-        Minecraft.getInstance().execute(() -> Minecraft.getInstance().setScreen(new Screen(parent)));
+        Minecraft.getInstance().execute(() -> Minecraft.getInstance().gui.setScreen(new Screen(parent)));
     }
 
     @Override
@@ -194,7 +194,7 @@ public class ConnectPackSelectionScreen implements GuiProvider {
                     status = Component.translatable("minetogether.connect.pack_select.mapping_failed");
                 } else {
                     saveSelection(selection);
-                    Minecraft.getInstance().setScreen(parent);
+                    Minecraft.getInstance().gui.setScreen(parent);
                 }
             } catch (Throwable ex) {
                 status = Component.translatable("minetogether.connect.pack_select.mapping_failed");
@@ -286,7 +286,7 @@ public class ConnectPackSelectionScreen implements GuiProvider {
         config.connectPackCreeperHostVersionId = -1;
         LocalConfig.save();
         ModPackInfo.reload();
-        Minecraft.getInstance().setScreen(parent);
+        Minecraft.getInstance().gui.setScreen(parent);
     }
 
     private void saveBypass() {
@@ -302,14 +302,14 @@ public class ConnectPackSelectionScreen implements GuiProvider {
         config.connectPackCreeperHostVersionId = -1;
         LocalConfig.save();
         ModPackInfo.reload();
-        Minecraft.getInstance().setScreen(parent);
+        Minecraft.getInstance().gui.setScreen(parent);
     }
 
     private void close(ModularGui gui) {
         LocalConfig config = LocalConfig.instance();
         config.connectPackPrompted = true;
         LocalConfig.save();
-        gui.mc().setScreen(parent);
+        gui.mc().gui.setScreen(parent);
     }
 
     private static String failureMessage(Throwable ex) {

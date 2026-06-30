@@ -46,9 +46,9 @@ public class MineTogetherConnect {
         Button.OnPress action = button -> {
             if (isConnectPublished) {
                 ConnectHandler.unPublish();
-                Minecraft.getInstance().setScreen(new PauseScreen(true));
+                Minecraft.getInstance().gui.setScreen(new PauseScreen(true));
             } else {
-                Minecraft.getInstance().setScreen(new GuiShareToFriends.Screen(screen));
+                Minecraft.getInstance().gui.setScreen(new GuiShareToFriends.Screen(screen));
             }
         };
 
@@ -57,11 +57,12 @@ public class MineTogetherConnect {
         List<Renderable> renderables = screen.renderables;
         List<NarratableEntry> narratables = screen.narratables;
 
-        AbstractWidget feedBack = ButtonHelper.findButton("menu.sendFeedback", screen);
         AbstractWidget options = ButtonHelper.findButton("menu.options", screen);
-        if (!Config.instance().moveButtonsOnPauseMenu || feedBack == null || options == null) {
+        AbstractWidget openToLan = ButtonHelper.findButton("menu.multiplayerOptions.button", screen);
+        AbstractWidget quitToTitle = ButtonHelper.findButton("menu.returnToMenu", screen);
+        if (!Config.instance().moveButtonsOnPauseMenu || options == null || openToLan == null || quitToTitle == null) {
             // Just add the button bellow the FriendsList button in the corner.
-            // We either didn't find the Feedback and Options buttons, or moving these buttons was disabled in our config.
+            // We either didn't find the vanilla pause buttons, or moving these buttons was disabled in our config.
             Button openToFriends = Button.builder(buttonText, action)
                     .bounds(screen.width - 105, 25, 100, 20)
                     .build();
@@ -69,22 +70,49 @@ public class MineTogetherConnect {
             return;
         }
 
-        // Open To Friends button goes where the options button was.
+        int left = options.getX();
+        int fullWidth = Math.max(quitToTitle.getWidth(), options.getWidth());
+        int halfWidth = openToLan.getWidth();
+        int gap = Math.max(0, fullWidth - (halfWidth * 2));
+        int buttonRowStep = quitToTitle.getY() - options.getY();
+        if (buttonRowStep <= 0) {
+            buttonRowStep = options.getHeight() + 4;
+        }
+
+        int connectRowY = quitToTitle.getY();
+
+        // Make Options a full-width row.
+        options.setX(left);
+        options.setWidth(fullWidth);
+
+        // Open To Friends and vanilla Open To LAN share the next row.
         Button openToFriends = Button.builder(buttonText, action)
-                .bounds(options.getX(), options.getY(), 98, 20)
+                .bounds(left, connectRowY, halfWidth, openToLan.getHeight())
                 .build();
         screen.addRenderableWidget(openToFriends);
+        openToLan.setX(left + halfWidth + gap);
+        openToLan.setY(connectRowY);
 
-        // Move the options button to where the feedback button was.
-        options.setY(feedBack.getY());
-        options.setX(feedBack.getX());
+        // Move Save and Quit to Title down to make room for the new Connect/LAN row.
+        quitToTitle.setX(left);
+        quitToTitle.setWidth(fullWidth);
+        quitToTitle.setY(quitToTitle.getY() + buttonRowStep);
 
-        // Again, we have to juggle indexes because of Mod Menu...
-        children.remove(options);
-        renderables.remove(options);
-        narratables.remove(options);
-        children.set(children.indexOf(feedBack), options);
-        renderables.set(renderables.indexOf(feedBack), options);
-        narratables.set(narratables.indexOf(feedBack), options);
+        // Keep keyboard/controller narration order aligned with the visual row order.
+        moveBefore(children, openToFriends, openToLan);
+        moveBefore(renderables, openToFriends, (Renderable) openToLan);
+        moveBefore(narratables, openToFriends, (NarratableEntry) openToLan);
+    }
+
+    private static <T> void moveBefore(List<T> list, T value, T before) {
+        if (!list.remove(value)) {
+            return;
+        }
+        int index = list.indexOf(before);
+        if (index >= 0) {
+            list.add(index, value);
+        } else {
+            list.add(value);
+        }
     }
 }

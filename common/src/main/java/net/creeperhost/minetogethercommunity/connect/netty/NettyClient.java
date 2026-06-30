@@ -47,21 +47,21 @@ public class NettyClient {
         return HostNettyClient.publishServer(server, endpoint, session, modpackKey, maxPlayers, new HostNettyClient.HostListener() {
             @Override
             public void onAccepted() {
-                Minecraft.getInstance().gui.getChat().addClientSystemMessage(Component.translatable("minetogether.connect.open.success"));
+                Minecraft.getInstance().gui.hud.getChat().addClientSystemMessage(Component.translatable("minetogether.connect.open.success"));
             }
 
             @Override
             public void onDisconnected(String message) {
-                Minecraft.getInstance().gui.getChat().addClientSystemMessage(Component.translatable("minetogether.connect.open.failed", message));
+                Minecraft.getInstance().gui.hud.getChat().addClientSystemMessage(Component.translatable("minetogether.connect.open.failed", message));
                 ConnectHandler.unPublish();
             }
 
             @Override
             public void onChannelInactive(boolean disconnectRequested) {
                 if (disconnectRequested) {
-                    Minecraft.getInstance().gui.getChat().addClientSystemMessage(Component.translatable("minetogether.connect.open.proxy.closed"));
+                    Minecraft.getInstance().gui.hud.getChat().addClientSystemMessage(Component.translatable("minetogether.connect.open.proxy.closed"));
                 } else {
-                    Minecraft.getInstance().gui.getChat().addClientSystemMessage(Component.translatable("minetogether.connect.open.proxy.disconnect").withStyle(ChatFormatting.RED));
+                    Minecraft.getInstance().gui.hud.getChat().addClientSystemMessage(Component.translatable("minetogether.connect.open.proxy.disconnect").withStyle(ChatFormatting.RED));
                     ConnectHandler.unPublish();
                 }
             }
@@ -73,7 +73,7 @@ public class NettyClient {
 
             @Override
             public void onMessage(String message) {
-                Minecraft.getInstance().gui.getChat().addClientSystemMessage(Component.literal("[MTConnect Broadcast] " + message));
+                Minecraft.getInstance().gui.hud.getChat().addClientSystemMessage(Component.literal("[MTConnect Broadcast] " + message));
             }
         });
     }
@@ -424,7 +424,7 @@ public class NettyClient {
 
         @Override
         public void handleMessage(ChannelHandlerContext ctx, CMessage packet) {
-            Minecraft.getInstance().gui.getChat().addClientSystemMessage(Component.literal("[MTConnect Broadcast] " + packet.message));
+            Minecraft.getInstance().gui.hud.getChat().addClientSystemMessage(Component.literal("[MTConnect Broadcast] " + packet.message));
         }
     }
 }

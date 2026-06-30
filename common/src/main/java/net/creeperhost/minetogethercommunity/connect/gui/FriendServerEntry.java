@@ -82,7 +82,7 @@ public class FriendServerEntry extends ServerSelectionList.NetworkServerEntry {
         }
 
         //Draw Server Title
-        graphics.text(this.minecraft.font, Component.translatable("minetogether.connect.friend.server.title", getDisplayName()), x + 32 + 3, y + 1, 16777215);
+        graphics.text(this.minecraft.font, Component.translatable("minetogether.connect.friend.server.title", getDisplayName()), x + 32 + 3, y + 1, 0xFFFFFFFF);
 
         //Draw MOTD
         List<FormattedCharSequence> list = this.minecraft.font.split(this.remoteServer.motd, entryWidth - 32 - 2);
@@ -92,7 +92,7 @@ public class FriendServerEntry extends ServerSelectionList.NetworkServerEntry {
             int var10003 = (x + 32 + 3);
             int var10004 = y + 12;
             Objects.requireNonNull(this.minecraft.font);
-            graphics.text(var10000, var10002, var10003, (var10004 + 9 * line), 8421504);
+            graphics.text(var10000, var10002, var10003, (var10004 + 9 * line), 0xFF808080);
         }
 
         boolean versionMismatch = this.remoteServer.protocol != SharedConstants.getCurrentVersion().protocolVersion();
@@ -100,7 +100,7 @@ public class FriendServerEntry extends ServerSelectionList.NetworkServerEntry {
         Component statusText = versionMismatch ? this.remoteServer.version.copy().withStyle(ChatFormatting.RED) : this.remoteServer.status;
         //Draw Status
         int statusWidth = this.minecraft.font.width(statusText);
-        graphics.text(this.minecraft.font, statusText, (x + entryWidth - statusWidth - 15 - 2), (y + 1), 8421504);
+        graphics.text(this.minecraft.font, statusText, (x + entryWidth - statusWidth - 15 - 2), (y + 1), 0xFF808080);
 
         Identifier statusIcon = null;
         List<Component> playersToolTip;
@@ -175,7 +175,7 @@ public class FriendServerEntry extends ServerSelectionList.NetworkServerEntry {
             }
         }
 
-        if (this.minecraft.options.touchscreen().get() || hovered) {
+        if (hovered) {
             graphics.fill(x, y, x + 32, y + 32, 0xa0909090);
             int v = mouseX - x;
             //Draw "Join Arrow"
@@ -212,7 +212,7 @@ public class FriendServerEntry extends ServerSelectionList.NetworkServerEntry {
     @Override
     public void join() {
         if (this.remoteServer.shouldWarnBeforeJoin()) {
-            this.minecraft.setScreen(new ConnectPackWarningScreen.Screen(this.screen, this.remoteServer, this.serverData));
+            this.minecraft.gui.setScreen(new ConnectPackWarningScreen.Screen(this.screen, this.remoteServer, this.serverData));
         } else {
             FriendConnectScreen.startConnecting(this.screen, this.minecraft, this.remoteServer, this.serverData);
         }

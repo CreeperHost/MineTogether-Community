@@ -221,8 +221,8 @@ public class GuiShareToFriends implements GuiProvider {
     }
 
     private void openWorld(ModularGui gui) {
-        gui.mc().setScreen(null);
-        gui.mc().gui.getChat().addClientSystemMessage(Component.translatable("minetogether.connect.open.attempting"));
+        gui.mc().gui.setScreen(null);
+        gui.mc().gui.hud.getChat().addClientSystemMessage(Component.translatable("minetogether.connect.open.attempting"));
         ConnectHandler.publishToFriends(gameMode, commands, getPlayersSetting());
     }
 
@@ -247,12 +247,12 @@ public class GuiShareToFriends implements GuiProvider {
     }
 
     private void openLink(ModularGui gui, String url) {
-        gui.mc().setScreen(new ConfirmLinkScreen((bl) -> {
+        gui.mc().gui.setScreen(new ConfirmLinkScreen((bl) -> {
             if (bl) {
                 Util.getPlatform().openUri(url);
             }
 
-            gui.mc().setScreen(gui.getScreen());
+            gui.mc().gui.setScreen(gui.getScreen());
         }, url, true));
     }
 

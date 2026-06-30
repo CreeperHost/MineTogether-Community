@@ -68,7 +68,7 @@ public class ConnectPackWarningScreen implements GuiProvider {
                 .constrain(HEIGHT, literal(16));
 
         MTStyle.Flat.button(root, Component.translatable("minetogether:gui.button.cancel"))
-                .onPress(() -> gui.mc().setScreen(parent))
+                .onPress(() -> gui.mc().gui.setScreen(parent))
                 .constrain(BOTTOM, match(bounds.get(BOTTOM)))
                 .constrain(LEFT, midPoint(bounds.get(LEFT), bounds.get(RIGHT), 3))
                 .constrain(RIGHT, match(bounds.get(RIGHT)))
