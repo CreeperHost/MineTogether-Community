@@ -16,6 +16,7 @@ import net.creeperhost.minetogethercommunity.chat.MineTogetherChat;
 import net.creeperhost.minetogethercommunity.chat.gui.ChatScreenInjection;
 import net.creeperhost.minetogethercommunity.compat.Integration;
 import net.creeperhost.minetogethercommunity.compat.companion.FTBPackCompanionCompat;
+import net.creeperhost.minetogethercommunity.compat.ftbquests.FTBQuestsCompat;
 import net.creeperhost.minetogethercommunity.compat.MTPartners;
 import net.creeperhost.minetogethercommunity.config.Config;
 import net.creeperhost.minetogethercommunity.connect.MineTogetherConnect;
@@ -82,6 +83,7 @@ public class MineTogetherClient {
         CommandRegistrationEvent.EVENT.register(MineTogetherClient::registerClientCommands);
 
         Integration.runOptional("ftbpc", () -> FTBPackCompanionCompat::init);
+        Integration.runOptional("ftbquests", () -> FTBQuestsCompat::registerArchitecturyEvents);
 
         // Kick off cosmetic catalog download and profile fetch as soon as the player enters a world,
         // so the data is ready (or already cached) by the time they open the cosmetics GUI.

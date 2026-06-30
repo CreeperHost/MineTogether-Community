@@ -231,6 +231,16 @@ public class ActivityTelemetry {
         queue(batch);
     }
 
+    public static void queueQuestAsync(String questId, String rawTitle, String rawDescription, String iconItemId) {
+        EXECUTOR.execute(() -> {
+            try {
+                queueQuest(questId, rawTitle, rawDescription, iconItemId);
+            } catch (Throwable t) {
+                LOGGER.warn("[MT-TELEMETRY-DEBUG] async quest queue threw", t);
+            }
+        });
+    }
+
     public static void queueQuest(String questId, String rawTitle, String rawDescription, String iconItemId) {
         if (!enabled || shouldSkipTelemetry()) return;
 
@@ -374,10 +384,10 @@ public class ActivityTelemetry {
             LOGGER.info("[MT-TELEMETRY-DEBUG] POST batch seq={} advancements={} playtime={} bodyBytes={} -> {}",
                     batch.sequence, batch.advancements.size(), batch.playtime != null, json.getBytes(StandardCharsets.UTF_8).length, url);
 
-            // Raw request so we can log the exact return code + full raw response body, before
+            // Raw request so we can log the return code + raw response body, before
             // any typed parsing (the typed parse throws when the server omits the "status" field,
-            // which hides what actually came back). Also log the auth header lengths since the
-            // server rejects with "Key or secret are too short".
+            // which hides what actually came back). Log only auth header lengths; the header
+            // values are credentials.
             EngineRequest request = MineTogether.WEB_ENGINE.newRequest();
             request.method("POST", WebBody.string(json, WebConstants.JSON));
             request.url(url);
@@ -385,7 +395,7 @@ public class ActivityTelemetry {
             for (String name : new String[]{"Authorization", "Fingerprint", "Identifier"}) {
                 String value = authHeaders.get(name);
                 request.header(name, value == null ? "" : value);
-                LOGGER.info("[MT-TELEMETRY-DEBUG] auth header {}: {}", name, value == null ? "<MISSING>" : "len=" + value.length() + " value=" + value);
+                LOGGER.info("[MT-TELEMETRY-DEBUG] auth header {}: {}", name, value == null ? "<MISSING>" : "len=" + value.length());
             }
 
             int statusCode;

@@ -18,4 +18,14 @@ public class FTBQuestsNetClientMixin {
     private static void mt$onObjectCompleted(UUID teamId, long id, Date completedAt, CallbackInfo ci) {
         FTBQuestsCompat.onObjectCompleted(id);
     }
+
+    @Inject(method = "displayCompletionToast", at = @At("TAIL"), require = 0)
+    private static void mt$onDisplayCompletionToast(long id, CallbackInfo ci) {
+        FTBQuestsCompat.onObjectCompleted(id);
+    }
+
+    @Inject(method = "updateTaskProgress", at = @At("TAIL"), require = 0)
+    private static void mt$onTaskProgress(UUID teamId, long id, long progress, CallbackInfo ci) {
+        FTBQuestsCompat.onTaskProgress(id);
+    }
 }
