@@ -59,7 +59,9 @@ public final class HQMCompat {
             }
 
             Class<?> managerClass = QuestCompat.classForName(
+                    "hardcorequesting.common.forge.quests.QuestingDataManager",
                     "hardcorequesting.common.quests.QuestingDataManager",
+                    "hardcorequesting.quests.QuestingDataManager",
                     "hardcorequesting.quests.QuestingData");
             Object manager = QuestCompat.invokeAny(managerClass, true, "getInstance");
             Object active = QuestCompat.invokeAny(manager == null ? managerClass : manager, manager == null, "isQuestActive");
@@ -69,6 +71,7 @@ public final class HQMCompat {
             }
 
             Class<?> questClass = QuestCompat.classForName(
+                    "hardcorequesting.common.forge.quests.Quest",
                     "hardcorequesting.common.quests.Quest",
                     "hardcorequesting.quests.Quest");
             Object quests = QuestCompat.invokeAny(questClass, true, "getQuests");
