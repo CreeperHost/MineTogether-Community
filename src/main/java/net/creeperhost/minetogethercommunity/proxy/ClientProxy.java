@@ -9,6 +9,9 @@ import net.creeperhost.minetogethercommunity.client.ClientEvents;
 import net.creeperhost.minetogethercommunity.client.Keybindings;
 import net.creeperhost.minetogethercommunity.client.MineTogetherSettingsCommand;
 import net.creeperhost.minetogethercommunity.client.OpenFriendChatCommand;
+import net.creeperhost.minetogethercommunity.compat.Integration;
+import net.creeperhost.minetogethercommunity.compat.legacyquests.BetterQuestingCompat;
+import net.creeperhost.minetogethercommunity.compat.legacyquests.HQMCompat;
 import net.creeperhost.minetogethercommunity.connect.ConnectHandler;
 import net.creeperhost.minetogethercommunity.cosmetic.CosmeticApiClient;
 import net.creeperhost.minetogethercommunity.cosmetic.CosmeticDownloader;
@@ -57,6 +60,8 @@ public class ClientProxy extends CommonProxy {
         });
         MineTogetherSession.getDefault().getTokenAsync();
 
+        Integration.runOptional("betterquesting", () -> BetterQuestingCompat::register);
+        Integration.runOptional("HardcoreQuesting", () -> HQMCompat::register);
         MineTogetherChat.init();
         ConnectHandler.init();
         ClientEvents clientEvents = new ClientEvents();

@@ -138,25 +138,40 @@ public final class ActivityTelemetry {
         flushSync();
     }
 
+    public static void queueQuestAsync(final String provider, final String questId, final String title, final String description, final String iconItemId) {
+        EXECUTOR.execute(new Runnable() {
+            @Override
+            public void run() {
+                queueQuest(provider, questId, title, description, iconItemId);
+            }
+        });
+    }
+
     public static void queueQuest(String questId, String title, String description, String iconItemId) {
+        queueQuest("ftbquests", questId, title, description, iconItemId);
+    }
+
+    public static void queueQuest(String provider, String questId, String title, String description, String iconItemId) {
         if (!enabled || shouldSkipTelemetry()) return;
+        String safeProvider = safe(provider);
+        if (safeProvider.isEmpty()) safeProvider = "unknown";
 
         ActivityModels.Metadata metadata = new ActivityModels.Metadata();
         metadata.type = "quest";
-        metadata.provider = "ftbquests";
+        metadata.provider = safeProvider;
         metadata.contentId = safe(questId);
         metadata.locale = "en_us";
         metadata.titleEn = safe(title);
         metadata.descriptionEn = safe(description);
         metadata.iconItemId = safe(iconItemId);
-        metadata.metadataRef = hash("quest:ftbquests:" + metadata.contentId + ":" + metadata.titleEn + ":" + metadata.descriptionEn);
+        metadata.metadataRef = hash("quest:" + safeProvider + ":" + metadata.contentId + ":" + metadata.titleEn + ":" + metadata.descriptionEn);
 
         ActivityModels.QuestEvent event = new ActivityModels.QuestEvent();
         event.metadataRef = metadata.metadataRef;
-        event.provider = "ftbquests";
+        event.provider = safeProvider;
         event.completedAt = System.currentTimeMillis();
         event.source = "incremental";
-        event.eventId = hash(state.clientSessionId + ":" + currentWorld().key + ":" + modpackIdentity() + ":" + metadata.contentId);
+        event.eventId = hash(state.clientSessionId + ":" + currentWorld().key + ":" + modpackIdentity() + ":" + safeProvider + ":" + metadata.contentId);
 
         ActivityModels.Batch batch = newBaseBatch();
         batch.metadata.add(metadata);
