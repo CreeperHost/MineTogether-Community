@@ -3,6 +3,12 @@
 
 # Include important folders.
 !common/
+!buildSrc/
+!buildSrc/build.gradle
+!buildSrc/src/
+!buildSrc/src/**
+buildSrc/.gradle/
+buildSrc/build/
 !fabric/
 !forge/
 !neoforge/
