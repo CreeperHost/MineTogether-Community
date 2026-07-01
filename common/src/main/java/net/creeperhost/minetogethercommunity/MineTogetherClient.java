@@ -2,15 +2,28 @@ package net.creeperhost.minetogethercommunity;
 
 import com.mojang.brigadier.CommandDispatcher;
 import com.mojang.brigadier.builder.LiteralArgumentBuilder;
+import dev.architectury.event.EventResult;
 import dev.architectury.event.events.client.ClientCommandRegistrationEvent;
 import dev.architectury.event.events.client.ClientGuiEvent;
+import dev.architectury.event.events.client.ClientPlayerEvent;
+import dev.architectury.event.events.common.EntityEvent;
 import dev.architectury.hooks.client.screen.ScreenAccess;
 import net.creeperhost.minetogether.session.MineTogetherSession;
+import net.creeperhost.minetogethercommunity.activity.ActivityTelemetry;
 import net.creeperhost.minetogethercommunity.chat.FriendChatNotifier;
 import net.creeperhost.minetogethercommunity.chat.MineTogetherChat;
 import net.creeperhost.minetogethercommunity.chat.gui.ChatScreenInjection;
+import net.creeperhost.minetogethercommunity.compat.ftbquests.FTBQuestsCompat;
+import net.creeperhost.minetogethercommunity.compat.Integration;
+import net.creeperhost.minetogethercommunity.compat.quests.BountifulCompat;
+import net.creeperhost.minetogethercommunity.compat.quests.HQMCompat;
+import net.creeperhost.minetogethercommunity.compat.quests.HeraclesCompat;
 import net.creeperhost.minetogethercommunity.config.Config;
 import net.creeperhost.minetogethercommunity.connect.MineTogetherConnect;
+import net.creeperhost.minetogethercommunity.cosmetic.CosmeticApiClient;
+import net.creeperhost.minetogethercommunity.cosmetic.CosmeticDownloader;
+import net.creeperhost.minetogethercommunity.cosmetic.CosmeticSelections;
+import net.creeperhost.minetogethercommunity.cosmetic.PlayerCosmeticCache;
 import net.creeperhost.minetogethercommunity.gui.SettingGui;
 import net.creeperhost.minetogethercommunity.util.MTSessionProvider;
 import net.creeperhost.polylib.client.modulargui.ModularGuiInjector;
@@ -48,6 +61,7 @@ public class MineTogetherClient {
         MineTogetherSession.getDefault().setProvider(new MTSessionProvider());
         MineTogetherSession.getDefault().onTokenRefreshed(token -> {
             MineTogether.AUTH.setHeader("Authorization", "Bearer " + token);
+            ActivityTelemetry.authChanged(token);
         });
         // Trigger session validation and set auth header.
         MineTogetherSession.getDefault().getTokenAsync();
@@ -55,7 +69,14 @@ public class MineTogetherClient {
         MineTogetherChat.init();
         MineTogetherConnect.init();
         FriendChatNotifier.init();
+        ActivityTelemetry.init();
         Keybindings.init();
+
+        // Quest telemetry integrations (reflection-based, safe if mods not present)
+        Integration.runOptional("ftbquests", () -> FTBQuestsCompat::registerArchitecturyEvents);
+        Integration.runOptional("bountiful", () -> BountifulCompat::register);
+        Integration.runOptional("hardcorequesting", () -> HQMCompat::register);
+        Integration.runOptional("heracles", () -> HeraclesCompat::register);
 
         ModularGuiInjector.registerInjection(e -> e instanceof ChatScreen, e -> new ChatScreenInjection());
 
