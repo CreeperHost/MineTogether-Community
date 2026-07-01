@@ -2,17 +2,30 @@ package net.creeperhost.minetogethercommunity;
 
 import com.mojang.brigadier.CommandDispatcher;
 import com.mojang.brigadier.builder.LiteralArgumentBuilder;
+import dev.architectury.event.EventResult;
 import dev.architectury.event.events.client.ClientCommandRegistrationEvent;
 import dev.architectury.event.events.client.ClientGuiEvent;
+import dev.architectury.event.events.client.ClientPlayerEvent;
+import dev.architectury.event.events.common.EntityEvent;
 import dev.architectury.hooks.client.screen.ScreenAccess;
 import dev.architectury.platform.Platform;
 import net.creeperhost.minetogether.session.MineTogetherSession;
+import net.creeperhost.minetogethercommunity.activity.ActivityTelemetry;
 import net.creeperhost.minetogethercommunity.chat.FriendChatNotifier;
 import net.creeperhost.minetogethercommunity.chat.MineTogetherChat;
 import net.creeperhost.minetogethercommunity.chat.gui.ChatScreenInjection;
-import net.creeperhost.minetogethercommunity.compat.MTPartners;
+import net.creeperhost.minetogethercommunity.compat.ftbquests.FTBQuestsCompat;
+import net.creeperhost.minetogethercommunity.compat.Integration;
+import net.creeperhost.minetogethercommunity.compat.quests.BountifulCompat;
+import net.creeperhost.minetogethercommunity.compat.quests.HQMCompat;
+import net.creeperhost.minetogethercommunity.compat.quests.HeraclesCompat;
+
 import net.creeperhost.minetogethercommunity.config.Config;
 import net.creeperhost.minetogethercommunity.connect.MineTogetherConnect;
+import net.creeperhost.minetogethercommunity.cosmetic.CosmeticApiClient;
+import net.creeperhost.minetogethercommunity.cosmetic.CosmeticDownloader;
+import net.creeperhost.minetogethercommunity.cosmetic.CosmeticSelections;
+import net.creeperhost.minetogethercommunity.cosmetic.PlayerCosmeticCache;
 import net.creeperhost.minetogethercommunity.gui.SettingGui;
 import net.creeperhost.minetogethercommunity.orderform.OrderGui;
 import net.creeperhost.minetogethercommunity.util.MTSessionProvider;
@@ -52,6 +65,7 @@ public class MineTogetherClient {
         MineTogetherSession.getDefault().setProvider(new MTSessionProvider());
         MineTogetherSession.getDefault().onTokenRefreshed(token -> {
             MineTogether.AUTH.setHeader("Authorization", "Bearer " + token);
+            ActivityTelemetry.authChanged(token);
         });
         // Trigger session validation and set auth header.
         MineTogetherSession.getDefault().getTokenAsync();
@@ -59,12 +73,44 @@ public class MineTogetherClient {
         MineTogetherChat.init();
         MineTogetherConnect.init();
         FriendChatNotifier.init();
+        ActivityTelemetry.init();
         Keybindings.init();
+
+        // Quest telemetry integrations (reflection-based, safe if mods not present)
+        Integration.runOptional("ftbquests", () -> FTBQuestsCompat::registerArchitecturyEvents);
+        Integration.runOptional("bountiful", () -> BountifulCompat::register);
+        Integration.runOptional("hardcorequesting", () -> HQMCompat::register);
+        Integration.runOptional("heracles", () -> HeraclesCompat::register);
 
         ModularGuiInjector.registerInjection(e -> e instanceof ChatScreen, e -> new ChatScreenInjection());
 
         ClientGuiEvent.INIT_POST.register(MineTogetherClient::onScreenOpen);
         ClientCommandRegistrationEvent.EVENT.register(MineTogetherClient::registerClientCommands);
+
+        // Kick off cosmetic catalog download and profile fetch as soon as the player enters a world
+        ClientPlayerEvent.CLIENT_PLAYER_JOIN.register(player -> {
+            CosmeticDownloader.instance().startCatalogFetch();
+            CosmeticApiClient.fetchProfileAsync();
+        });
+
+        ClientPlayerEvent.CLIENT_PLAYER_QUIT.register(player -> {
+            CosmeticSelections cs = CosmeticSelections.instance();
+            cs.selectedHatId = "";
+            cs.selectedCapeId = "";
+            cs.selectedTailId = "";
+            cs.selectedWingId = "";
+            PlayerCosmeticCache.clearAll();
+        });
+
+        EntityEvent.ADD.register((entity, level) -> {
+            if (!level.isClientSide()) return EventResult.pass();
+            if (!(entity instanceof net.minecraft.client.player.AbstractClientPlayer player)) return EventResult.pass();
+            if (player == Minecraft.getInstance().player) return EventResult.pass();
+            if (PlayerCosmeticCache.markFetching(player.getUUID())) {
+                CosmeticApiClient.fetchProfileForPlayerAsync(player.getUUID());
+            }
+            return EventResult.pass();
+        });
     }
 
     private static void registerClientCommands(CommandDispatcher<ClientCommandRegistrationEvent.ClientCommandSourceStack> dispatcher, CommandBuildContext context) {
@@ -77,12 +123,6 @@ public class MineTogetherClient {
     }
 
     public static void openOrderUI(ModularGui gui) {
-        if (Platform.isModLoaded("minetogetherpartners")) {
-            LOGGER.info("minetogetherpartners loaded, Using minetogetherpartners order form");
-            MTPartners.openOrderUI(gui);
-            return;
-        }
-        LOGGER.info("using minetogethercommunity order form");
         gui.mc().setScreen(new OrderGui.Screen(gui.getScreen(), true));
     }
 
