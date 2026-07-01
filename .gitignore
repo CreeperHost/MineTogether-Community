@@ -21,3 +21,7 @@
 # Other files
 !LICENSE
 !README.mc
+
+# Build artifacts
+forge/bin/
+
