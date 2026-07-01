@@ -32,6 +32,8 @@ public record EmoteAnimation(
         float waveLeftArmRollAmplitudeDegrees,
         float waveBodyYawAmplitudeDegrees,
         float waveBodyRollAmplitudeDegrees,
+        float wavePitchSpinDegrees,
+        float waveTranslateYAmplitude,
         float waveSpeed,
         boolean lockBody
 ) {
@@ -44,7 +46,7 @@ public record EmoteAnimation(
             0.0F, 0.0F, 0.0F,
             0.0F, 0.0F, 0.0F,
             0.0F,
-            28.0F, 0.0F, 0.0F, 0.0F, 0.0F, 28.0F, 0.0F, 0.0F, 0.0F, 0.62F,
+            28.0F, 0.0F, 0.0F, 0.0F, 0.0F, 28.0F, 0.0F, 0.0F, 0.0F, 0.0F, 0.0F, 0.62F,
             false
     );
 
@@ -87,6 +89,8 @@ public record EmoteAnimation(
                 getFloat(wave, "leftArmRollAmplitudeDegrees", WAVE.waveLeftArmRollAmplitudeDegrees),
                 getFloat(wave, "bodyYawAmplitudeDegrees", WAVE.waveBodyYawAmplitudeDegrees),
                 getFloat(wave, "bodyRollAmplitudeDegrees", WAVE.waveBodyRollAmplitudeDegrees),
+                getFloat(wave, "pitchSpinDegrees", WAVE.wavePitchSpinDegrees),
+                getFloat(wave, "translateYAmplitude", WAVE.waveTranslateYAmplitude),
                 getFloat(wave, "speed", WAVE.waveSpeed),
                 getBoolean(root, "lockBody", WAVE.lockBody)
         );

@@ -140,26 +140,29 @@ public class EmotePlayer {
         float leftArmRollWave = wave * animation.waveLeftArmRollAmplitudeDegrees();
         float bodyYawWave = wave * animation.waveBodyYawAmplitudeDegrees();
         float bodyRollWave = wave * animation.waveBodyRollAmplitudeDegrees();
+        float progress = Math.max(0.0F, Math.min(1.0F, elapsed / Math.max(1.0F, animation.durationTicks())));
+        float pitchSpin = progress * animation.wavePitchSpinDegrees();
+        float translateYArc = (float) Math.sin(progress * Math.PI) * animation.waveTranslateYAmplitude();
         return new Pose(
-                radians(animation.rightArmPitchDegrees() + rightArmPitchWave),
+                radians(animation.rightArmPitchDegrees() + rightArmPitchWave + pitchSpin),
                 radians(animation.rightArmYawDegrees() + rightArmYawWave),
                 radians(animation.rightArmRollDegrees() + rightArmRollWave),
-                radians(animation.leftArmPitchDegrees() + leftArmPitchWave),
+                radians(animation.leftArmPitchDegrees() + leftArmPitchWave + pitchSpin),
                 radians(animation.leftArmYawDegrees() + leftArmYawWave),
                 radians(animation.leftArmRollDegrees() + leftArmRollWave),
-                radians(animation.rightLegPitchDegrees()),
+                radians(animation.rightLegPitchDegrees() + pitchSpin),
                 radians(animation.rightLegYawDegrees()),
                 radians(animation.rightLegRollDegrees()),
-                radians(animation.leftLegPitchDegrees()),
+                radians(animation.leftLegPitchDegrees() + pitchSpin),
                 radians(animation.leftLegYawDegrees()),
                 radians(animation.leftLegRollDegrees()),
-                radians(animation.headPitchDegrees()),
+                radians(animation.headPitchDegrees() + pitchSpin),
                 radians(animation.headYawDegrees()),
                 radians(animation.headRollDegrees()),
-                radians(animation.bodyPitchDegrees()),
+                radians(animation.bodyPitchDegrees() + pitchSpin),
                 radians(animation.bodyYawDegrees() + bodyYawWave),
                 radians(animation.bodyRollDegrees() + bodyRollWave),
-                animation.translateY(),
+                animation.translateY() + translateYArc,
                 weight,
                 animation.lockBody()
         );
