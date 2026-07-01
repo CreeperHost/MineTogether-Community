@@ -2,8 +2,11 @@ package net.creeperhost.minetogethercommunity;
 
 import com.mojang.brigadier.CommandDispatcher;
 import com.mojang.brigadier.builder.LiteralArgumentBuilder;
+import dev.architectury.event.EventResult;
 import dev.architectury.event.events.client.ClientCommandRegistrationEvent;
 import dev.architectury.event.events.client.ClientGuiEvent;
+import dev.architectury.event.events.client.ClientPlayerEvent;
+import dev.architectury.event.events.common.EntityEvent;
 import dev.architectury.event.events.client.ClientLifecycleEvent;
 import dev.architectury.hooks.client.screen.ScreenAccess;
 import net.creeperhost.minetogether.session.MineTogetherSession;
@@ -18,6 +21,10 @@ import net.creeperhost.minetogethercommunity.compat.quests.HQMCompat;
 import net.creeperhost.minetogethercommunity.compat.quests.HeraclesCompat;
 import net.creeperhost.minetogethercommunity.config.Config;
 import net.creeperhost.minetogethercommunity.connect.MineTogetherConnect;
+import net.creeperhost.minetogethercommunity.cosmetic.CosmeticApiClient;
+import net.creeperhost.minetogethercommunity.cosmetic.CosmeticDownloader;
+import net.creeperhost.minetogethercommunity.cosmetic.CosmeticSelections;
+import net.creeperhost.minetogethercommunity.cosmetic.PlayerCosmeticCache;
 import net.creeperhost.minetogethercommunity.gui.SettingGui;
 import net.creeperhost.minetogethercommunity.util.MTSessionProvider;
 import net.creeperhost.polylib.client.modulargui.ModularGuiInjector;
@@ -58,6 +65,28 @@ public class MineTogetherClient {
 
         ClientGuiEvent.INIT_POST.register(MineTogetherClient::onScreenOpen);
         ClientCommandRegistrationEvent.EVENT.register(MineTogetherClient::registerClientCommands);
+
+        ClientPlayerEvent.CLIENT_PLAYER_JOIN.register(player -> {
+            CosmeticDownloader.instance().startCatalogFetch();
+            CosmeticApiClient.fetchProfileAsync();
+        });
+        ClientPlayerEvent.CLIENT_PLAYER_QUIT.register(player -> {
+            CosmeticSelections cs = CosmeticSelections.instance();
+            cs.selectedHatId = "";
+            cs.selectedCapeId = "";
+            cs.selectedTailId = "";
+            cs.selectedWingId = "";
+            PlayerCosmeticCache.clearAll();
+        });
+        EntityEvent.ADD.register((entity, level) -> {
+            if (!level.isClientSide()) return EventResult.pass();
+            if (!(entity instanceof net.minecraft.client.player.AbstractClientPlayer player)) return EventResult.pass();
+            if (player == Minecraft.getInstance().player) return EventResult.pass();
+            if (PlayerCosmeticCache.markFetching(player.getUUID())) {
+                CosmeticApiClient.fetchProfileForPlayerAsync(player.getUUID());
+            }
+            return EventResult.pass();
+        });
     }
 
     public static void earlyClientInit() {
