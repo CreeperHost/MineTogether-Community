@@ -1,0 +1,8 @@
+{
+    "required": false,
+    "minVersion": "0.7.11",
+    "package": "net.creeperhost.minetogethercommunity.mixin.compat",
+    "client": [
+        "FTBQuestsNetClientMixin"
+    ]
+}
