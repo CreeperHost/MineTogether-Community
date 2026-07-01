@@ -1,4 +1,4 @@
-package net.creeperhost.minetogethercommunity.cosmetic.hat;
+package net.creeperhost.minetogethercommunity.cosmetic.wing;
 
 import net.creeperhost.minetogethercommunity.cosmetic.tail.TailElement;
 import net.creeperhost.minetogethercommunity.cosmetic.tail.TailModel;
@@ -7,22 +7,17 @@ import org.jetbrains.annotations.Nullable;
 
 import java.util.List;
 
-public record Hat(
+public record Wing(
         String id,
         String displayName,
         String author,
         String mod,
         boolean locked,
-        String howToUnlock,
+        @Nullable String howToUnlock,
         ResourceLocation texture,
         int texWidth,
         int texHeight,
-        HatModelType type,
-        List<HatCuboid> cuboids,
-        List<TailElement> jsonElements,
-        @Nullable TailModel jsonModel
-) {
-    public boolean isJsonModel() {
-        return type == HatModelType.JSON;
-    }
-}
+        List<TailElement> elements,
+        TailModel model,
+        WingAnimation animation
+) {}

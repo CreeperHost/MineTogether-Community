@@ -2,6 +2,8 @@ package net.creeperhost.minetogethercommunity.mixin.cosmetic;
 
 import net.creeperhost.minetogethercommunity.cosmetic.cape.CapeLayer;
 import net.creeperhost.minetogethercommunity.cosmetic.hat.HatLayer;
+import net.creeperhost.minetogethercommunity.cosmetic.tail.TailLayer;
+import net.creeperhost.minetogethercommunity.cosmetic.wing.WingLayer;
 import net.minecraft.client.renderer.entity.EntityRendererProvider;
 import net.minecraft.client.renderer.entity.RenderLayerParent;
 import org.spongepowered.asm.mixin.Mixin;
@@ -17,5 +19,7 @@ public abstract class PlayerRendererMixin {
         RenderLayerParent parent = (RenderLayerParent) (Object) this;
         ((LivingEntityRendererAccess) this).minetogether$addLayer(new HatLayer<>(parent));
         ((LivingEntityRendererAccess) this).minetogether$addLayer(new CapeLayer<>(parent));
+        ((LivingEntityRendererAccess) this).minetogether$addLayer(new TailLayer<>(parent));
+        ((LivingEntityRendererAccess) this).minetogether$addLayer(new WingLayer<>(parent));
     }
 }

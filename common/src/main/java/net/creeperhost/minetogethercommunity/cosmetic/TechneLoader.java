@@ -7,6 +7,7 @@ import com.google.gson.JsonParser;
 import com.mojang.blaze3d.platform.NativeImage;
 import net.creeperhost.minetogethercommunity.cosmetic.hat.Hat;
 import net.creeperhost.minetogethercommunity.cosmetic.hat.HatCuboid;
+import net.creeperhost.minetogethercommunity.cosmetic.hat.HatModelType;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.renderer.texture.DynamicTexture;
 import net.minecraft.resources.ResourceLocation;
@@ -16,6 +17,7 @@ import org.apache.logging.log4j.Logger;
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipInputStream;
@@ -27,7 +29,7 @@ public class TechneLoader {
     private static final Logger LOGGER = LogManager.getLogger();
     private static final String CUBE_TYPE = "d9e621f7-957f-4b77-b1ae-20dcd0da7751";
 
-    public static Hat load(String displayName, String author, String mod, byte[] tc2Data) throws IOException {
+    public static Hat load(String id, String displayName, String author, String mod, boolean locked, String howToUnlock, byte[] tc2Data) throws IOException {
         byte[] modelJsonBytes = null;
         byte[] textureBytes = null;
 
@@ -104,7 +106,6 @@ public class TechneLoader {
             }
         }
 
-        String id = displayName.toLowerCase().replaceAll("[^a-z0-9]", "_");
         ResourceLocation texLoc = ResourceLocation.fromNamespaceAndPath(MOD_ID, "dynamic/hats/" + id);
 
         final byte[] finalTexBytes = textureBytes;
@@ -117,7 +118,8 @@ public class TechneLoader {
             }
         });
 
-        return new Hat(id, displayName, author, mod, texLoc, texW, texH, cuboids);
+        return new Hat(id, displayName, author, mod, locked, howToUnlock, texLoc, texW, texH,
+                HatModelType.TC2, cuboids, Collections.emptyList(), null);
     }
 
     private static float[] parseVec3(String s) {

@@ -3,7 +3,8 @@ package net.creeperhost.minetogethercommunity.cosmetic.cape;
 import com.mojang.blaze3d.vertex.PoseStack;
 import com.mojang.blaze3d.vertex.VertexConsumer;
 import com.mojang.math.Axis;
-import net.creeperhost.minetogethercommunity.config.LocalConfig;
+import net.creeperhost.minetogethercommunity.cosmetic.CosmeticSelections;
+import net.creeperhost.minetogethercommunity.cosmetic.PlayerCosmeticCache;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.model.PlayerModel;
 import net.minecraft.client.player.AbstractClientPlayer;
@@ -12,6 +13,8 @@ import net.minecraft.client.renderer.RenderType;
 import net.minecraft.client.renderer.entity.RenderLayerParent;
 import net.minecraft.client.renderer.entity.layers.RenderLayer;
 import net.minecraft.client.renderer.texture.OverlayTexture;
+import net.minecraft.world.entity.EquipmentSlot;
+import net.minecraft.world.item.Items;
 import net.minecraft.util.Mth;
 
 public class CapeLayer<T extends AbstractClientPlayer> extends RenderLayer<T, PlayerModel<T>> {
@@ -24,12 +27,20 @@ public class CapeLayer<T extends AbstractClientPlayer> extends RenderLayer<T, Pl
     public void render(PoseStack poseStack, MultiBufferSource bufferSource, int packedLight, T player,
                        float limbSwing, float limbSwingAmount, float partialTicks,
                        float ageInTicks, float netHeadYaw, float headPitch) {
-        if (player != Minecraft.getInstance().player) return;
-
-        String capeId = LocalConfig.instance().selectedCapeId;
+        String capeId;
+        if (player == Minecraft.getInstance().player) {
+            // Local player - read from the singleton kept in sync with the GUI
+            capeId = CosmeticSelections.instance().selectedCapeId;
+        } else {
+            // Remote player - look up the per-player cache (null = profile not fetched yet)
+            CosmeticSelections cs = PlayerCosmeticCache.get(player.getUUID());
+            if (cs == null) return;
+            capeId = cs.selectedCapeId;
+        }
         if (capeId == null || capeId.isEmpty()) return;
+        if (player.getItemBySlot(EquipmentSlot.CHEST).is(Items.ELYTRA)) return;
 
-        Cape cape = CapeRegistry.get(capeId);
+        Cape cape = CapeRegistry.getLoaded(capeId);
         if (cape == null) return;
 
         poseStack.pushPose();

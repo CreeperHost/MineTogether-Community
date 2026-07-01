@@ -1,0 +1,47 @@
+modLoader = "javafml"
+loaderVersion = "[47,)"
+issueTrackerURL = "https://github.com/CreeperHost/MineTogether/issues"
+license = "GNU General Public License v3.0"
+
+[[mods]]
+    modId = "minetogethercommunity"
+    version = "6.3.4"
+    displayName = "MineTogether Community"
+    authors = "covers1624, Gigabit101, Cloudhunter, CreeperHost!"
+    description = ''''''
+
+[[dependencies.minetogethercommunity]]
+    modId = "forge"
+    mandatory = true
+    versionRange = "[47,)"
+    ordering = "NONE"
+    side = "BOTH"
+
+[[dependencies.minetogethercommunity]]
+    modId = "minecraft"
+    mandatory = true
+    versionRange = "[1.20.1,1.20.2)"
+    ordering = "NONE"
+    side = "BOTH"
+
+[[dependencies.minetogethercommunity]]
+    modId = "architectury"
+    mandatory = true
+    versionRange = "[9.0.8,)"
+    ordering = "AFTER"
+    side = "BOTH"
+[[dependencies.minetogethercommunity]]
+    modId = "polylib"
+    mandatory = true
+    versionRange = "[2000.0.3-build.143,)"
+    ordering = "AFTER"
+    side = "BOTH"
+
+[[mixins]]
+config = "minetogethercommunity-forge.mixins.json"
+
+[[mixins]]
+config = "minetogethercommunity-common.mixins.json"
+
+[[mixins]]
+config = "minetogethercommunity-ftbquests.mixins.json"
