@@ -1,4 +1,4 @@
-package net.creeperhost.minetogethercommunity.util;
+﻿package net.creeperhost.minetogethercommunity.util;
 
 import com.google.common.util.concurrent.ThreadFactoryBuilder;
 import com.google.gson.Gson;
@@ -10,7 +10,7 @@ import net.creeperhost.minetogether.lib.web.requests.GetModpacksCHVersionRequest
 import net.creeperhost.minetogethercommunity.MineTogether;
 import net.creeperhost.minetogethercommunity.config.Config;
 import org.apache.commons.lang3.StringUtils;
-import org.apache.commons.lang3.math.NumberUtils;
+
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
@@ -41,6 +41,16 @@ public class ModPackInfo {
     private static final Logger LOGGER = LogManager.getLogger();
 
     private static CompletableFuture<VersionInfo> initTask;
+
+    public static boolean isParsable(String str) {
+        if (str == null || str.isEmpty()) return false;
+        for (int i = 0; i < str.length(); i++) {
+            if (!Character.isDigit(str.charAt(i))) {
+                return false;
+            }
+        }
+        return true;
+    }
 
     public static void init() {
         initTask = CompletableFuture.supplyAsync(() -> new VersionInfo().init(), EXECUTOR);
@@ -95,7 +105,7 @@ public class ModPackInfo {
         public String realName = "{\"p\": \"-1\"}";
 
         public VersionInfo() {
-            if (!curseID.isEmpty() && !NumberUtils.isParsable(curseID)) {
+            if (!curseID.isEmpty() && !isParsable(curseID)) {
                 LOGGER.error("Detected invalid curseID: {}", curseID);
                 curseID = "";
             }
@@ -106,7 +116,7 @@ public class ModPackInfo {
 
             Map<String, String> json = new HashMap<>();
             if (ftbPackID.isEmpty()) {
-                json.put("p", NumberUtils.isParsable(curseID) ? curseID : "-1");
+                json.put("p", isParsable(curseID) ? curseID : "-1");
             } else {
                 json.put("p", ftbPackID);
                 if (!base64FTBID.isEmpty()) {
@@ -265,7 +275,7 @@ public class ModPackInfo {
 
             // CurseForge pack types
             if ("flame".equals(packType) || "curseforge".equals(packType) || "curse".equals(packType)) {
-                if (!NumberUtils.isParsable(packId)) return false;
+                if (!isParsable(packId)) return false;
                 curseID = packId;
                 LOGGER.info("Extracted CurseID {} from instance.cfg (type: {})", curseID, packType);
                 return fetchWebsiteIDCurse();
@@ -273,9 +283,9 @@ public class ModPackInfo {
 
             // FTB pack type
             if ("ftb".equals(packType)) {
-                if (!NumberUtils.isParsable(packId)) return false;
+                if (!isParsable(packId)) return false;
                 ftbPackID = "m" + packId;
-                if (NumberUtils.isParsable(versionId)) {
+                if (isParsable(versionId)) {
                     base64FTBID = encodeFTB(packId, versionId);
                     return fetchWebsiteIDFTB();
                 }
@@ -288,7 +298,7 @@ public class ModPackInfo {
 
         private boolean fetchWebsiteIDCurse() {
             try {
-                if (!NumberUtils.isParsable(curseID)) return false;
+                if (!isParsable(curseID)) return false;
                 GetCurseForgeVersionRequest.Response response = MineTogether.API.execute(new GetCurseForgeVersionRequest(curseID)).apiResponse();
                 if (response.getStatus().equals("error") || response.id.isEmpty()) return false;
                 websiteID = response.id;
