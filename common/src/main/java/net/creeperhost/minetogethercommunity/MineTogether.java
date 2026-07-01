@@ -6,6 +6,7 @@ import net.creeperhost.minetogether.lib.MineTogetherLib;
 import net.creeperhost.minetogether.lib.web.ApiClient;
 import net.creeperhost.minetogether.lib.web.DynamicWebAuth;
 import net.creeperhost.minetogethercommunity.config.Config;
+import net.creeperhost.minetogethercommunity.cosmetic.emote.EmoteNetworking;
 import net.creeperhost.minetogethercommunity.util.Log4jUtils;
 import net.creeperhost.minetogethercommunity.util.ModPackInfo;
 import net.creeperhost.minetogethercommunity.util.SignatureVerifier;
@@ -46,6 +47,7 @@ public class MineTogether {
 
         ModPackInfo.init();
         ModPackInfo.waitForInfo(info -> AUTH.setHeader("Identifier", info.realName));
+        EmoteNetworking.init();
         if (MineTogetherPlatform.isClient()) {
             MineTogetherClient.init();
         }

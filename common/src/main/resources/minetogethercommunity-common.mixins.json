@@ -13,6 +13,9 @@
       "connect.ServerSelectionListMixin",
       "cosmetic.AvatarRenderStateMixin",
       "cosmetic.ElytraLayerMixin",
+      "cosmetic.LivingEntityRendererAccess",
+      "cosmetic.PlayerModelEmoteMixin",
+      "cosmetic.PlayerModelAccess",
       "cosmetic.PlayerRendererMixin",
       "cosmetic.VanillaCapeLayerMixin"
     ],

@@ -9,5 +9,6 @@ public enum CosmeticTypes
     GLOVES,
     BOOTS,
     WINGS,
+    EMOTES,
     AURA
 }
