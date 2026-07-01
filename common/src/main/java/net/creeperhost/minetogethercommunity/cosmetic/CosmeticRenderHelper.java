@@ -1,6 +1,6 @@
 package net.creeperhost.minetogethercommunity.cosmetic;
 
-import net.creeperhost.minetogethercommunity.mixin.cosmetic.PlayerRenderStateMixin;
+import net.creeperhost.minetogethercommunity.cosmetic.PlayerRenderStateAccess;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.renderer.entity.state.PlayerRenderState;
 import org.jetbrains.annotations.Nullable;
@@ -17,7 +17,7 @@ public class CosmeticRenderHelper {
      * Extracts the UUID from a PlayerRenderState (injected via mixin).
      */
     public static @Nullable UUID getPlayerUUID(PlayerRenderState state) {
-        return ((PlayerRenderStateMixin) (Object) state).minetogether$playerUUID;
+        return ((PlayerRenderStateAccess) state).minetogether$getPlayerUUID();
     }
 
     /**

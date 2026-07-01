@@ -103,7 +103,6 @@ public class MineTogetherClient {
         MineTogetherConnect.init();
         FriendChatNotifier.init();
         ActivityTelemetry.init();
-        Keybindings.init();
 
         // Quest telemetry integrations (reflection-based, safe if mods not present)
         Integration.runOptional("ftbquests", () -> FTBQuestsCompat::registerArchitecturyEvents);
