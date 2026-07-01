@@ -1,4 +1,0 @@
-Manifest-Version: 1.0
-MixinConfigs: minetogethercommunity-forge.mixins.json,minetogethercommun
- ity-common.mixins.json,minetogethercommunity-ftbquests.mixins.json
-
