@@ -7,7 +7,7 @@ import net.creeperhost.minetogether.lib.web.requests.GetModpacksCHVersionRequest
 import net.creeperhost.minetogethercommunity.MineTogether;
 import net.creeperhost.minetogethercommunity.config.LocalConfig;
 import org.apache.commons.lang3.StringUtils;
-import org.apache.commons.lang3.math.NumberUtils;
+
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
@@ -15,6 +15,7 @@ import java.io.BufferedReader;
 import java.io.File;
 import java.io.FileReader;
 import java.io.IOException;
+import java.io.RandomAccessFile;
 import java.nio.charset.StandardCharsets;
 import java.util.Base64;
 import java.util.HashMap;
@@ -36,6 +37,16 @@ public class ModPackInfo {
     });
 
     private static CompletableFuture<VersionInfo> initTask;
+
+    public static boolean isParsable(String str) {
+        if (str == null || str.isEmpty()) return false;
+        for (int i = 0; i < str.length(); i++) {
+            if (!Character.isDigit(str.charAt(i))) {
+                return false;
+            }
+        }
+        return true;
+    }
 
     public static void init() {
         initTask = CompletableFuture.supplyAsync(() -> new VersionInfo().init(), EXECUTOR);
@@ -77,6 +88,8 @@ public class ModPackInfo {
         public String websiteID = "";
         public String base64FTBID = "";
         public String ftbPackID = "";
+        public String modrinthProjectID = "";
+        public String modrinthVersionID = "";
         public String realName = "{\"p\":\"-1\"}";
 
         public VersionInfo() {
@@ -93,13 +106,18 @@ public class ModPackInfo {
             }
 
             Map<String, String> json = new HashMap<>();
-            if (ftbPackID.isEmpty()) {
-                json.put("p", NumberUtils.isParsable(curseID) ? curseID : "-1");
-            } else {
+            if (!modrinthProjectID.isEmpty()) {
+                json.put("p", "mr:" + modrinthProjectID);
+                if (!modrinthVersionID.isEmpty()) {
+                    json.put("v", modrinthVersionID);
+                }
+            } else if (!ftbPackID.isEmpty()) {
                 json.put("p", ftbPackID);
                 if (!base64FTBID.isEmpty()) {
                     json.put("b", base64FTBID);
                 }
+            } else {
+                json.put("p", isParsable(curseID) ? curseID : "-1");
             }
             realName = GSON.toJson(json);
             return this;
@@ -115,7 +133,7 @@ public class ModPackInfo {
             }
 
             String type = StringUtils.stripToEmpty(config.connectPackProjectType).toLowerCase(Locale.ROOT);
-            if ("ftb".equals(type) || !NumberUtils.isParsable(config.connectPackKey)) {
+            if ("ftb".equals(type) || !isParsable(config.connectPackKey)) {
                 base64FTBID = config.connectPackKey;
                 if (!StringUtils.isBlank(config.connectPackProjectId)) {
                     ftbPackID = "m" + config.connectPackProjectId;
@@ -143,6 +161,9 @@ public class ModPackInfo {
             if (curseJson.isFile() && readCurseInstance(curseJson)) return;
 
             if (readMultiMc()) return;
+
+            // Native Modrinth App (raw byte scan of app.db)
+            if (readModrinthApp()) return;
 
             LOGGER.info("Could not find a supported launcher modpack identity.");
         }
@@ -176,6 +197,7 @@ public class ModPackInfo {
                 }
                 if (manifest.packType == 1) {
                     curseID = String.valueOf(manifest.id);
+                    LOGGER.info("Extracted CurseID " + curseID + " from instance.json");
                     return fetchWebsiteIDCurse();
                 }
                 return false;
@@ -224,16 +246,24 @@ public class ModPackInfo {
 
             if (packType.isEmpty() || packId.isEmpty()) return false;
             if ("flame".equals(packType) || "curseforge".equals(packType) || "curse".equals(packType)) {
-                if (!NumberUtils.isParsable(packId)) return false;
+                if (!isParsable(packId)) return false;
                 curseID = packId;
                 return fetchWebsiteIDCurse();
             }
             if ("ftb".equals(packType)) {
-                if (!NumberUtils.isParsable(packId)) return false;
+                if (!isParsable(packId)) return false;
                 ftbPackID = "m" + packId;
-                if (!NumberUtils.isParsable(versionId)) return true;
+                if (!isParsable(versionId)) return true;
                 base64FTBID = encodeFTB(packId, versionId);
                 return fetchWebsiteIDFTB();
+            }
+            // Modrinth pack type
+            if ("modrinth".equals(packType)) {
+                if (packId.isEmpty()) return false;
+                modrinthProjectID = packId;
+                modrinthVersionID = StringUtils.stripToEmpty(versionId);
+                LOGGER.info("Detected Modrinth pack " + packId + " version " + versionId + " from Prism/MultiMC");
+                return true;
             }
             return false;
         }
@@ -264,10 +294,11 @@ public class ModPackInfo {
         }
 
         public boolean hasConnectPackKey() {
-            return !StringUtils.isBlank(base64FTBID) || !StringUtils.isBlank(curseID);
+            return !StringUtils.isBlank(base64FTBID) || !StringUtils.isBlank(curseID) || !StringUtils.isBlank(modrinthProjectID);
         }
 
         public String getConnectPackKey() {
+            if (!StringUtils.isBlank(modrinthProjectID)) return "mr:" + modrinthProjectID;
             if (!StringUtils.isBlank(base64FTBID)) return base64FTBID;
             if (!StringUtils.isBlank(curseID)) return curseID;
             return null;
@@ -275,7 +306,7 @@ public class ModPackInfo {
 
         private boolean fetchWebsiteIDCurse() {
             try {
-                if (!NumberUtils.isParsable(curseID)) return false;
+                if (!isParsable(curseID)) return false;
                 GetCurseForgeVersionRequest.Response response = MineTogether.API.execute(new GetCurseForgeVersionRequest(curseID)).apiResponse();
                 if (response.getStatus().equals("error") || response.id.isEmpty()) return false;
                 websiteID = response.id;
@@ -297,6 +328,71 @@ public class ModPackInfo {
                 LOGGER.warn("Failed to resolve FTB pack id {}", base64FTBID, ex);
                 return false;
             }
+        }
+
+        /**
+         * Detects Modrinth App instances by checking if the game directory is
+         * under ModrinthApp/profiles/ and scanning app.db for pack metadata.
+         */
+        private boolean readModrinthApp() {
+            File gameDir = MineTogether.getGameDir();
+            File profilesDir = gameDir.getParentFile();
+            if (profilesDir == null || !"profiles".equals(profilesDir.getName())) return false;
+            File modrinthRoot = profilesDir.getParentFile();
+            if (modrinthRoot == null) return false;
+
+            File appDb = new File(modrinthRoot, "app.db");
+            if (!appDb.isFile()) return false;
+
+            String instanceName = gameDir.getName();
+            LOGGER.info("Detected Modrinth App environment, scanning app.db for instance '" + instanceName + "'");
+
+            try (RandomAccessFile raf = new RandomAccessFile(appDb, "r")) {
+                long fileSize = raf.length();
+                if (fileSize > 64 * 1024 * 1024) {
+                    LOGGER.warn("Modrinth app.db is too large (" + fileSize + " bytes), skipping scan");
+                    return false;
+                }
+                byte[] buffer = new byte[(int) fileSize];
+                raf.readFully(buffer);
+                String content = new String(buffer, StandardCharsets.UTF_8);
+
+                String marker = "modrinth_modpack";
+                int idx = -1;
+                while ((idx = content.indexOf(marker, idx + 1)) >= 0) {
+                    int afterMarker = idx + marker.length();
+                    if (afterMarker + 16 > content.length()) continue;
+
+                    String projectId = content.substring(afterMarker, afterMarker + 8);
+                    String versionId = content.substring(afterMarker + 8, afterMarker + 16);
+
+                    if (!isBase62(projectId) || !isBase62(versionId)) continue;
+
+                    // Verify this row belongs to our instance by checking nearby bytes
+                    int searchStart = Math.max(0, idx - 300);
+                    String nearby = content.substring(searchStart, idx);
+                    if (nearby.contains(instanceName)) {
+                        modrinthProjectID = projectId;
+                        modrinthVersionID = versionId;
+                        LOGGER.info("Detected Modrinth pack " + projectId + " version " + versionId
+                                + " from Modrinth App (instance: " + instanceName + ")");
+                        return true;
+                    }
+                }
+                LOGGER.info("Modrinth App app.db scanned but no matching instance found for '" + instanceName + "'");
+            } catch (Exception ex) {
+                LOGGER.warn("Failed to scan Modrinth App database {}", appDb, ex);
+            }
+            return false;
+        }
+
+        private static boolean isBase62(String s) {
+            if (s == null || s.length() != 8) return false;
+            for (int i = 0; i < s.length(); i++) {
+                char c = s.charAt(i);
+                if (!Character.isLetterOrDigit(c)) return false;
+            }
+            return true;
         }
     }
 

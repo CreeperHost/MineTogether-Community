@@ -42,6 +42,7 @@ repositories {
 configurations {
     devLogin
     shade
+    shadeOnly // dependencies that go into the shadow jar but NOT the dev classpath
     compile.extendsFrom shade
     all {
         resolutionStrategy.force "net.covers1624:Quack:0.4.10.128"
@@ -62,7 +63,7 @@ dependencies {
     }
     shade "net.covers1624:Quack:0.4.10.128"
     shade "net.covers1624:pircbotx:2.3.11"
-    shade "com.google.guava:guava:21.0"
+    shadeOnly "com.google.guava:guava:21.0"
     shade "org.nanohttpd:nanohttpd:2.3.1"
     shade "org.apache.httpcomponents:httpclient:4.5.14"
     shade "org.apache.httpcomponents:httpcore:4.4.16"
@@ -119,7 +120,7 @@ jar {
 }
 
 shadowJar {
-    configurations = [project.configurations.shade]
+    configurations = [project.configurations.shade, project.configurations.shadeOnly]
     classifier = ""
     exclude "module-info.class"
     exclude "META-INF/versions/**"
