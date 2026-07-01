@@ -7,6 +7,9 @@ import com.google.gson.JsonParser;
 import com.mojang.blaze3d.platform.NativeImage;
 import net.creeperhost.minetogethercommunity.MineTogetherPlatform;
 import net.creeperhost.minetogethercommunity.cosmetic.cape.Cape;
+import net.creeperhost.minetogethercommunity.cosmetic.emote.Emote;
+import net.creeperhost.minetogethercommunity.cosmetic.emote.EmoteAnimation;
+import net.creeperhost.minetogethercommunity.cosmetic.emote.EmoteType;
 import net.creeperhost.minetogethercommunity.cosmetic.hat.Hat;
 import net.creeperhost.minetogethercommunity.cosmetic.hat.HatModelType;
 import net.creeperhost.minetogethercommunity.cosmetic.tail.Tail;
@@ -90,16 +93,19 @@ public class CosmeticDownloader {
     private final List<CosmeticItem> capeCatalogList = new CopyOnWriteArrayList<>();
     private final List<CosmeticItem> tailCatalogList = new CopyOnWriteArrayList<>();
     private final List<CosmeticItem> wingCatalogList = new CopyOnWriteArrayList<>();
+    private final List<CosmeticItem> emoteCatalogList = new CopyOnWriteArrayList<>();
     private final ConcurrentHashMap<String, CosmeticItem> hatCatalogById  = new ConcurrentHashMap<>();
     private final ConcurrentHashMap<String, CosmeticItem> capeCatalogById = new ConcurrentHashMap<>();
     private final ConcurrentHashMap<String, CosmeticItem> tailCatalogById = new ConcurrentHashMap<>();
     private final ConcurrentHashMap<String, CosmeticItem> wingCatalogById = new ConcurrentHashMap<>();
+    private final ConcurrentHashMap<String, CosmeticItem> emoteCatalogById = new ConcurrentHashMap<>();
 
     // Loaded assets (heavy â€” populated lazily by ensureAssetLoaded)
     private final ConcurrentHashMap<String, Hat>  loadedHats  = new ConcurrentHashMap<>();
     private final ConcurrentHashMap<String, Cape> loadedCapes = new ConcurrentHashMap<>();
     private final ConcurrentHashMap<String, Tail> loadedTails = new ConcurrentHashMap<>();
     private final ConcurrentHashMap<String, Wing> loadedWings = new ConcurrentHashMap<>();
+    private final ConcurrentHashMap<String, Emote> loadedEmotes = new ConcurrentHashMap<>();
 
     /** IDs for which an asset download is currently in flight. Prevents duplicate requests. */
     private final Set<String> loadingAssetIds = Collections.newSetFromMap(new ConcurrentHashMap<>());
@@ -147,7 +153,8 @@ public class CosmeticDownloader {
         if ("cape".equals(slot) && loadedCapes.containsKey(id)) return;
         if ("tail".equals(slot) && loadedTails.containsKey(id)) return;
         if ("wing".equals(slot) && loadedWings.containsKey(id)) return;
-        // Claim the download slot â€” only one thread proceeds per id
+        if ("emote".equals(slot) && loadedEmotes.containsKey(id)) return;
+        // Claim the download slot — only one thread proceeds per id
         if (!loadingAssetIds.add(id)) return;
 
         Thread t = new Thread(() -> {
@@ -160,6 +167,8 @@ public class CosmeticDownloader {
                     downloadAndRegisterTail(id);
                 } else if ("wing".equals(slot)) {
                     downloadAndRegisterWing(id);
+                } else if ("emote".equals(slot)) {
+                    downloadAndRegisterEmote(id);
                 }
             } catch (Exception e) {
                 LOGGER.error("Failed to download {} asset '{}'", slot, id, e);
@@ -186,6 +195,10 @@ public class CosmeticDownloader {
 
     public List<CosmeticItem> getWingCatalog() {
         return Collections.unmodifiableList(wingCatalogList);
+    }
+
+    public List<CosmeticItem> getEmoteCatalog() {
+        return Collections.unmodifiableList(emoteCatalogList);
     }
 
     /** @return {@code true} while the catalog is being fetched from the server. */
@@ -217,6 +230,10 @@ public class CosmeticDownloader {
         return loadedWings.get(id);
     }
 
+    public @Nullable Emote getLoadedEmote(String id) {
+        return loadedEmotes.get(id);
+    }
+
     /** @return {@code true} if an asset download for {@code id} is currently in flight. */
     public boolean isAssetLoading(String id) {
         return loadingAssetIds.contains(id);
@@ -230,12 +247,14 @@ public class CosmeticDownloader {
             Files.createDirectories(cacheBase.resolve("capes"));
             Files.createDirectories(cacheBase.resolve("tails"));
             Files.createDirectories(cacheBase.resolve("wings"));
+            Files.createDirectories(cacheBase.resolve("emotes"));
 
             try {
                 fetchCatalogForSlot("hat");
                 fetchCatalogForSlot("cape");
                 fetchCatalogForSlot("tail");
                 fetchCatalogForSlot("wing");
+                fetchCatalogForSlot("emote");
             } catch (Exception e) {
                 LOGGER.error("Failed to fetch remote cosmetics catalog; local cosmetics will still be loaded", e);
             }
@@ -243,8 +262,9 @@ public class CosmeticDownloader {
             loadLocalHatCatalog();
             loadLocalTailCatalog();
             loadLocalWingCatalog();
-            LOGGER.info("Cosmetic catalog loaded: {} hats, {} capes, {} tails, {} wings",
-                    hatCatalogList.size(), capeCatalogList.size(), tailCatalogList.size(), wingCatalogList.size());
+            loadLocalEmoteCatalog();
+            LOGGER.info("Cosmetic catalog loaded: {} hats, {} capes, {} tails, {} wings, {} emotes",
+                    hatCatalogList.size(), capeCatalogList.size(), tailCatalogList.size(), wingCatalogList.size(), emoteCatalogList.size());
         } catch (Exception e) {
             LOGGER.error("Failed to fetch cosmetics catalog", e);
         } finally {
@@ -299,6 +319,9 @@ public class CosmeticDownloader {
                 } else if ("wing".equals(slot)) {
                     wingCatalogList.add(item);
                     wingCatalogById.put(id, item);
+                } else if ("emote".equals(slot)) {
+                    emoteCatalogList.add(item);
+                    emoteCatalogById.put(id, item);
                 }
                 total++;
             }
@@ -321,6 +344,44 @@ public class CosmeticDownloader {
 
     private void loadLocalWingCatalog() throws IOException {
         loadLocalCatalog("wings", wingCatalogList, wingCatalogById);
+    }
+
+    private void loadLocalEmoteCatalog() throws IOException {
+        Path emotesDir = cacheBase.resolve("emotes");
+        if (!Files.isDirectory(emotesDir)) return;
+
+        try (var stream = Files.list(emotesDir)) {
+            stream.filter(Files::isDirectory).forEach(dir -> {
+                Path metadata = dir.resolve("metadata.json");
+                if (!Files.isRegularFile(metadata)) return;
+
+                try (var reader = Files.newBufferedReader(metadata, StandardCharsets.UTF_8)) {
+                    JsonObject root = JsonParser.parseReader(reader).getAsJsonObject();
+                    String id = root.has("id") ? root.get("id").getAsString() : dir.getFileName().toString();
+                    if (emoteCatalogById.containsKey(id)) return;
+
+                    EmoteType type = EmoteType.fromMetadata(metadataString(root, "type", EmoteType.SIMPLE.metadataValue()));
+                    if (!type.isAvailable()) {
+                        LOGGER.info("Skipping local emote '{}' because runtime '{}' is not available", id, type.metadataValue());
+                        return;
+                    }
+
+                    String name = root.has("name") ? root.get("name").getAsString() : id;
+                    String author = root.has("author") && !root.get("author").isJsonNull()
+                            ? root.get("author").getAsString() : "Local";
+                    boolean locked = root.has("locked") && root.get("locked").getAsBoolean();
+                    String howToUnlock = root.has("howToUnlock") && !root.get("howToUnlock").isJsonNull()
+                            ? root.get("howToUnlock").getAsString() : null;
+
+                    CosmeticItem item = new CosmeticItem(id, name, author, "local", locked, howToUnlock);
+                    emoteCatalogList.add(item);
+                    emoteCatalogById.put(id, item);
+                    LOGGER.info("Loaded local emote catalog entry '{}'", id);
+                } catch (Exception e) {
+                    LOGGER.error("Failed to load local emote metadata '{}'", metadata, e);
+                }
+            });
+        }
     }
 
     private void loadLocalCatalog(String slotDir, List<CosmeticItem> catalogList, ConcurrentHashMap<String, CosmeticItem> catalogById)
@@ -595,6 +656,34 @@ public class CosmeticDownloader {
         });
     }
 
+    private void downloadAndRegisterEmote(String id) throws Exception {
+        CosmeticItem item = catalogItemOrFallback(emoteCatalogById, id);
+        if (!emoteCatalogById.containsKey(id)) {
+            LOGGER.debug("Emote asset '{}' requested before catalog entry was available; using fallback metadata", id);
+        }
+
+        Path itemDir = cacheBase.resolve("emotes").resolve(id);
+        List<String> files = fetchAndCacheFiles(CDN_BASE_URL + "/emote/" + id, itemDir);
+        JsonObject metadata = readMetadata(itemDir);
+        EmoteType type = EmoteType.fromMetadata(metadataString(metadata, "type", EmoteType.SIMPLE.metadataValue()));
+        if (!type.isAvailable()) {
+            loadingAssetIds.remove(id);
+            LOGGER.info("Skipping emote '{}' because runtime '{}' is not available", id, type.metadataValue());
+            return;
+        }
+
+        String animationFile = files.stream()
+                .filter(f -> "animation.json".equalsIgnoreCase(f))
+                .findFirst()
+                .orElse(null);
+        EmoteAnimation animation = parseEmoteAnimation(animationFile != null ? Files.readAllBytes(itemDir.resolve(animationFile)) : null);
+
+        Emote emote = new Emote(id, item.displayName(), item.author(), item.mod(), item.locked(), item.howToUnlock(), type, animation);
+        loadedEmotes.put(id, emote);
+        loadingAssetIds.remove(id);
+        LOGGER.info("Emote asset ready: '{}'", id);
+    }
+
     private WingAnimation parseWingAnimation(@Nullable byte[] animationData) {
         if (animationData == null || animationData.length == 0) return WingAnimation.NONE;
         try {
@@ -608,7 +697,20 @@ public class CosmeticDownloader {
         }
     }
 
-    // â”€â”€ Internal: CDN helpers â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+    private EmoteAnimation parseEmoteAnimation(@Nullable byte[] animationData) {
+        if (animationData == null || animationData.length == 0) return EmoteAnimation.WAVE;
+        try {
+            JsonObject root = JsonParser.parseReader(new java.io.InputStreamReader(
+                    new java.io.ByteArrayInputStream(animationData), StandardCharsets.UTF_8
+            )).getAsJsonObject();
+            return EmoteAnimation.fromJson(root);
+        } catch (Exception e) {
+            LOGGER.warn("Failed to parse emote animation config; using wave fallback", e);
+            return EmoteAnimation.WAVE;
+        }
+    }
+
+    // ── Internal: CDN helpers ──────────────────────────────────────────────────
 
     /**
      * Fetches {@code metadata.json} from the CDN, then downloads any listed files that are

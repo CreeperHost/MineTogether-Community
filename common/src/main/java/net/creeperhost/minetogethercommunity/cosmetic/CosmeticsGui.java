@@ -2,6 +2,9 @@ package net.creeperhost.minetogethercommunity.cosmetic;
 
 import net.creeperhost.minetogethercommunity.chat.gui.MTStyle;
 import net.creeperhost.minetogethercommunity.cosmetic.cape.CapeRegistry;
+import net.creeperhost.minetogethercommunity.cosmetic.emote.EmoteFavorites;
+import net.creeperhost.minetogethercommunity.cosmetic.emote.EmotePlayer;
+import net.creeperhost.minetogethercommunity.cosmetic.emote.EmoteRegistry;
 import net.creeperhost.minetogethercommunity.cosmetic.hat.HatRegistry;
 import net.creeperhost.minetogethercommunity.cosmetic.tail.TailRegistry;
 import net.creeperhost.minetogethercommunity.cosmetic.wing.WingRegistry;
@@ -47,7 +50,7 @@ public class CosmeticsGui implements GuiProvider {
     private static final char[] SPINNER = {'|', '/', '-', '\\'};
 
     private static boolean isImplemented(CosmeticTypes type) {
-        return type == CosmeticTypes.HAT || type == CosmeticTypes.CAPE || type == CosmeticTypes.TAIL || type == CosmeticTypes.WINGS;
+        return type == CosmeticTypes.HAT || type == CosmeticTypes.CAPE || type == CosmeticTypes.TAIL || type == CosmeticTypes.WINGS || type == CosmeticTypes.EMOTES;
     }
 
     @Override
@@ -71,6 +74,7 @@ public class CosmeticsGui implements GuiProvider {
         final String[] pendingCapeId = {CosmeticSelections.instance().selectedCapeId};
         final String[] pendingTailId = {CosmeticSelections.instance().selectedTailId};
         final String[] pendingWingId = {CosmeticSelections.instance().selectedWingId};
+        final String[] previewEmoteId = {""};
 
         CosmeticDownloader d = CosmeticDownloader.instance();
         if (!pendingHatId[0].isEmpty())  d.ensureAssetLoaded("hat",  pendingHatId[0]);
@@ -192,7 +196,7 @@ public class CosmeticsGui implements GuiProvider {
                 .constrain(BOTTOM, relative(listPanel.get(BOTTOM), -14));
 
         GuiList<CosmeticRow> catalogGrid = new GuiList<CosmeticRow>(listArea)
-                .setDisplayBuilder((parent, row) -> new CosmeticGridRow(parent, row, activeTab, pendingHatId, pendingCapeId, pendingTailId, pendingWingId))
+                .setDisplayBuilder((parent, row) -> new CosmeticGridRow(parent, row, activeTab, pendingHatId, pendingCapeId, pendingTailId, pendingWingId, previewEmoteId))
                 .setItemSpacing(TILE_GAP);
         catalogGrid
                 .constrain(TOP, relative(listArea.get(TOP), 0))
@@ -238,7 +242,7 @@ public class CosmeticsGui implements GuiProvider {
 
         final float[] previewRotation = {-20.0F};
 
-        new OffsetFollowRenderer(previewPanel, Minecraft.getInstance().player, previewRotation, trackingEnabled)
+        new OffsetFollowRenderer(previewPanel, Minecraft.getInstance().player, activeTab, previewEmoteId, previewRotation, trackingEnabled)
                 .constrain(TOP, relative(previewPanel.get(TOP), 42))
                 .constrain(BOTTOM, relative(previewPanel.get(BOTTOM), -48))
                 .constrain(LEFT, relative(previewPanel.get(LEFT), 8))
@@ -324,6 +328,9 @@ public class CosmeticsGui implements GuiProvider {
                 return Component.translatable("minetogether:gui.cosmetics.equipped",
                         Component.literal(name).withStyle(ChatFormatting.GREEN));
 
+            } else if (activeTab[0] == CosmeticTypes.EMOTES) {
+                return Component.literal("Radial favorites: " + EmoteFavorites.ids().size() + "/" + EmoteFavorites.MAX_FAVORITES)
+                        .withStyle(ChatFormatting.GRAY);
             } else {
                 return Component.translatable("minetogether:gui.cosmetics.coming_soon")
                         .withStyle(ChatFormatting.GRAY);
@@ -339,7 +346,7 @@ public class CosmeticsGui implements GuiProvider {
         CosmeticDownloader.instance().startCatalogFetch();
         CosmeticApiClient.fetchProfileAsync();
 
-        final int[] lastSizes = {0, 0, 0, 0};
+        final int[] lastSizes = {0, 0, 0, 0, 0};
         final String[] lastQuery = {""};
         final CosmeticTypes[] lastType = {null};
         gui.onTick(() -> {
@@ -351,10 +358,12 @@ public class CosmeticsGui implements GuiProvider {
             List<CosmeticItem> availableCapes = CapeRegistry.catalog();
             List<CosmeticItem> availableTails = TailRegistry.catalog();
             List<CosmeticItem> availableWings = WingRegistry.catalog();
+            List<CosmeticItem> availableEmotes = CosmeticDownloader.instance().getEmoteCatalog();
             boolean sizeChanged = availableHats.size() != lastSizes[0]
                     || availableCapes.size() != lastSizes[1]
                     || availableTails.size() != lastSizes[2]
-                    || availableWings.size() != lastSizes[3];
+                    || availableWings.size() != lastSizes[3]
+                    || availableEmotes.size() != lastSizes[4];
             boolean typeChanged = activeTab[0] != lastType[0];
 
             if (sizeChanged || queryChanged || typeChanged) {
@@ -362,6 +371,7 @@ public class CosmeticsGui implements GuiProvider {
                 lastSizes[1] = availableCapes.size();
                 lastSizes[2] = availableTails.size();
                 lastSizes[3] = availableWings.size();
+                lastSizes[4] = availableEmotes.size();
                 lastType[0] = activeTab[0];
 
                 List<CosmeticItem> activeItems = switch (activeTab[0]) {
@@ -369,6 +379,7 @@ public class CosmeticsGui implements GuiProvider {
                     case CAPE -> availableCapes;
                     case TAIL -> availableTails;
                     case WINGS -> availableWings;
+                    case EMOTES -> availableEmotes;
                     default -> List.of();
                 };
                 List<CosmeticItem> filtered = activeItems.stream()
@@ -376,7 +387,7 @@ public class CosmeticsGui implements GuiProvider {
                         .toList();
                 filtered.forEach(item -> ensureAssetLoaded(activeTab[0], item.id()));
                 catalogGrid.getList().clear();
-                addRows(catalogGrid.getList(), filtered);
+                addRows(catalogGrid.getList(), filtered, activeTab[0] != CosmeticTypes.EMOTES);
                 catalogGrid.markDirty();
             }
         });
@@ -384,9 +395,13 @@ public class CosmeticsGui implements GuiProvider {
 
     // ── List entry inner classes ───────────────────────────────────────────────
 
-    private static void addRows(List<CosmeticRow> rows, List<CosmeticItem> items) {
-        rows.add(new CosmeticRow(null, items.isEmpty() ? null : items.get(0), items.size() > 1 ? items.get(1) : null));
-        for (int i = 2; i < items.size(); i += GRID_COLUMNS) {
+    private static void addRows(List<CosmeticRow> rows, List<CosmeticItem> items, boolean includeNone) {
+        int start = 0;
+        if (includeNone) {
+            rows.add(new CosmeticRow(null, items.isEmpty() ? null : items.get(0), items.size() > 1 ? items.get(1) : null));
+            start = 2;
+        }
+        for (int i = start; i < items.size(); i += GRID_COLUMNS) {
             rows.add(new CosmeticRow(
                     items.get(i),
                     i + 1 < items.size() ? items.get(i + 1) : null,
@@ -400,14 +415,19 @@ public class CosmeticsGui implements GuiProvider {
             case CAPE -> capeId;
             case TAIL -> tailId;
             case WINGS -> wingId;
+            case EMOTES -> "";
             default -> "";
         };
+        if (type == CosmeticTypes.EMOTES) {
+            return Component.translatable("minetogether:gui.cosmetics.emote.hint").withStyle(ChatFormatting.GRAY);
+        }
         if (id == null || id.isEmpty()) return Component.literal("Feeling Cute").withStyle(ChatFormatting.GRAY);
         CosmeticItem item = switch (type) {
             case HAT -> HatRegistry.getCatalogEntry(id);
             case CAPE -> CapeRegistry.getCatalogEntry(id);
             case TAIL -> TailRegistry.getCatalogEntry(id);
             case WINGS -> WingRegistry.getCatalogEntry(id);
+            case EMOTES -> null;
             default -> null;
         };
         return Component.literal(item != null ? item.displayName() : id);
@@ -420,6 +440,7 @@ public class CosmeticsGui implements GuiProvider {
             case CAPE -> CosmeticDownloader.instance().ensureAssetLoaded("cape", id);
             case TAIL -> CosmeticDownloader.instance().ensureAssetLoaded("tail", id);
             case WINGS -> CosmeticDownloader.instance().ensureAssetLoaded("wing", id);
+            case EMOTES -> CosmeticDownloader.instance().ensureAssetLoaded("emote", id);
             default -> {
             }
         }
@@ -484,9 +505,11 @@ public class CosmeticsGui implements GuiProvider {
         private final String[] pendingCapeId;
         private final String[] pendingTailId;
         private final String[] pendingWingId;
+        private final String[] previewEmoteId;
 
         public CosmeticGridRow(@NotNull GuiParent<?> parent, CosmeticRow row, CosmeticTypes[] activeTab,
-                               String[] pendingHatId, String[] pendingCapeId, String[] pendingTailId, String[] pendingWingId) {
+                               String[] pendingHatId, String[] pendingCapeId, String[] pendingTailId, String[] pendingWingId,
+                               String[] previewEmoteId) {
             super(parent);
             this.row = row;
             this.activeTab = activeTab;
@@ -494,7 +517,8 @@ public class CosmeticsGui implements GuiProvider {
             this.pendingCapeId = pendingCapeId;
             this.pendingTailId = pendingTailId;
             this.pendingWingId = pendingWingId;
-            this.constrain(HEIGHT, literal(76));
+            this.previewEmoteId = previewEmoteId;
+            this.constrain(HEIGHT, literal(88));
         }
 
         @Override
@@ -503,6 +527,10 @@ public class CosmeticsGui implements GuiProvider {
             for (int i = 0; i < GRID_COLUMNS; i++) {
                 CosmeticItem item = row.item(i);
                 if (mouseX >= tileX(i) && mouseX <= tileX(i) + tileWidth() && mouseY >= yMin() && mouseY <= yMax()) {
+                    if (activeTab[0] == CosmeticTypes.EMOTES && item != null && !item.locked() && isFavoriteToggleClick(mouseX, mouseY, i)) {
+                        EmoteFavorites.toggle(item.id());
+                        return true;
+                    }
                     select(item);
                     return true;
                 }
@@ -521,7 +549,11 @@ public class CosmeticsGui implements GuiProvider {
                 boolean hover = mouseX >= x && mouseX <= x + w && mouseY >= yMin() && mouseY <= yMax();
                 render.rect(x, yMin(), w, ySize(), item == null ? 0xFF202020 : hover ? 0xFF1F2A30 : 0xFF172026);
                 render.rect(x + 4, yMin() + 22, w - 8, ySize() - 28, item == null ? 0xFF151515 : 0xFF102030);
-                renderCardPreview(render, item, x + 4, yMin() + 22, w - 8, ySize() - 28);
+                if (activeTab[0] == CosmeticTypes.EMOTES) {
+                    renderEmotePreview(render, item, x + 4, yMin() + 22, w - 8, ySize() - 28);
+                } else {
+                    renderCardPreview(render, item, x + 4, yMin() + 22, w - 8, ySize() - 28);
+                }
                 render.rect(x + 4, yMax() - 3, w - 8, 2, selected ? 0xFF00AA33 : 0xFF005A9C);
                 if (selected) {
                     render.rect(x, yMin(), w, 1, 0xFFE0E0E0);
@@ -542,6 +574,18 @@ public class CosmeticsGui implements GuiProvider {
                 drawCardTitle(render, displayName(item), x + 6, yMin() + 8, tileWidth() - 12, textColor);
                 if (item != null && !item.locked() && isSelected(item)) {
                     render.drawString(Component.literal("v").withStyle(ChatFormatting.GREEN).getVisualOrderText(), x + tileWidth() - 14, yMax() - 14, 0xFF00FF55);
+                }
+                if (item != null && !item.locked() && activeTab[0] == CosmeticTypes.EMOTES) {
+                    boolean favorite = EmoteFavorites.isFavorite(item.id());
+                    double actionY = yMax() - 18;
+                    render.rect(x + 5, actionY, 31, 14, 0xFF1F4A2A);
+                    render.drawString(Component.literal("Play").withStyle(ChatFormatting.GREEN).getVisualOrderText(), x + 9, actionY + 3, 0xFF44FF66);
+
+                    String favoriteText = favorite ? "Fav" : "+";
+                    int favoriteColor = favorite ? 0xFFFFD94A : EmoteFavorites.canAddMore() ? 0xFFAAAAAA : 0xFF666666;
+                    double favoriteX = x + tileWidth() - 30;
+                    render.rect(favoriteX, actionY, 25, 14, favorite ? 0xFF4A3E16 : 0xFF2B2B2B);
+                    render.drawString(Component.literal(favoriteText).getVisualOrderText(), favoriteX + (25 - render.font().width(favoriteText)) / 2.0D, actionY + 3, favoriteColor);
                 }
                 if (item != null && item.locked()) {
                     render.drawString(Component.literal("Locked").withStyle(ChatFormatting.DARK_GRAY).getVisualOrderText(), x + 6, yMax() - 14, 0xFF777777);
@@ -652,8 +696,17 @@ public class CosmeticsGui implements GuiProvider {
                 case CAPE -> CapeRegistry.getLoaded(item.id()) != null;
                 case TAIL -> TailRegistry.getLoaded(item.id()) != null;
                 case WINGS -> WingRegistry.getLoaded(item.id()) != null;
+                case EMOTES -> EmoteRegistry.getLoaded(item.id()) != null;
                 default -> false;
             };
+        }
+
+        private void renderEmotePreview(GuiRender render, CosmeticItem item, double x, double y, double width, double height) {
+            if (item == null || item.locked()) return;
+            boolean loaded = EmoteRegistry.getLoaded(item.id()) != null;
+            boolean favorite = EmoteFavorites.isFavorite(item.id());
+            render.drawString(Component.literal(loaded ? "Ready" : "Loading").withStyle(loaded ? ChatFormatting.AQUA : ChatFormatting.YELLOW).getVisualOrderText(), x + 6, y + 9, loaded ? 0xFF66DDEE : 0xFFFFDD55);
+            render.drawString(Component.literal(favorite ? "Radial" : "Add").getVisualOrderText(), x + 6, y + 23, favorite ? 0xFFFFD94A : 0xFFAAAAAA);
         }
 
         private void select(CosmeticItem item) {
@@ -680,6 +733,13 @@ public class CosmeticsGui implements GuiProvider {
                     CosmeticSelections.instance().selectedWingId = id;
                     if (!id.isEmpty()) CosmeticDownloader.instance().ensureAssetLoaded("wing", id);
                 }
+                case EMOTES -> {
+                    if (!id.isEmpty()) {
+                        previewEmoteId[0] = id;
+                        CosmeticDownloader.instance().ensureAssetLoaded("emote", id);
+                        EmotePlayer.playLocal(id);
+                    }
+                }
                 default -> {
                 }
             }
@@ -691,10 +751,18 @@ public class CosmeticsGui implements GuiProvider {
                 case CAPE -> pendingCapeId[0];
                 case TAIL -> pendingTailId[0];
                 case WINGS -> pendingWingId[0];
+                case EMOTES -> "";
                 default -> "";
             };
+            if (activeTab[0] == CosmeticTypes.EMOTES) return false;
             if (item == null) return selected == null || selected.isEmpty();
             return item.id().equals(selected);
+        }
+
+        private boolean isFavoriteToggleClick(double mouseX, double mouseY, int index) {
+            double x = tileX(index);
+            double width = tileWidth();
+            return mouseX >= x + width - 34 && mouseX <= x + width - 4 && mouseY >= yMax() - 20 && mouseY <= yMax();
         }
 
         private String displayName(CosmeticItem item) {
@@ -704,6 +772,7 @@ public class CosmeticsGui implements GuiProvider {
                     case CAPE -> "No Cape";
                     case TAIL -> "No Tail";
                     case WINGS -> "No Wings";
+                    case EMOTES -> "No Emote";
                     default -> "None";
                 };
             }
@@ -1053,12 +1122,17 @@ public class CosmeticsGui implements GuiProvider {
 
     private static class OffsetFollowRenderer extends GuiElement<OffsetFollowRenderer> implements BackgroundRender {
         private final LivingEntity entity;
+        private final CosmeticTypes[] activeTab;
+        private final String[] previewEmoteId;
         private final float[] yRotOffset;
         private final boolean[] trackingEnabled;
 
-        public OffsetFollowRenderer(@NotNull GuiParent<?> parent, LivingEntity entity, float[] yRotOffset, boolean[] trackingEnabled) {
+        public OffsetFollowRenderer(@NotNull GuiParent<?> parent, LivingEntity entity, CosmeticTypes[] activeTab,
+                                    String[] previewEmoteId, float[] yRotOffset, boolean[] trackingEnabled) {
             super(parent);
             this.entity = entity;
+            this.activeTab = activeTab;
+            this.previewEmoteId = previewEmoteId;
             this.yRotOffset = yRotOffset;
             this.trackingEnabled = trackingEnabled;
         }
@@ -1103,11 +1177,19 @@ public class CosmeticsGui implements GuiProvider {
 
             try {
                 CosmeticSelections.instance().fullBrightPreview = true;
-                renderBrightEntityInInventory(render, scale, offsetY, quaternionf, quaternionf1, entity,
-                        (int) Math.floor(rect.x() + horizontalPadding),
-                        (int) Math.floor(renderTop),
-                        (int) Math.ceil(rect.x() + rect.width() - horizontalPadding),
-                        (int) Math.ceil(renderBottom));
+                if (activeTab[0] == CosmeticTypes.EMOTES && previewEmoteId[0] != null && !previewEmoteId[0].isEmpty()) {
+                    EmotePlayer.withPreviewPose(previewEmoteId[0], () -> renderBrightEntityInInventory(render, scale, offsetY, quaternionf, quaternionf1, entity,
+                            (int) Math.floor(rect.x() + horizontalPadding),
+                            (int) Math.floor(renderTop),
+                            (int) Math.ceil(rect.x() + rect.width() - horizontalPadding),
+                            (int) Math.ceil(renderBottom)));
+                } else {
+                    renderBrightEntityInInventory(render, scale, offsetY, quaternionf, quaternionf1, entity,
+                            (int) Math.floor(rect.x() + horizontalPadding),
+                            (int) Math.floor(renderTop),
+                            (int) Math.ceil(rect.x() + rect.width() - horizontalPadding),
+                            (int) Math.ceil(renderBottom));
+                }
             } finally {
                 CosmeticSelections.instance().fullBrightPreview = previousFullBrightPreview;
                 entity.yBodyRot = prevBodyRot;
