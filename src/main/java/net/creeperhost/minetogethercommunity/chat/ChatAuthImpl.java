@@ -21,7 +21,13 @@ public class ChatAuthImpl implements ChatAuth {
 
     public ChatAuthImpl(Minecraft mc) {
         Session session = mc.getSession();
-        this.uuid = UUIDTypeAdapter.fromString(session.getPlayerID());
+        UUID parsed;
+        try {
+            parsed = UUIDTypeAdapter.fromString(session.getPlayerID());
+        } catch (IllegalArgumentException e) {
+            parsed = UUID.nameUUIDFromBytes(("OfflinePlayer:" + session.getUsername()).getBytes());
+        }
+        this.uuid = parsed;
         this.uuidHash = Hashing.sha256().hashString(uuid.toString(), StandardCharsets.UTF_8).toString().toUpperCase(Locale.ROOT);
     }
 
