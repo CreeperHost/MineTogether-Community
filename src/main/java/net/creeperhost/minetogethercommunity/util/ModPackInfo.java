@@ -186,6 +186,7 @@ public class ModPackInfo {
                 }
                 if (manifest.packType == 1) {
                     curseID = String.valueOf(manifest.id);
+                    LOGGER.info("Extracted CurseID " + curseID + " from instance.json");
                     return fetchWebsiteIDCurse();
                 }
                 return false;
