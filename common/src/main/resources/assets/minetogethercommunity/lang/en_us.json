@@ -300,6 +300,18 @@
     "minetogether:gui.server_list.sort.location": "Location",
     "minetogether:gui.server_list.sort.ping": "Ping",
 
+    "key.categories.minetogether": "MineTogether",
+    "key.minetogether.friend_chat": "Open friend chat",
+    "key.minetogether.global_chat": "Open global chat",
+    "key.minetogether.settings": "Open Settings",
+    "key.minetogether.emote_favorite_1": "Play Favorite Emote 1",
+    "key.minetogether.emote_favorite_2": "Play Favorite Emote 2",
+    "key.minetogether.emote_favorite_3": "Play Favorite Emote 3",
+    "key.minetogether.emote_favorite_4": "Play Favorite Emote 4",
+    "key.minetogether.emote_favorite_5": "Play Favorite Emote 5",
+    "key.minetogether.emote_favorite_6": "Play Favorite Emote 6",
+    "key.minetogether.emote_favorite_7": "Play Favorite Emote 7",
+    "key.minetogether.emote_favorite_8": "Play Favorite Emote 8",
     "minetogether:keybind.category": "MineTogether",
     "minetogether:keybind.friend_chat": "Open friend chat",
     "minetogether:keybind.global_chat": "Open global chat",
@@ -446,6 +458,7 @@
     "minetogether:gui.cosmetics.tab.gloves": "Gloves",
     "minetogether:gui.cosmetics.tab.boots": "Boots",
     "minetogether:gui.cosmetics.tab.wings": "Wings",
+    "minetogether:gui.cosmetics.tab.emotes": "Emotes",
     "minetogether:gui.cosmetics.tab.aura": "Aura",
     "minetogether:gui.cosmetics.coming_soon": "Coming soon...",
     "minetogether:gui.cosmetics.cape.none": "None",
@@ -453,7 +466,12 @@
     "minetogether:gui.cosmetics.tail.none": "None",
     "minetogether:gui.cosmetics.tail.none_equipped": "No tail equipped",
     "minetogether:gui.cosmetics.wing.none_equipped": "No wings equipped",
-    "minetogether:gui.settings.button.cosmetics": "Cosmetics"
+    "minetogether:gui.cosmetics.emote.hint": "Emote Preview",
+    "minetogether:gui.settings.button.cosmetics": "Cosmetics",
+    "key.minetogether.emotes": "Open Emotes",
+    "minetogether:keybind.emotes": "Open Emotes",
+    "minetogether:gui.emotes.title": "Emotes",
+    "minetogether:gui.emotes.empty": "Favorite emotes in Cosmetics"
 
 
 }
