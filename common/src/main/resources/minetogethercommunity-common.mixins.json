@@ -9,7 +9,13 @@
       "chat.ingame.GuiMixin",
       "activity.ClientPacketListenerMixin",
       "connect.JoinMultiplayerScreenMixin",
-      "connect.ServerSelectionListMixin"
+      "connect.ServerSelectionListMixin",
+      "cosmetic.ElytraLayerMixin",
+      "cosmetic.LivingEntityRendererAccess",
+      "cosmetic.PlayerModelAccess",
+      "cosmetic.PlayerRendererMixin",
+      "cosmetic.PlayerRenderStateMixin",
+      "cosmetic.VanillaCapeLayerMixin"
     ],
     "server": []
 }
