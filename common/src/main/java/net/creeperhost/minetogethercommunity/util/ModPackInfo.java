@@ -16,6 +16,7 @@ import org.apache.logging.log4j.Logger;
 
 import java.io.BufferedReader;
 import java.io.IOException;
+import java.io.RandomAccessFile;
 import java.io.InputStreamReader;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
@@ -102,6 +103,8 @@ public class ModPackInfo {
         public String websiteID = "";
         public String base64FTBID = "";
         public String ftbPackID = "";
+        public String modrinthProjectID = "";
+        public String modrinthVersionID = "";
         public String realName = "{\"p\": \"-1\"}";
 
         public VersionInfo() {
@@ -115,13 +118,18 @@ public class ModPackInfo {
             tryParseLauncherFiles();
 
             Map<String, String> json = new HashMap<>();
-            if (ftbPackID.isEmpty()) {
-                json.put("p", isParsable(curseID) ? curseID : "-1");
-            } else {
+            if (!modrinthProjectID.isEmpty()) {
+                json.put("p", "mr:" + modrinthProjectID);
+                if (!modrinthVersionID.isEmpty()) {
+                    json.put("v", modrinthVersionID);
+                }
+            } else if (!ftbPackID.isEmpty()) {
                 json.put("p", ftbPackID);
                 if (!base64FTBID.isEmpty()) {
                     json.put("b", base64FTBID);
                 }
+            } else {
+                json.put("p", isParsable(curseID) ? curseID : "-1");
             }
 
             realName = GSON.toJson(json);
@@ -135,7 +143,8 @@ public class ModPackInfo {
          * 2. FTB version.json (old FTB launcher, game folder)
          * 3. instance.json (FTB App new format, game folder — handles both FTB and CurseForge packs)
          * 4. minecraftinstance.json (CurseForge Launcher, game folder)
-         * 5. instance.cfg (MultiMC/Prism, parent folder — handles CurseForge, FTB, and iconKey fallback)
+         * 5. instance.cfg (MultiMC/Prism, parent folder — handles CurseForge, FTB, Modrinth, and iconKey fallback)
+         * 6. Modrinth App app.db (raw byte scan for native Modrinth App instances)
          */
         private void tryParseLauncherFiles() {
             // 1. Auxilium (FTB App metadata in config folder)
@@ -153,10 +162,13 @@ public class ModPackInfo {
             Path curseJson = Platform.getGameFolder().resolve("minecraftinstance.json");
             if (Files.exists(curseJson) && readCurseInstance(curseJson)) return;
 
-            // 5. MultiMC/Prism instance.cfg (parent folder)
+            // 5. MultiMC/Prism instance.cfg (parent folder — handles CurseForge, FTB, and Modrinth)
             if (readMultiMc()) return;
 
-            // 6. Fall back to curseID from config if set
+            // 6. Native Modrinth App (raw byte scan of app.db)
+            if (readModrinthApp()) return;
+
+            // 7. Fall back to curseID from config if set
             if (!curseID.isEmpty()) {
                 fetchWebsiteIDCurse();
                 return;
@@ -293,6 +305,15 @@ public class ModPackInfo {
                 return true;
             }
 
+            // Modrinth pack type
+            if ("modrinth".equals(packType)) {
+                if (packId.isEmpty()) return false;
+                modrinthProjectID = packId;
+                modrinthVersionID = StringUtils.stripToEmpty(versionId);
+                LOGGER.info("Detected Modrinth pack {} version {} from Prism/MultiMC", packId, versionId);
+                return true;
+            }
+
             return false;
         }
 
@@ -320,6 +341,71 @@ public class ModPackInfo {
                 LOGGER.warn("Failed to resolve FTB pack id {}", base64FTBID, ex);
                 return false;
             }
+        }
+
+        /**
+         * Detects Modrinth App instances by checking if the game directory is
+         * under ModrinthApp/profiles/ and scanning app.db for pack metadata.
+         */
+        private boolean readModrinthApp() {
+            Path gameDir = Platform.getGameFolder();
+            Path profilesDir = gameDir.getParent();
+            if (profilesDir == null || !"profiles".equals(profilesDir.getFileName().toString())) return false;
+            Path modrinthRoot = profilesDir.getParent();
+            if (modrinthRoot == null) return false;
+
+            Path appDb = modrinthRoot.resolve("app.db");
+            if (!Files.exists(appDb)) return false;
+
+            String instanceName = gameDir.getFileName().toString();
+            LOGGER.info("Detected Modrinth App environment, scanning app.db for instance '{}'", instanceName);
+
+            try (RandomAccessFile raf = new RandomAccessFile(appDb.toFile(), "r")) {
+                long fileSize = raf.length();
+                if (fileSize > 64 * 1024 * 1024) {
+                    LOGGER.warn("Modrinth app.db is too large ({} bytes), skipping scan", fileSize);
+                    return false;
+                }
+                byte[] buffer = new byte[(int) fileSize];
+                raf.readFully(buffer);
+                String content = new String(buffer, StandardCharsets.UTF_8);
+
+                String marker = "modrinth_modpack";
+                int idx = -1;
+                while ((idx = content.indexOf(marker, idx + 1)) >= 0) {
+                    int afterMarker = idx + marker.length();
+                    if (afterMarker + 16 > content.length()) continue;
+
+                    String projectId = content.substring(afterMarker, afterMarker + 8);
+                    String versionId = content.substring(afterMarker + 8, afterMarker + 16);
+
+                    if (!isBase62(projectId) || !isBase62(versionId)) continue;
+
+                    // Verify this row belongs to our instance by checking nearby bytes
+                    int searchStart = Math.max(0, idx - 300);
+                    String nearby = content.substring(searchStart, idx);
+                    if (nearby.contains(instanceName)) {
+                        modrinthProjectID = projectId;
+                        modrinthVersionID = versionId;
+                        LOGGER.info("Detected Modrinth pack {} version {} from Modrinth App (instance: {})",
+                                projectId, versionId, instanceName);
+                        return true;
+                    }
+                }
+                LOGGER.info("Modrinth App app.db scanned but no matching instance found for '{}'", instanceName);
+            } catch (Exception ex) {
+                LOGGER.warn("Failed to scan Modrinth App database {}", appDb, ex);
+            }
+            return false;
+        }
+
+        private static boolean isBase62(String s) {
+            if (s == null || s.length() != 8) return false;
+            for (int i = 0; i < s.length(); i++) {
+                char c = s.charAt(i);
+                if (!Character.isLetterOrDigit(c)) return false;
+            }
+            return true;
         }
     }
 
