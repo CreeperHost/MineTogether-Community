@@ -1,4 +1,4 @@
-﻿package net.creeperhost.minetogethercommunity.util;
+package net.creeperhost.minetogethercommunity.util;
 
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
