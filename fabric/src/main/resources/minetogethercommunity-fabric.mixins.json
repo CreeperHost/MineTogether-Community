@@ -1,0 +1,9 @@
+{
+  "required": true,
+  "package": "net.creeperhost.minetogethercommunity.fabric.mixin",
+  "minVersion": "0.8",
+  "client": [
+    "ResourceReloadListenerWrapperMixin"
+  ],
+  "server": []
+}
