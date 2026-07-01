@@ -1,4 +1,4 @@
-﻿package net.creeperhost.minetogethercommunity.util;
+package net.creeperhost.minetogethercommunity.util;
 
 import com.google.common.util.concurrent.ThreadFactoryBuilder;
 import com.google.gson.Gson;
