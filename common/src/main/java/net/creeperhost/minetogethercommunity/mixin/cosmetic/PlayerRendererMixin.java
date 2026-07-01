@@ -4,6 +4,7 @@ import net.creeperhost.minetogethercommunity.cosmetic.cape.CapeLayer;
 import net.creeperhost.minetogethercommunity.cosmetic.hat.HatLayer;
 import net.creeperhost.minetogethercommunity.cosmetic.tail.TailLayer;
 import net.creeperhost.minetogethercommunity.cosmetic.wing.WingLayer;
+import net.creeperhost.minetogethercommunity.cosmetic.PlayerRenderStateAccess;
 import net.minecraft.client.player.AbstractClientPlayer;
 import net.minecraft.client.renderer.entity.EntityRendererProvider;
 import net.minecraft.client.renderer.entity.RenderLayerParent;
@@ -29,6 +30,6 @@ public abstract class PlayerRendererMixin {
     @Inject(method = "extractRenderState(Lnet/minecraft/client/player/AbstractClientPlayer;Lnet/minecraft/client/renderer/entity/state/PlayerRenderState;F)V",
             at = @At("TAIL"))
     private void injectPlayerUUID(AbstractClientPlayer player, PlayerRenderState state, float partialTick, CallbackInfo ci) {
-        ((PlayerRenderStateMixin) (Object) state).minetogether$playerUUID = player.getUUID();
+        ((PlayerRenderStateAccess) state).minetogether$setPlayerUUID(player.getUUID());
     }
 }
