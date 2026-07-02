@@ -1,6 +1,7 @@
 package net.creeperhost.minetogethercommunity.mixin.cosmetic;
 
 import com.mojang.blaze3d.vertex.PoseStack;
+import com.mojang.math.Axis;
 import net.creeperhost.minetogethercommunity.cosmetic.emote.EmotePlayer;
 import net.creeperhost.minetogethercommunity.cosmetic.cape.CapeLayer;
 import net.creeperhost.minetogethercommunity.cosmetic.hat.HatLayer;
@@ -17,6 +18,8 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 @Mixin(targets = "net.minecraft.client.renderer.entity.player.PlayerRenderer")
 public abstract class PlayerRendererMixin {
 
+    private static final float EMOTE_SHOULDER_PIVOT_Y = -1.25F;
+
     @Inject(at = @At("TAIL"), method = "<init>(Lnet/minecraft/client/renderer/entity/EntityRendererProvider$Context;Z)V")
     private void addCosmeticLayers(EntityRendererProvider.Context ctx, boolean slim, CallbackInfo ci) {
         RenderLayerParent parent = (RenderLayerParent) (Object) this;
@@ -32,6 +35,12 @@ public abstract class PlayerRendererMixin {
         float translateY = EmotePlayer.renderTranslateY(player, ageInTicks);
         if (translateY != 0.0F) {
             poseStack.translate(0.0F, translateY, 0.0F);
+        }
+        float pitch = EmotePlayer.renderPitch(player, ageInTicks);
+        if (pitch != 0.0F) {
+            poseStack.translate(0.0F, EMOTE_SHOULDER_PIVOT_Y, 0.0F);
+            poseStack.mulPose(Axis.XP.rotation(pitch));
+            poseStack.translate(0.0F, -EMOTE_SHOULDER_PIVOT_Y, 0.0F);
         }
     }
 }
