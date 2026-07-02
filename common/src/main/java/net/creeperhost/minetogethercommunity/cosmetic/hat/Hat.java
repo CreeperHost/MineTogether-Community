@@ -20,7 +20,8 @@ public record Hat(
         HatModelType type,
         List<HatCuboid> cuboids,
         List<TailElement> jsonElements,
-        @Nullable TailModel jsonModel
+        @Nullable TailModel jsonModel,
+        HatAnimation animation
 ) {
     public boolean isJsonModel() {
         return type == HatModelType.JSON;
