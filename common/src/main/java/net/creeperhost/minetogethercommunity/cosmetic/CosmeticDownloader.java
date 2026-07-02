@@ -11,6 +11,7 @@ import net.creeperhost.minetogethercommunity.cosmetic.emote.Emote;
 import net.creeperhost.minetogethercommunity.cosmetic.emote.EmoteAnimation;
 import net.creeperhost.minetogethercommunity.cosmetic.emote.EmoteType;
 import net.creeperhost.minetogethercommunity.cosmetic.hat.Hat;
+import net.creeperhost.minetogethercommunity.cosmetic.hat.HatAnimation;
 import net.creeperhost.minetogethercommunity.cosmetic.hat.HatModelType;
 import net.creeperhost.minetogethercommunity.cosmetic.tail.Tail;
 import net.creeperhost.minetogethercommunity.cosmetic.tail.TailModel;
@@ -482,9 +483,14 @@ public class CosmeticDownloader {
                 .filter(f -> f.toLowerCase(Locale.ROOT).endsWith(".png"))
                 .findFirst()
                 .orElseThrow(() -> new IOException("No .png file in metadata for JSON hat '" + id + "'"));
+        String animationFile = files.stream()
+                .filter(f -> "animation.json".equalsIgnoreCase(f))
+                .findFirst()
+                .orElse(null);
 
         byte[] jsonData = Files.readAllBytes(itemDir.resolve(jsonFile));
         byte[] pngData = Files.readAllBytes(itemDir.resolve(pngFile));
+        byte[] animationData = animationFile != null ? Files.readAllBytes(itemDir.resolve(animationFile)) : null;
         JsonObject modelRoot = JsonParser.parseReader(new InputStreamReader(
                 new java.io.ByteArrayInputStream(jsonData), StandardCharsets.UTF_8
         )).getAsJsonObject();
@@ -492,6 +498,7 @@ public class CosmeticDownloader {
         var elements = TailModelParser.parse(modelRoot);
         int texW = modelRoot.has("texture_size") ? modelRoot.getAsJsonArray("texture_size").get(0).getAsInt() : 64;
         int texH = modelRoot.has("texture_size") ? modelRoot.getAsJsonArray("texture_size").get(1).getAsInt() : 32;
+        HatAnimation animation = parseHatAnimation(animationData);
         ResourceLocation location = textureLocation("hat", id);
         LOGGER.info("JSON hat '{}' parsed: {} elements, texSize={}x{}", id, elements.size(), texW, texH);
 
@@ -504,7 +511,7 @@ public class CosmeticDownloader {
                 TailModel model = new TailModel(elements, texW, texH);
                 Hat hat = new Hat(id, item.displayName(), item.author(), item.mod(),
                         item.locked(), item.howToUnlock(), location, texW, texH,
-                        HatModelType.JSON, Collections.emptyList(), elements, model);
+                        HatModelType.JSON, Collections.emptyList(), elements, model, animation);
                 loadedHats.put(id, hat);
                 loadingAssetIds.remove(assetKey("hat", id));
                 LOGGER.info("JSON hat asset ready: '{}'", id);
@@ -706,6 +713,19 @@ public class CosmeticDownloader {
         } catch (Exception e) {
             LOGGER.warn("Failed to parse wing animation config; wings will render without animation", e);
             return WingAnimation.NONE;
+        }
+    }
+
+    private HatAnimation parseHatAnimation(@Nullable byte[] animationData) {
+        if (animationData == null || animationData.length == 0) return HatAnimation.NONE;
+        try {
+            JsonObject root = JsonParser.parseReader(new java.io.InputStreamReader(
+                    new java.io.ByteArrayInputStream(animationData), StandardCharsets.UTF_8
+            )).getAsJsonObject();
+            return HatAnimation.fromJson(root);
+        } catch (Exception e) {
+            LOGGER.warn("Failed to parse hat animation config; hat will render without animation", e);
+            return HatAnimation.NONE;
         }
     }
 

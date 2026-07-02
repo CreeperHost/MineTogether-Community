@@ -45,7 +45,7 @@ public class HatLayer<T extends AbstractClientPlayer> extends RenderLayer<T, Pla
         if (hat.isJsonModel() && hat.jsonModel() != null) {
             poseStack.scale(1.01F, 1.01F, 1.01F);
             poseStack.translate(-8.0F / 16.0F, -16.0F / 16.0F, -8.0F / 16.0F);
-            hat.jsonModel().render(poseStack, bufferSource.getBuffer(RenderType.entityCutoutNoCull(hat.texture())), renderLight);
+            hat.jsonModel().render(poseStack, bufferSource.getBuffer(RenderType.entityCutoutNoCull(hat.texture())), renderLight, hat.animation().pose(ageInTicks));
         } else {
             poseStack.scale(1.01f, 1.01f, 1.01f);
             poseStack.translate(0.0D, -1.5D, 0.0D);
