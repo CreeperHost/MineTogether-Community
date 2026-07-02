@@ -8,6 +8,8 @@ public record Emote(
         boolean locked,
         String howToUnlock,
         EmoteType type,
+        boolean toggle,
+        boolean allowMovement,
         EmoteAnimation animation
 ) {
 }
