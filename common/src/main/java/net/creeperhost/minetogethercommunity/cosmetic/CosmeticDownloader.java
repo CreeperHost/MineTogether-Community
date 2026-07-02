@@ -107,8 +107,9 @@ public class CosmeticDownloader {
     private final ConcurrentHashMap<String, Wing> loadedWings = new ConcurrentHashMap<>();
     private final ConcurrentHashMap<String, Emote> loadedEmotes = new ConcurrentHashMap<>();
 
-    /** IDs for which an asset download is currently in flight. Prevents duplicate requests. */
+    /** Asset keys for which a download is currently in flight. Prevents duplicate requests. */
     private final Set<String> loadingAssetIds = Collections.newSetFromMap(new ConcurrentHashMap<>());
+    private final Set<String> failedAssetIds = Collections.newSetFromMap(new ConcurrentHashMap<>());
 
     // Catalog fetch state
     private volatile boolean catalogLoading = false;
@@ -148,6 +149,8 @@ public class CosmeticDownloader {
      */
     public void ensureAssetLoaded(String slot, String id) {
         if (id == null || id.isEmpty()) return;
+        String assetKey = assetKey(slot, id);
+        if (failedAssetIds.contains(assetKey)) return;
         // Skip if already fully loaded
         if ("hat".equals(slot)  && loadedHats.containsKey(id))  return;
         if ("cape".equals(slot) && loadedCapes.containsKey(id)) return;
@@ -155,7 +158,7 @@ public class CosmeticDownloader {
         if ("wing".equals(slot) && loadedWings.containsKey(id)) return;
         if ("emote".equals(slot) && loadedEmotes.containsKey(id)) return;
         // Claim the download slot — only one thread proceeds per id
-        if (!loadingAssetIds.add(id)) return;
+        if (!loadingAssetIds.add(assetKey)) return;
 
         Thread t = new Thread(() -> {
             try {
@@ -172,7 +175,11 @@ public class CosmeticDownloader {
                 }
             } catch (Exception e) {
                 LOGGER.error("Failed to download {} asset '{}'", slot, id, e);
-                loadingAssetIds.remove(id); // allow retry on next request
+                if (isPermanentAssetFailure(e)) {
+                    failedAssetIds.add(assetKey);
+                }
+                cleanupEmptyAssetDirectory(slot, id);
+                loadingAssetIds.remove(assetKey);
             }
         }, "CosmeticAssetLoad-" + id);
         t.setDaemon(true);
@@ -236,7 +243,10 @@ public class CosmeticDownloader {
 
     /** @return {@code true} if an asset download for {@code id} is currently in flight. */
     public boolean isAssetLoading(String id) {
-        return loadingAssetIds.contains(id);
+        for (String key : loadingAssetIds) {
+            if (key.endsWith(":" + id)) return true;
+        }
+        return false;
     }
 
     // ── Internal: catalog fetch ────────────────────────────────────────────────
@@ -456,7 +466,7 @@ public class CosmeticDownloader {
         // texture is guaranteed to be registered before any render layer can see this hat.
         Minecraft.getInstance().execute(() -> {
             loadedHats.put(id, hat);
-            loadingAssetIds.remove(id);
+            loadingAssetIds.remove(assetKey("hat", id));
             LOGGER.info("Hat asset ready: '{}'", id);
         });
     }
@@ -496,11 +506,11 @@ public class CosmeticDownloader {
                         item.locked(), item.howToUnlock(), location, texW, texH,
                         HatModelType.JSON, Collections.emptyList(), elements, model);
                 loadedHats.put(id, hat);
-                loadingAssetIds.remove(id);
+                loadingAssetIds.remove(assetKey("hat", id));
                 LOGGER.info("JSON hat asset ready: '{}'", id);
             } catch (Exception e) {
                 LOGGER.error("Failed to register JSON hat texture '{}'", id, e);
-                loadingAssetIds.remove(id);
+                loadingAssetIds.remove(assetKey("hat", id));
             }
         });
     }
@@ -533,11 +543,11 @@ public class CosmeticDownloader {
                 Cape cape = new Cape(id, item.displayName(), item.author(), item.mod(),
                         item.locked(), item.howToUnlock(), location, img.getWidth(), img.getHeight());
                 loadedCapes.put(id, cape);
-                loadingAssetIds.remove(id);
+                loadingAssetIds.remove(assetKey("cape", id));
                 LOGGER.info("Cape asset ready: '{}' ({}x{})", id, img.getWidth(), img.getHeight());
             } catch (Exception e) {
                 LOGGER.error("Failed to register cape texture '{}'", id, e);
-                loadingAssetIds.remove(id);
+                loadingAssetIds.remove(assetKey("cape", id));
             }
         });
     }
@@ -589,11 +599,11 @@ public class CosmeticDownloader {
                 Tail tail = new Tail(id, item.displayName(), item.author(), item.mod(),
                         item.locked(), item.howToUnlock(), location, texW, texH, elements, model);
                 loadedTails.put(id, tail);
-                loadingAssetIds.remove(id);
+                loadingAssetIds.remove(assetKey("tail", id));
                 LOGGER.info("Tail asset ready: '{}'", id);
             } catch (Exception e) {
                 LOGGER.error("Failed to register tail texture '{}'", id, e);
-                loadingAssetIds.remove(id);
+                loadingAssetIds.remove(assetKey("tail", id));
             }
         });
     }
@@ -647,11 +657,11 @@ public class CosmeticDownloader {
                 Wing wing = new Wing(id, item.displayName(), item.author(), item.mod(),
                         item.locked(), item.howToUnlock(), location, texW, texH, elements, model, animation);
                 loadedWings.put(id, wing);
-                loadingAssetIds.remove(id);
+                loadingAssetIds.remove(assetKey("wing", id));
                 LOGGER.info("Wing asset ready: '{}'", id);
             } catch (Exception e) {
                 LOGGER.error("Failed to register wing texture '{}'", id, e);
-                loadingAssetIds.remove(id);
+                loadingAssetIds.remove(assetKey("wing", id));
             }
         });
     }
@@ -667,7 +677,7 @@ public class CosmeticDownloader {
         JsonObject metadata = readMetadata(itemDir);
         EmoteType type = EmoteType.fromMetadata(metadataString(metadata, "type", EmoteType.SIMPLE.metadataValue()));
         if (!type.isAvailable()) {
-            loadingAssetIds.remove(id);
+            loadingAssetIds.remove(assetKey("emote", id));
             LOGGER.info("Skipping emote '{}' because runtime '{}' is not available", id, type.metadataValue());
             return;
         }
@@ -677,10 +687,12 @@ public class CosmeticDownloader {
                 .findFirst()
                 .orElse(null);
         EmoteAnimation animation = parseEmoteAnimation(animationFile != null ? Files.readAllBytes(itemDir.resolve(animationFile)) : null);
+        boolean toggle = metadataBoolean(metadata, "toggle", false);
+        boolean allowMovement = metadataBoolean(metadata, "allowMovement", false);
 
-        Emote emote = new Emote(id, item.displayName(), item.author(), item.mod(), item.locked(), item.howToUnlock(), type, animation);
+        Emote emote = new Emote(id, item.displayName(), item.author(), item.mod(), item.locked(), item.howToUnlock(), type, toggle, allowMovement, animation);
         loadedEmotes.put(id, emote);
-        loadingAssetIds.remove(id);
+        loadingAssetIds.remove(assetKey("emote", id));
         LOGGER.info("Emote asset ready: '{}'", id);
     }
 
@@ -761,6 +773,20 @@ public class CosmeticDownloader {
         return fileNames;
     }
 
+    private void cleanupEmptyAssetDirectory(String slot, String id) {
+        Path itemDir = cacheBase.resolve(slot + "s").resolve(id);
+        try {
+            if (!Files.isDirectory(itemDir)) return;
+            try (var files = Files.list(itemDir)) {
+                if (files.findAny().isPresent()) return;
+            }
+            Files.deleteIfExists(itemDir);
+            LOGGER.debug("Removed empty failed {} asset directory '{}'", slot, itemDir);
+        } catch (Exception cleanupError) {
+            LOGGER.debug("Failed to remove empty failed {} asset directory '{}'", slot, itemDir, cleanupError);
+        }
+    }
+
     private JsonObject readMetadata(Path itemDir) throws IOException {
         Path metadata = itemDir.resolve("metadata.json");
         if (!Files.isRegularFile(metadata)) return new JsonObject();
@@ -772,6 +798,24 @@ public class CosmeticDownloader {
     private static String metadataString(JsonObject metadata, String key, String fallback) {
         if (!metadata.has(key) || metadata.get(key).isJsonNull()) return fallback;
         return metadata.get(key).getAsString();
+    }
+
+    private static String assetKey(String slot, String id) {
+        return slot + ":" + id;
+    }
+
+    private static boolean isPermanentAssetFailure(Exception e) {
+        String message = e.getMessage();
+        return message != null && (message.contains("HTTP 404") || message.contains("No 'files' array"));
+    }
+
+    private static boolean metadataBoolean(JsonObject metadata, String key, boolean fallback) {
+        if (!metadata.has(key) || metadata.get(key).isJsonNull()) return fallback;
+        try {
+            return metadata.get(key).getAsBoolean();
+        } catch (Exception ignored) {
+            return fallback;
+        }
     }
 
     private byte[] fetchBytes(String url) throws IOException, InterruptedException {

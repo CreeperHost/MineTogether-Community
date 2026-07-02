@@ -24,6 +24,8 @@ public class EmoteNetworking {
 
     private static MessageType START_C2S;
     private static MessageType START_S2C;
+    private static MessageType STOP_C2S;
+    private static MessageType STOP_S2C;
     private static boolean initialized;
 
     public static void init() {
@@ -31,6 +33,8 @@ public class EmoteNetworking {
         initialized = true;
         START_C2S = NETWORK.registerC2S("emote_start_c2s", StartEmoteC2S::new);
         START_S2C = NETWORK.registerS2C("emote_start_s2c", StartEmoteS2C::new);
+        STOP_C2S = NETWORK.registerC2S("emote_stop_c2s", StopEmoteC2S::new);
+        STOP_S2C = NETWORK.registerS2C("emote_stop_s2c", StopEmoteS2C::new);
         LOGGER.debug("Emote networking initialized");
     }
 
@@ -38,6 +42,11 @@ public class EmoteNetworking {
         if (emoteId == null || emoteId.isEmpty()) return;
         if (START_C2S == null || !NetworkManager.canServerReceive(START_C2S.getId())) return;
         new StartEmoteC2S(emoteId).sendToServer();
+    }
+
+    public static void tryBroadcastStop() {
+        if (STOP_C2S == null || !NetworkManager.canServerReceive(STOP_C2S.getId())) return;
+        new StopEmoteC2S().sendToServer();
     }
 
     private static boolean validEmoteId(String emoteId) {
@@ -112,6 +121,65 @@ public class EmoteNetworking {
             if (mc.player != null && mc.player.getUUID().equals(playerId)) return;
             CosmeticDownloader.instance().ensureAssetLoaded("emote", emoteId);
             EmotePlayer.playRemote(playerId, emoteId);
+        }
+    }
+
+    private static class StopEmoteC2S extends BaseC2SMessage {
+        private StopEmoteC2S() {
+        }
+
+        private StopEmoteC2S(RegistryFriendlyByteBuf buf) {
+        }
+
+        @Override
+        public MessageType getType() {
+            return STOP_C2S;
+        }
+
+        @Override
+        public void write(RegistryFriendlyByteBuf buf) {
+        }
+
+        @Override
+        public void handle(NetworkManager.PacketContext context) {
+            Player sender = context.getPlayer();
+            if (!(sender instanceof ServerPlayer serverPlayer)) return;
+            UUID playerId = serverPlayer.getUUID();
+            StopEmoteS2C packet = new StopEmoteS2C(playerId);
+            for (ServerPlayer target : serverPlayer.server.getPlayerList().getPlayers()) {
+                if (target == serverPlayer) continue;
+                if (!NetworkManager.canPlayerReceive(target, STOP_S2C.getId())) continue;
+                packet.sendTo(target);
+            }
+        }
+    }
+
+    private static class StopEmoteS2C extends BaseS2CMessage {
+        private final UUID playerId;
+
+        private StopEmoteS2C(UUID playerId) {
+            this.playerId = playerId;
+        }
+
+        private StopEmoteS2C(RegistryFriendlyByteBuf buf) {
+            this.playerId = buf.readUUID();
+        }
+
+        @Override
+        public MessageType getType() {
+            return STOP_S2C;
+        }
+
+        @Override
+        public void write(RegistryFriendlyByteBuf buf) {
+            buf.writeUUID(playerId);
+        }
+
+        @Override
+        public void handle(NetworkManager.PacketContext context) {
+            Minecraft mc = Minecraft.getInstance();
+            if (mc.player != null && mc.player.getUUID().equals(playerId)) return;
+            EmotePlayer.stop(playerId);
         }
     }
 
