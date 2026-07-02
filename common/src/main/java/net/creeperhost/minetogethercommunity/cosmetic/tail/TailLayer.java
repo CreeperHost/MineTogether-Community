@@ -12,12 +12,8 @@ import net.minecraft.client.renderer.RenderType;
 import net.minecraft.client.renderer.entity.RenderLayerParent;
 import net.minecraft.client.renderer.entity.layers.RenderLayer;
 import net.minecraft.util.Mth;
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 
 public class TailLayer<T extends AbstractClientPlayer> extends RenderLayer<T, PlayerModel<T>> {
-
-    private static final Logger LOGGER = LogManager.getLogger();
 
     public TailLayer(RenderLayerParent<T, PlayerModel<T>> renderer) {
         super(renderer);
@@ -38,12 +34,8 @@ public class TailLayer<T extends AbstractClientPlayer> extends RenderLayer<T, Pl
         if (tailId == null || tailId.isEmpty()) return;
 
         Tail tail = TailRegistry.getLoaded(tailId);
-        if (tail == null) {
-            LOGGER.debug("[TailLayer] tailId='{}' not yet loaded", tailId);
-            return;
-        }
+        if (tail == null) return;
 
-        LOGGER.debug("[TailLayer] rendering tail='{}' elements={}", tailId, tail.elements().size());
         poseStack.pushPose();
 
         // Position in body-local space: centered on x, at hip level on y,
