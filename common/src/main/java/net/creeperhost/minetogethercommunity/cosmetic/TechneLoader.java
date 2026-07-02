@@ -6,6 +6,7 @@ import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
 import com.mojang.blaze3d.platform.NativeImage;
 import net.creeperhost.minetogethercommunity.cosmetic.hat.Hat;
+import net.creeperhost.minetogethercommunity.cosmetic.hat.HatAnimation;
 import net.creeperhost.minetogethercommunity.cosmetic.hat.HatCuboid;
 import net.creeperhost.minetogethercommunity.cosmetic.hat.HatModelType;
 import net.minecraft.client.Minecraft;
@@ -86,7 +87,7 @@ public class TechneLoader {
         });
 
         return new Hat(id, displayName, author, mod, locked, howToUnlock, texLoc, texW, texH,
-                HatModelType.TC2, cuboids, Collections.emptyList(), null);
+                HatModelType.TC2, cuboids, Collections.emptyList(), null, HatAnimation.NONE);
     }
 
     private static float[] parseVec3(String s) {

@@ -43,6 +43,14 @@ public class TailModel {
     }
 
     public void render(PoseStack.Pose pose, VertexConsumer consumer, int packedLight, TailPose tailPose, boolean fullBright) {
+        render(pose, consumer, packedLight, tailPose, TailElementPose.none(), fullBright);
+    }
+
+    public void render(PoseStack poseStack, VertexConsumer consumer, int packedLight, TailElementPose elementPose) {
+        render(poseStack.last(), consumer, packedLight, TailPose.none(), elementPose, CosmeticSelections.instance().fullBrightPreview);
+    }
+
+    public void render(PoseStack.Pose pose, VertexConsumer consumer, int packedLight, TailPose tailPose, TailElementPose elementPose, boolean fullBright) {
         if (animatedChain) {
             renderAnimatedChain(pose, consumer, packedLight, tailPose, fullBright);
             return;
@@ -53,23 +61,23 @@ public class TailModel {
             float x1 = el.to()[0], y1 = el.to()[1], z1 = el.to()[2];
 
             if (el.south() != null) emitFace(pose, consumer, packedLight, el.south(),
-                    rotate(el, new float[][]{{x0, y0, z1}, {x1, y0, z1}, {x1, y1, z1}, {x0, y1, z1}}),
-                    normal(el, 0, 0, 1), fullBright);
+                    rotate(el, elementPose, new float[][]{{x0, y0, z1}, {x1, y0, z1}, {x1, y1, z1}, {x0, y1, z1}}),
+                    normal(el, elementPose, 0, 0, 1), fullBright);
             if (el.north() != null) emitFace(pose, consumer, packedLight, el.north(),
-                    rotate(el, new float[][]{{x1, y0, z0}, {x0, y0, z0}, {x0, y1, z0}, {x1, y1, z0}}),
-                    normal(el, 0, 0, -1), fullBright);
+                    rotate(el, elementPose, new float[][]{{x1, y0, z0}, {x0, y0, z0}, {x0, y1, z0}, {x1, y1, z0}}),
+                    normal(el, elementPose, 0, 0, -1), fullBright);
             if (el.east() != null) emitFace(pose, consumer, packedLight, el.east(),
-                    rotate(el, new float[][]{{x1, y0, z1}, {x1, y0, z0}, {x1, y1, z0}, {x1, y1, z1}}),
-                    normal(el, 1, 0, 0), fullBright);
+                    rotate(el, elementPose, new float[][]{{x1, y0, z1}, {x1, y0, z0}, {x1, y1, z0}, {x1, y1, z1}}),
+                    normal(el, elementPose, 1, 0, 0), fullBright);
             if (el.west() != null) emitFace(pose, consumer, packedLight, el.west(),
-                    rotate(el, new float[][]{{x0, y0, z0}, {x0, y0, z1}, {x0, y1, z1}, {x0, y1, z0}}),
-                    normal(el, -1, 0, 0), fullBright);
+                    rotate(el, elementPose, new float[][]{{x0, y0, z0}, {x0, y0, z1}, {x0, y1, z1}, {x0, y1, z0}}),
+                    normal(el, elementPose, -1, 0, 0), fullBright);
             if (el.up() != null) emitFace(pose, consumer, packedLight, el.up(),
-                    rotate(el, new float[][]{{x0, y1, z1}, {x1, y1, z1}, {x1, y1, z0}, {x0, y1, z0}}),
-                    normal(el, 0, 1, 0), fullBright);
+                    rotate(el, elementPose, new float[][]{{x0, y1, z1}, {x1, y1, z1}, {x1, y1, z0}, {x0, y1, z0}}),
+                    normal(el, elementPose, 0, 1, 0), fullBright);
             if (el.down() != null) emitFace(pose, consumer, packedLight, el.down(),
-                    rotate(el, new float[][]{{x0, y0, z0}, {x1, y0, z0}, {x1, y0, z1}, {x0, y0, z1}}),
-                    normal(el, 0, -1, 0), fullBright);
+                    rotate(el, elementPose, new float[][]{{x0, y0, z0}, {x1, y0, z0}, {x1, y0, z1}, {x0, y0, z1}}),
+                    normal(el, elementPose, 0, -1, 0), fullBright);
         }
     }
 
@@ -139,11 +147,19 @@ public class TailModel {
     }
 
     private float[][] rotate(TailElement element, float[][] verts) {
-        TailRotation rotation = element.rotation();
-        if (rotation == null || (rotation.x() == 0.0F && rotation.y() == 0.0F && rotation.z() == 0.0F)) return verts;
+        return rotate(element, TailElementPose.none(), verts);
+    }
 
-        float[] origin = rotation.origin();
-        float[] angles = elementAngles(element, 0.0F, 0.0F, 0.0F);
+    private float[][] rotate(TailElement element, TailElementPose pose, float[][] verts) {
+        TailRotation rotation = element.rotation();
+        float xOffset = pose.x(element.name());
+        float yOffset = pose.y(element.name());
+        float zOffset = pose.z(element.name());
+        if ((rotation == null || (rotation.x() == 0.0F && rotation.y() == 0.0F && rotation.z() == 0.0F))
+                && xOffset == 0.0F && yOffset == 0.0F && zOffset == 0.0F) return verts;
+
+        float[] origin = elementOrigin(element);
+        float[] angles = elementAngles(element, xOffset, yOffset, zOffset);
         float[][] out = new float[verts.length][3];
         for (int i = 0; i < verts.length; i++) {
             float[] rotated = rotate(verts[i][0] - origin[0], verts[i][1] - origin[1], verts[i][2] - origin[2], angles);
@@ -155,11 +171,19 @@ public class TailModel {
     }
 
     private float[] normal(TailElement element, float x, float y, float z) {
+        return normal(element, TailElementPose.none(), x, y, z);
+    }
+
+    private float[] normal(TailElement element, TailElementPose pose, float x, float y, float z) {
         TailRotation rotation = element.rotation();
-        if (rotation == null || (rotation.x() == 0.0F && rotation.y() == 0.0F && rotation.z() == 0.0F)) {
+        float xOffset = pose.x(element.name());
+        float yOffset = pose.y(element.name());
+        float zOffset = pose.z(element.name());
+        if ((rotation == null || (rotation.x() == 0.0F && rotation.y() == 0.0F && rotation.z() == 0.0F))
+                && xOffset == 0.0F && yOffset == 0.0F && zOffset == 0.0F) {
             return new float[]{x, y, z};
         }
-        return rotate(x, y, z, elementAngles(element, 0.0F, 0.0F, 0.0F));
+        return rotate(x, y, z, elementAngles(element, xOffset, yOffset, zOffset));
     }
 
     private float[][] chainVerts(float[][] verts, float[] staticOrigin, float[] dynamicOrigin, float[] dynamicAngles) {

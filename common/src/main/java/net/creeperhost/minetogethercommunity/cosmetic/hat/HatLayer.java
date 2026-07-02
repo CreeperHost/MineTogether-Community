@@ -37,7 +37,10 @@ public class HatLayer extends RenderLayer<AvatarRenderState, PlayerModel> {
             submitNodeCollector.submitCustomGeometry(
                     poseStack,
                     RenderTypes.entityCutout(hat.texture()),
-                    (pose, buffer) -> hat.jsonModel().render(pose, buffer, renderLight, net.creeperhost.minetogethercommunity.cosmetic.tail.TailPose.none(), cosmeticState.minetogether$fullBright())
+                    (pose, buffer) -> hat.jsonModel().render(pose, buffer, renderLight,
+                            net.creeperhost.minetogethercommunity.cosmetic.tail.TailPose.none(),
+                            hat.animation().pose(state.ageInTicks),
+                            cosmeticState.minetogether$fullBright())
             );
         } else {
             HatModel model = HatRegistry.getModel(hat);
