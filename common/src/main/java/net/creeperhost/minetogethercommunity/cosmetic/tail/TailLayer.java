@@ -10,11 +10,8 @@ import net.minecraft.client.renderer.entity.state.AvatarRenderState;
 import net.minecraft.client.renderer.rendertype.RenderTypes;
 import net.minecraft.util.LightCoordsUtil;
 import net.minecraft.util.Mth;
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 
 public class TailLayer extends RenderLayer<AvatarRenderState, PlayerModel> {
-    private static final Logger LOGGER = LogManager.getLogger();
 
     public TailLayer(RenderLayerParent<AvatarRenderState, PlayerModel> renderer) {
         super(renderer);
@@ -29,12 +26,8 @@ public class TailLayer extends RenderLayer<AvatarRenderState, PlayerModel> {
         if (tailId.isEmpty()) return;
 
         Tail tail = TailRegistry.getLoaded(tailId);
-        if (tail == null) {
-            LOGGER.debug("[TailLayer] tailId='{}' not yet loaded", tailId);
-            return;
-        }
+        if (tail == null) return;
 
-        LOGGER.debug("[TailLayer] rendering tail='{}' elements={}", tailId, tail.elements().size());
         poseStack.pushPose();
 
         getParentModel().body.translateAndRotate(poseStack);
