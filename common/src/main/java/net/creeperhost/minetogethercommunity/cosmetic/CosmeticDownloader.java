@@ -14,6 +14,7 @@ import net.creeperhost.minetogethercommunity.cosmetic.hat.Hat;
 import net.creeperhost.minetogethercommunity.cosmetic.hat.HatAnimation;
 import net.creeperhost.minetogethercommunity.cosmetic.hat.HatModelType;
 import net.creeperhost.minetogethercommunity.cosmetic.tail.Tail;
+import net.creeperhost.minetogethercommunity.cosmetic.tail.TailAnimation;
 import net.creeperhost.minetogethercommunity.cosmetic.tail.TailModel;
 import net.creeperhost.minetogethercommunity.cosmetic.tail.TailModelParser;
 import net.creeperhost.minetogethercommunity.cosmetic.wing.Wing;
@@ -573,17 +574,24 @@ public class CosmeticDownloader {
         List<String> files = fetchAndCacheFiles(CDN_BASE_URL + "/tail/" + id, itemDir);
 
         String jsonFile = files.stream()
-                .filter(f -> f.toLowerCase().endsWith(".json"))
+                .filter(f -> f.toLowerCase(Locale.ROOT).endsWith(".json"))
+                .filter(f -> !"metadata.json".equalsIgnoreCase(f))
+                .filter(f -> !"animation.json".equalsIgnoreCase(f))
                 .findFirst()
-                .orElseThrow(() -> new IOException("No .json file in metadata for tail '" + id + "'"));
+                .orElseThrow(() -> new IOException("No model .json file in metadata for tail '" + id + "'"));
 
         String pngFile = files.stream()
-                .filter(f -> f.toLowerCase().endsWith(".png"))
+                .filter(f -> f.toLowerCase(Locale.ROOT).endsWith(".png"))
                 .findFirst()
                 .orElseThrow(() -> new IOException("No .png file in metadata for tail '" + id + "'"));
+        String animationFile = files.stream()
+                .filter(f -> "animation.json".equalsIgnoreCase(f))
+                .findFirst()
+                .orElse(null);
 
         byte[] jsonData = Files.readAllBytes(itemDir.resolve(jsonFile));
         byte[] pngData  = Files.readAllBytes(itemDir.resolve(pngFile));
+        byte[] animationData = animationFile != null ? Files.readAllBytes(itemDir.resolve(animationFile)) : null;
 
         JsonObject modelRoot = JsonParser.parseReader(new java.io.InputStreamReader(
                 new java.io.ByteArrayInputStream(jsonData), java.nio.charset.StandardCharsets.UTF_8
@@ -592,6 +600,7 @@ public class CosmeticDownloader {
         var elements = net.creeperhost.minetogethercommunity.cosmetic.tail.TailModelParser.parse(modelRoot);
         int texW = modelRoot.has("texture_size") ? modelRoot.getAsJsonArray("texture_size").get(0).getAsInt() : 64;
         int texH = modelRoot.has("texture_size") ? modelRoot.getAsJsonArray("texture_size").get(1).getAsInt() : 32;
+        TailAnimation animation = parseTailAnimation(animationData);
         LOGGER.info("Tail '{}' parsed: {} elements, texSize={}x{}", id, elements.size(), texW, texH);
 
         ResourceLocation location = textureLocation("tail", id);
@@ -604,7 +613,7 @@ public class CosmeticDownloader {
 
                 var model = new net.creeperhost.minetogethercommunity.cosmetic.tail.TailModel(elements, texW, texH);
                 Tail tail = new Tail(id, item.displayName(), item.author(), item.mod(),
-                        item.locked(), item.howToUnlock(), location, texW, texH, elements, model);
+                        item.locked(), item.howToUnlock(), location, texW, texH, elements, model, animation);
                 loadedTails.put(id, tail);
                 loadingAssetIds.remove(assetKey("tail", id));
                 LOGGER.info("Tail asset ready: '{}'", id);
@@ -726,6 +735,19 @@ public class CosmeticDownloader {
         } catch (Exception e) {
             LOGGER.warn("Failed to parse hat animation config; hat will render without animation", e);
             return HatAnimation.NONE;
+        }
+    }
+
+    private TailAnimation parseTailAnimation(@Nullable byte[] animationData) {
+        if (animationData == null || animationData.length == 0) return TailAnimation.NONE;
+        try {
+            JsonObject root = JsonParser.parseReader(new java.io.InputStreamReader(
+                    new java.io.ByteArrayInputStream(animationData), StandardCharsets.UTF_8
+            )).getAsJsonObject();
+            return TailAnimation.fromJson(root);
+        } catch (Exception e) {
+            LOGGER.warn("Failed to parse tail animation config; tail will render without animation", e);
+            return TailAnimation.NONE;
         }
     }
 

@@ -42,39 +42,60 @@ public class TailModel {
         render(poseStack, consumer, packedLight, TailPose.none(), elementPose);
     }
 
-    private void render(PoseStack poseStack, VertexConsumer consumer, int packedLight, TailPose tailPose, TailElementPose elementPose) {
+    public void render(PoseStack poseStack, VertexConsumer consumer, int packedLight, TailPose tailPose, TailElementPose elementPose) {
         PoseStack.Pose pose = poseStack.last();
         if (animatedChain) {
-            renderAnimatedChain(pose, consumer, packedLight, tailPose);
+            renderAnimatedChain(pose, consumer, packedLight, tailPose, elementPose);
             return;
         }
+        TailElementPose combinedPose = combine(elementPose, tailPose);
 
         for (TailElement el : elements) {
             float x0 = el.from()[0], y0 = el.from()[1], z0 = el.from()[2];
             float x1 = el.to()[0], y1 = el.to()[1], z1 = el.to()[2];
 
             if (el.south() != null) emitFace(pose, consumer, packedLight, el.south(),
-                    rotate(el, elementPose, new float[][]{{x0, y0, z1}, {x1, y0, z1}, {x1, y1, z1}, {x0, y1, z1}}),
-                    normal(el, elementPose, 0, 0, 1));
+                    rotate(el, combinedPose, new float[][]{{x0, y0, z1}, {x1, y0, z1}, {x1, y1, z1}, {x0, y1, z1}}),
+                    normal(el, combinedPose, 0, 0, 1));
             if (el.north() != null) emitFace(pose, consumer, packedLight, el.north(),
-                    rotate(el, elementPose, new float[][]{{x1, y0, z0}, {x0, y0, z0}, {x0, y1, z0}, {x1, y1, z0}}),
-                    normal(el, elementPose, 0, 0, -1));
+                    rotate(el, combinedPose, new float[][]{{x1, y0, z0}, {x0, y0, z0}, {x0, y1, z0}, {x1, y1, z0}}),
+                    normal(el, combinedPose, 0, 0, -1));
             if (el.east() != null) emitFace(pose, consumer, packedLight, el.east(),
-                    rotate(el, elementPose, new float[][]{{x1, y0, z1}, {x1, y0, z0}, {x1, y1, z0}, {x1, y1, z1}}),
-                    normal(el, elementPose, 1, 0, 0));
+                    rotate(el, combinedPose, new float[][]{{x1, y0, z1}, {x1, y0, z0}, {x1, y1, z0}, {x1, y1, z1}}),
+                    normal(el, combinedPose, 1, 0, 0));
             if (el.west() != null) emitFace(pose, consumer, packedLight, el.west(),
-                    rotate(el, elementPose, new float[][]{{x0, y0, z0}, {x0, y0, z1}, {x0, y1, z1}, {x0, y1, z0}}),
-                    normal(el, elementPose, -1, 0, 0));
+                    rotate(el, combinedPose, new float[][]{{x0, y0, z0}, {x0, y0, z1}, {x0, y1, z1}, {x0, y1, z0}}),
+                    normal(el, combinedPose, -1, 0, 0));
             if (el.up() != null) emitFace(pose, consumer, packedLight, el.up(),
-                    rotate(el, elementPose, new float[][]{{x0, y1, z1}, {x1, y1, z1}, {x1, y1, z0}, {x0, y1, z0}}),
-                    normal(el, elementPose, 0, 1, 0));
+                    rotate(el, combinedPose, new float[][]{{x0, y1, z1}, {x1, y1, z1}, {x1, y1, z0}, {x0, y1, z0}}),
+                    normal(el, combinedPose, 0, 1, 0));
             if (el.down() != null) emitFace(pose, consumer, packedLight, el.down(),
-                    rotate(el, elementPose, new float[][]{{x0, y0, z0}, {x1, y0, z0}, {x1, y0, z1}, {x0, y0, z1}}),
-                    normal(el, elementPose, 0, -1, 0));
+                    rotate(el, combinedPose, new float[][]{{x0, y0, z0}, {x1, y0, z0}, {x1, y0, z1}, {x0, y0, z1}}),
+                    normal(el, combinedPose, 0, -1, 0));
         }
     }
 
-    private void renderAnimatedChain(PoseStack.Pose pose, VertexConsumer consumer, int packedLight, TailPose tailPose) {
+    private TailElementPose combine(TailElementPose elementPose, TailPose tailPose) {
+        java.util.Map<String, float[]> rotations = new java.util.HashMap<>(elementPose.rotations());
+        for (TailElement element : elements) {
+            int index = animationIndex(element.name());
+            if (index < 0) continue;
+            float x = tailPose.x(index);
+            float y = tailPose.y(index);
+            float z = tailPose.z(index);
+            if (x != 0.0F || y != 0.0F || z != 0.0F) {
+                float[] existing = rotations.get(element.name());
+                rotations.put(element.name(), new float[]{
+                        x + (existing == null ? 0.0F : existing[0]),
+                        y + (existing == null ? 0.0F : existing[1]),
+                        z + (existing == null ? 0.0F : existing[2])
+                });
+            }
+        }
+        return rotations.isEmpty() ? TailElementPose.none() : new TailElementPose(rotations);
+    }
+
+    private void renderAnimatedChain(PoseStack.Pose pose, VertexConsumer consumer, int packedLight, TailPose tailPose, TailElementPose elementPose) {
         float[] previousStaticOrigin = null;
         float[] previousDynamicOrigin = null;
         float[] previousStaticAngles = null;
@@ -88,9 +109,9 @@ public class TailModel {
             float[] staticAngles = elementAngles(el, 0.0F, 0.0F, 0.0F);
             float[] dynamicAngles = elementAngles(
                     el,
-                    tailPose.x(animationIndex) * animationScale,
-                    tailPose.y(animationIndex) * animationScale,
-                    tailPose.z(animationIndex) * animationScale
+                    tailPose.x(animationIndex) * animationScale + elementPose.x(el.name()),
+                    tailPose.y(animationIndex) * animationScale + elementPose.y(el.name()),
+                    tailPose.z(animationIndex) * animationScale + elementPose.z(el.name())
             );
             float[] dynamicOrigin = dynamicOrigin(
                     staticOrigin, previousStaticOrigin, previousDynamicOrigin, previousStaticAngles, previousDynamicAngles);
@@ -195,7 +216,8 @@ public class TailModel {
         for (TailElement element : elements) {
             String name = element.name();
             if ("tail1".equals(name)) hasTail1 = true;
-            if (!"tailBase".equals(name) && !"tailTip".equals(name) && !isTailSegment(name)) return false;
+            if (!"tailBase".equals(name) && !"tailTip".equals(name) && !"tailSubBase".equals(name)
+                    && !isTailSegment(name) && !isTailSubSegment(name)) return false;
         }
         return hasTail1;
     }
@@ -206,6 +228,14 @@ public class TailModel {
             if (!Character.isDigit(name.charAt(i))) return false;
         }
         return name.length() > 4;
+    }
+
+    private boolean isTailSubSegment(String name) {
+        if (!name.startsWith("tailSub")) return false;
+        for (int i = 7; i < name.length(); i++) {
+            if (!Character.isDigit(name.charAt(i))) return false;
+        }
+        return name.length() > 7;
     }
 
     private int tailTipAnimationIndex(List<TailElement> elements) {
@@ -223,13 +253,15 @@ public class TailModel {
 
     private int animationIndex(String name) {
         if ("tailBase".equals(name)) return 0;
+        if ("tailSubBase".equals(name)) return 0;
         if ("tailTip".equals(name)) return tailTipAnimationIndex;
         return segmentIndex(name);
     }
 
     private int segmentIndex(String name) {
-        if (!isTailSegment(name)) return -1;
-        return Integer.parseInt(name.substring(4));
+        if (isTailSegment(name)) return Integer.parseInt(name.substring(4));
+        if (isTailSubSegment(name)) return Integer.parseInt(name.substring(7));
+        return -1;
     }
 
     private float[] elementOrigin(TailElement element) {

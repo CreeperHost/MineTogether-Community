@@ -16,5 +16,6 @@ public record Tail(
         int texWidth,
         int texHeight,
         List<TailElement> elements,
-        TailModel model
+        TailModel model,
+        TailAnimation animation
 ) {}
