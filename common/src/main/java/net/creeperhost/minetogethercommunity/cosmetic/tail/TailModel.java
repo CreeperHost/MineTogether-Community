@@ -4,8 +4,6 @@ import com.mojang.blaze3d.vertex.PoseStack;
 import com.mojang.blaze3d.vertex.VertexConsumer;
 import net.creeperhost.minetogethercommunity.cosmetic.CosmeticSelections;
 import net.minecraft.client.renderer.texture.OverlayTexture;
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 import org.joml.Vector3f;
 
 import java.util.List;
@@ -16,15 +14,12 @@ import java.util.List;
  */
 public class TailModel {
 
-    private static final Logger LOGGER = LogManager.getLogger();
-
     private final List<TailElement> elements;
     private final float texW;
     private final float texH;
     private final boolean animatedChain;
     private final int tailTipAnimationIndex;
     private final float animationScale;
-    private boolean loggedOnce = false;
 
     public TailModel(List<TailElement> elements, float texWidth, float texHeight) {
         this.elements = elements;
@@ -40,16 +35,6 @@ public class TailModel {
     }
 
     public void render(PoseStack poseStack, VertexConsumer consumer, int packedLight, TailPose tailPose) {
-        if (!loggedOnce) {
-            loggedOnce = true;
-            LOGGER.info("[TailModel] render called: {} elements, texSize={}x{}", elements.size(), (int) texW, (int) texH);
-            for (TailElement el : elements) {
-                LOGGER.info("[TailModel]   '{}' from=[{},{},{}] to=[{},{},{}]",
-                        el.name(), el.from()[0], el.from()[1], el.from()[2],
-                        el.to()[0], el.to()[1], el.to()[2]);
-            }
-        }
-
         PoseStack.Pose pose = poseStack.last();
         if (animatedChain) {
             renderAnimatedChain(pose, consumer, packedLight, tailPose);
