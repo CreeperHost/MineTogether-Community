@@ -173,10 +173,19 @@ public class EmotePlayer {
         float leftLegYawWave = wave * animation.waveLeftLegYawAmplitudeDegrees();
         float rightLegRollWave = wave * animation.waveRightLegRollAmplitudeDegrees();
         float leftLegRollWave = wave * animation.waveLeftLegRollAmplitudeDegrees();
+        float headPitchWave = wave * animation.waveHeadPitchAmplitudeDegrees();
+        float headYawWave = wave * animation.waveHeadYawAmplitudeDegrees();
+        float headRollWave = wave * animation.waveHeadRollAmplitudeDegrees();
+        float bodyPitchWave = wave * animation.waveBodyPitchAmplitudeDegrees();
         float bodyYawWave = wave * animation.waveBodyYawAmplitudeDegrees();
         float bodyRollWave = wave * animation.waveBodyRollAmplitudeDegrees();
         float progress = Math.max(0.0F, Math.min(1.0F, elapsed / Math.max(1.0F, animation.durationTicks())));
-        float renderPitch = animation.renderPitchDegrees() + progress * animation.wavePitchSpinDegrees();
+        float renderPitch = animation.renderPitchDegrees() + progress * animation.wavePitchSpinDegrees()
+                + wave * animation.waveRenderPitchAmplitudeDegrees();
+        float renderYaw = animation.renderYawDegrees() + progress * animation.waveYawSpinDegrees()
+                + wave * animation.waveRenderYawAmplitudeDegrees();
+        float renderRoll = animation.renderRollDegrees() + progress * animation.waveRollSpinDegrees()
+                + wave * animation.waveRenderRollAmplitudeDegrees();
         float translateYArc = (float) Math.sin(progress * Math.PI) * animation.waveTranslateYAmplitude();
         return new Pose(
                 radians(animation.rightArmPitchDegrees() + rightArmPitchWave),
@@ -191,14 +200,16 @@ public class EmotePlayer {
                 radians(animation.leftLegPitchDegrees() + leftLegPitchWave),
                 radians(animation.leftLegYawDegrees() + leftLegYawWave),
                 radians(animation.leftLegRollDegrees() + leftLegRollWave),
-                radians(animation.headPitchDegrees()),
-                radians(animation.headYawDegrees()),
-                radians(animation.headRollDegrees()),
-                radians(animation.bodyPitchDegrees()),
+                radians(animation.headPitchDegrees() + headPitchWave),
+                radians(animation.headYawDegrees() + headYawWave),
+                radians(animation.headRollDegrees() + headRollWave),
+                radians(animation.bodyPitchDegrees() + bodyPitchWave),
                 radians(animation.bodyYawDegrees() + bodyYawWave),
                 radians(animation.bodyRollDegrees() + bodyRollWave),
                 animation.translateY() + translateYArc,
                 radians(renderPitch),
+                radians(renderYaw),
+                radians(renderRoll),
                 weight,
                 animation.lockBody()
         );
@@ -222,6 +233,16 @@ public class EmotePlayer {
     public static float renderPitch(AbstractClientPlayer player, float ageInTicks) {
         Pose pose = poseFor(player, ageInTicks);
         return pose == null ? 0.0F : pose.renderPitch();
+    }
+
+    public static float renderYaw(AbstractClientPlayer player, float ageInTicks) {
+        Pose pose = poseFor(player, ageInTicks);
+        return pose == null ? 0.0F : pose.renderYaw();
+    }
+
+    public static float renderRoll(AbstractClientPlayer player, float ageInTicks) {
+        Pose pose = poseFor(player, ageInTicks);
+        return pose == null ? 0.0F : pose.renderRoll();
     }
 
     private record ActiveEmote(Emote emote, int startTick) {
@@ -256,6 +277,8 @@ public class EmotePlayer {
             float bodyRoll,
             float translateY,
             float renderPitch,
+            float renderYaw,
+            float renderRoll,
             float weight,
             boolean lockBody
     ) {

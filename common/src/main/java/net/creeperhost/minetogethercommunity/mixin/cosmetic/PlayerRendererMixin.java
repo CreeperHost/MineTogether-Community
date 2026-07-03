@@ -45,7 +45,6 @@ public abstract class PlayerRendererMixin {
         } else {
             selections = PlayerCosmeticCache.get(entity.getUUID());
         }
-
         MineTogetherCosmeticRenderState cosmeticState = (MineTogetherCosmeticRenderState) state;
         if (selections == null) {
             cosmeticState.minetogether$setCosmetics("", "", "", "", false, false);
