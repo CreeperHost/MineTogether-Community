@@ -4,6 +4,7 @@ import com.mojang.blaze3d.platform.InputConstants;
 import net.creeperhost.minetogethercommunity.chat.gui.FriendChatGui;
 import net.creeperhost.minetogethercommunity.chat.gui.PublicChatGui;
 import net.creeperhost.minetogethercommunity.cosmetic.CosmeticDownloader;
+import net.creeperhost.minetogethercommunity.cosmetic.CosmeticsGui;
 import net.creeperhost.minetogethercommunity.cosmetic.emote.EmoteFavorites;
 import net.creeperhost.minetogethercommunity.cosmetic.emote.EmotePlayer;
 import net.creeperhost.minetogethercommunity.cosmetic.emote.EmoteRadialScreen;
@@ -12,6 +13,7 @@ import net.creeperhost.polylib.event.events.client.PolyClientTickEvents;
 import net.minecraft.client.KeyMapping;
 import net.minecraft.client.Minecraft;
 import net.minecraft.resources.Identifier;
+import org.lwjgl.glfw.GLFW;
 
 import java.util.List;
 
@@ -25,6 +27,7 @@ public class Keybindings {
     public static final KeyMapping OPEN_FRIEND_CHAT = new KeyMapping("minetogether:keybind.friend_chat", InputConstants.Type.KEYSYM, InputConstants.UNKNOWN.getValue(), CATEGORY);
     public static final KeyMapping OPEN_GLOBAL_CHAT = new KeyMapping("minetogether:keybind.global_chat", InputConstants.Type.KEYSYM, InputConstants.UNKNOWN.getValue(), CATEGORY);
     public static final KeyMapping OPEN_SETTINGS = new KeyMapping("minetogether:keybind.settings", InputConstants.Type.KEYSYM, InputConstants.UNKNOWN.getValue(), CATEGORY);
+    public static final KeyMapping OPEN_COSMETICS = new KeyMapping("minetogether:keybind.cosmetics", InputConstants.Type.KEYSYM, GLFW.GLFW_KEY_C, CATEGORY);
     public static final KeyMapping OPEN_EMOTES = new KeyMapping("minetogether:keybind.emotes", InputConstants.Type.KEYSYM, InputConstants.UNKNOWN.getValue(), CATEGORY);
     public static final KeyMapping[] PLAY_FAVORITE_EMOTES = createFavoriteEmoteMappings();
 
@@ -32,6 +35,7 @@ public class Keybindings {
         MineTogetherPlatform.registerKeyMapping(OPEN_FRIEND_CHAT);
         MineTogetherPlatform.registerKeyMapping(OPEN_GLOBAL_CHAT);
         MineTogetherPlatform.registerKeyMapping(OPEN_SETTINGS);
+        MineTogetherPlatform.registerKeyMapping(OPEN_COSMETICS);
         MineTogetherPlatform.registerKeyMapping(OPEN_EMOTES);
         for (KeyMapping mapping : PLAY_FAVORITE_EMOTES) {
             MineTogetherPlatform.registerKeyMapping(mapping);
@@ -46,6 +50,8 @@ public class Keybindings {
             mc.setScreen(new PublicChatGui.Screen(null));
         } else if (OPEN_SETTINGS.consumeClick()) {
             mc.setScreen(new SettingGui.Screen(null));
+        } else if (OPEN_COSMETICS.consumeClick()) {
+            mc.setScreen(new CosmeticsGui.Screen(null));
         } else if (OPEN_EMOTES.consumeClick()) {
             mc.setScreen(new EmoteRadialScreen());
         }
