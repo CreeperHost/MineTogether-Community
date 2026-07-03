@@ -8,7 +8,7 @@ import dev.architectury.networking.simple.SimpleNetworkManager;
 import net.creeperhost.minetogethercommunity.MineTogether;
 import net.creeperhost.minetogethercommunity.cosmetic.CosmeticDownloader;
 import net.minecraft.client.Minecraft;
-import net.minecraft.network.RegistryFriendlyByteBuf;
+import net.minecraft.network.FriendlyByteBuf;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.entity.player.Player;
 import org.apache.logging.log4j.LogManager;
@@ -60,7 +60,7 @@ public class EmoteNetworking {
             this.emoteId = emoteId;
         }
 
-        private StartEmoteC2S(RegistryFriendlyByteBuf buf) {
+        private StartEmoteC2S(FriendlyByteBuf buf) {
             this.emoteId = buf.readUtf(MAX_EMOTE_ID_LENGTH);
         }
 
@@ -70,7 +70,7 @@ public class EmoteNetworking {
         }
 
         @Override
-        public void write(RegistryFriendlyByteBuf buf) {
+        public void write(FriendlyByteBuf buf) {
             buf.writeUtf(emoteId, MAX_EMOTE_ID_LENGTH);
         }
 
@@ -98,7 +98,7 @@ public class EmoteNetworking {
             this.emoteId = emoteId;
         }
 
-        private StartEmoteS2C(RegistryFriendlyByteBuf buf) {
+        private StartEmoteS2C(FriendlyByteBuf buf) {
             this.playerId = buf.readUUID();
             this.emoteId = buf.readUtf(MAX_EMOTE_ID_LENGTH);
         }
@@ -109,7 +109,7 @@ public class EmoteNetworking {
         }
 
         @Override
-        public void write(RegistryFriendlyByteBuf buf) {
+        public void write(FriendlyByteBuf buf) {
             buf.writeUUID(playerId);
             buf.writeUtf(emoteId, MAX_EMOTE_ID_LENGTH);
         }
@@ -128,7 +128,7 @@ public class EmoteNetworking {
         private StopEmoteC2S() {
         }
 
-        private StopEmoteC2S(RegistryFriendlyByteBuf buf) {
+        private StopEmoteC2S(FriendlyByteBuf buf) {
         }
 
         @Override
@@ -137,7 +137,7 @@ public class EmoteNetworking {
         }
 
         @Override
-        public void write(RegistryFriendlyByteBuf buf) {
+        public void write(FriendlyByteBuf buf) {
         }
 
         @Override
@@ -161,7 +161,7 @@ public class EmoteNetworking {
             this.playerId = playerId;
         }
 
-        private StopEmoteS2C(RegistryFriendlyByteBuf buf) {
+        private StopEmoteS2C(FriendlyByteBuf buf) {
             this.playerId = buf.readUUID();
         }
 
@@ -171,7 +171,7 @@ public class EmoteNetworking {
         }
 
         @Override
-        public void write(RegistryFriendlyByteBuf buf) {
+        public void write(FriendlyByteBuf buf) {
             buf.writeUUID(playerId);
         }
 

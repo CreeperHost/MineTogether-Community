@@ -50,7 +50,7 @@ public class EmoteRadialScreen extends Screen {
 
     @Override
     public void render(GuiGraphics graphics, int mouseX, int mouseY, float partialTick) {
-        renderBackground(graphics, mouseX, mouseY, partialTick);
+        renderBackground(graphics);
 
         int centerX = width / 2;
         int centerY = height / 2;
@@ -139,13 +139,14 @@ public class EmoteRadialScreen extends Screen {
         RenderSystem.enableBlend();
         RenderSystem.defaultBlendFunc();
         RenderSystem.setShader(GameRenderer::getPositionColorShader);
-        BufferBuilder buffer = Tesselator.getInstance().begin(VertexFormat.Mode.TRIANGLE_STRIP, DefaultVertexFormat.POSITION_COLOR);
+        BufferBuilder buffer = Tesselator.getInstance().getBuilder();
+        buffer.begin(VertexFormat.Mode.TRIANGLE_STRIP, DefaultVertexFormat.POSITION_COLOR);
         for (int i = 0; i <= ARC_STEPS; i++) {
             double angle = start + (end - start) * i / ARC_STEPS;
             addPolarVertex(buffer, matrix, centerX, centerY, outerRadius, angle, color);
             addPolarVertex(buffer, matrix, centerX, centerY, innerRadius, angle, color);
         }
-        BufferUploader.drawWithShader(buffer.build());
+        BufferUploader.drawWithShader(buffer.end());
     }
 
     private void drawSectorEdge(GuiGraphics graphics, int centerX, int centerY, int innerRadius, int outerRadius,
@@ -164,13 +165,14 @@ public class EmoteRadialScreen extends Screen {
         RenderSystem.enableBlend();
         RenderSystem.defaultBlendFunc();
         RenderSystem.setShader(GameRenderer::getPositionColorShader);
-        BufferBuilder buffer = Tesselator.getInstance().begin(VertexFormat.Mode.TRIANGLE_FAN, DefaultVertexFormat.POSITION_COLOR);
+        BufferBuilder buffer = Tesselator.getInstance().getBuilder();
+        buffer.begin(VertexFormat.Mode.TRIANGLE_FAN, DefaultVertexFormat.POSITION_COLOR);
         addVertex(buffer, matrix, centerX, centerY, color);
         for (int i = 0; i <= steps; i++) {
             double angle = Math.PI * 2.0D * i / steps;
             addPolarVertex(buffer, matrix, centerX, centerY, radius, angle, color);
         }
-        BufferUploader.drawWithShader(buffer.build());
+        BufferUploader.drawWithShader(buffer.end());
     }
 
     private void drawRing(GuiGraphics graphics, int centerX, int centerY, int innerRadius, int outerRadius, int color) {
@@ -178,14 +180,15 @@ public class EmoteRadialScreen extends Screen {
         RenderSystem.enableBlend();
         RenderSystem.defaultBlendFunc();
         RenderSystem.setShader(GameRenderer::getPositionColorShader);
-        BufferBuilder buffer = Tesselator.getInstance().begin(VertexFormat.Mode.TRIANGLE_STRIP, DefaultVertexFormat.POSITION_COLOR);
+        BufferBuilder buffer = Tesselator.getInstance().getBuilder();
+        buffer.begin(VertexFormat.Mode.TRIANGLE_STRIP, DefaultVertexFormat.POSITION_COLOR);
         int steps = 48;
         for (int i = 0; i <= steps; i++) {
             double angle = Math.PI * 2.0D * i / steps;
             addPolarVertex(buffer, matrix, centerX, centerY, outerRadius, angle, color);
             addPolarVertex(buffer, matrix, centerX, centerY, innerRadius, angle, color);
         }
-        BufferUploader.drawWithShader(buffer.build());
+        BufferUploader.drawWithShader(buffer.end());
     }
 
     private void drawLine(GuiGraphics graphics, int x1, int y1, int x2, int y2, int color) {
@@ -199,12 +202,13 @@ public class EmoteRadialScreen extends Screen {
         RenderSystem.enableBlend();
         RenderSystem.defaultBlendFunc();
         RenderSystem.setShader(GameRenderer::getPositionColorShader);
-        BufferBuilder buffer = Tesselator.getInstance().begin(VertexFormat.Mode.QUADS, DefaultVertexFormat.POSITION_COLOR);
+        BufferBuilder buffer = Tesselator.getInstance().getBuilder();
+        buffer.begin(VertexFormat.Mode.QUADS, DefaultVertexFormat.POSITION_COLOR);
         addVertex(buffer, matrix, x1 + nx, y1 + ny, color);
         addVertex(buffer, matrix, x2 + nx, y2 + ny, color);
         addVertex(buffer, matrix, x2 - nx, y2 - ny, color);
         addVertex(buffer, matrix, x1 - nx, y1 - ny, color);
-        BufferUploader.drawWithShader(buffer.build());
+        BufferUploader.drawWithShader(buffer.end());
     }
 
     private void addPolarVertex(BufferBuilder buffer, Matrix4f matrix, int centerX, int centerY, int radius, double angle, int color) {
@@ -218,7 +222,11 @@ public class EmoteRadialScreen extends Screen {
     }
 
     private void addVertex(BufferBuilder buffer, Matrix4f matrix, float x, float y, int color) {
-        buffer.addVertex(matrix, x, y, 0.0F).setColor(color);
+        int alpha = color >>> 24 & 255;
+        int red = color >>> 16 & 255;
+        int green = color >>> 8 & 255;
+        int blue = color & 255;
+        buffer.vertex(matrix, x, y, 0.0F).color(red, green, blue, alpha).endVertex();
     }
 
     private String trimLabel(String label) {
