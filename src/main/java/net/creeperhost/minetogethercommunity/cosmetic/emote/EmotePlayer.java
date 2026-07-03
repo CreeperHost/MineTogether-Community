@@ -33,21 +33,21 @@ public final class EmotePlayer {
 
     private static void playLocal(final String emoteId, boolean retryIfLoading) {
         Minecraft mc = Minecraft.getMinecraft();
-        if (mc.player == null) return;
+        if (mc.thePlayer == null) return;
         Emote emote = EmoteRegistry.getLoaded(emoteId);
         if (emote == null && retryIfLoading) {
             retryPlayLocal(emoteId);
             return;
         }
         if (emote == null || !emote.type().isAvailable()) return;
-        UUID playerId = mc.player.getUniqueID();
+        UUID playerId = mc.thePlayer.getUniqueID();
         ActiveEmote active = ACTIVE.get(playerId);
         if (active != null && active.emote.id().equals(emote.id()) && emote.toggle()) {
             ACTIVE.remove(playerId);
             EmoteNetworking.tryBroadcastStop();
             return;
         }
-        ACTIVE.put(playerId, new ActiveEmote(emote, mc.player.ticksExisted));
+        ACTIVE.put(playerId, new ActiveEmote(emote, mc.thePlayer.ticksExisted));
         EmoteNetworking.tryBroadcastStart(emoteId);
     }
 
@@ -57,7 +57,7 @@ public final class EmotePlayer {
 
     private static void playRemote(final UUID playerId, final String emoteId, boolean retryIfLoading) {
         Minecraft mc = Minecraft.getMinecraft();
-        if (mc.world == null) return;
+        if (mc.theWorld == null) return;
         Emote emote = EmoteRegistry.getLoaded(emoteId);
         if (emote == null && retryIfLoading) {
             retryPlayRemote(playerId, emoteId);
@@ -291,7 +291,7 @@ public final class EmotePlayer {
 
     private static int tickCount() {
         Minecraft mc = Minecraft.getMinecraft();
-        return mc.player != null ? mc.player.ticksExisted : 0;
+        return mc.thePlayer != null ? mc.thePlayer.ticksExisted : 0;
     }
 
     private static void syncWearLayers(ModelPlayer model) {

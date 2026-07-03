@@ -3,8 +3,8 @@ package net.creeperhost.minetogethercommunity.cosmetic.tail;
 import com.google.gson.JsonArray;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
+import net.creeperhost.minetogethercommunity.util.CompatMath;
 import net.minecraft.client.entity.AbstractClientPlayer;
-import net.minecraft.util.math.MathHelper;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -126,8 +126,8 @@ public class TailAnimation {
         float walk = interpolate(player.prevDistanceWalkedModified, player.distanceWalkedModified, partialTicks);
         float bob = interpolate(player.prevCameraYaw, player.cameraYaw, partialTicks);
         float walkPhase = walk * walkPhaseScale;
-        float walkWave = MathHelper.sin(walkPhase) * bob;
-        float walkCounterWave = MathHelper.cos(walkPhase) * bob;
+        float walkWave = CompatMath.sin(walkPhase) * bob;
+        float walkCounterWave = CompatMath.cos(walkPhase) * bob;
 
         float lift;
         float sideLag;
@@ -139,12 +139,12 @@ public class TailAnimation {
             double cloakY = interpolate(player.prevChasingPosY, player.chasingPosY, partialTicks) - interpolate(player.prevPosY, player.posY, partialTicks);
             double cloakZ = interpolate(player.prevChasingPosZ, player.chasingPosZ, partialTicks) - interpolate(player.prevPosZ, player.posZ, partialTicks);
             float bodyYaw = interpolate(player.prevRenderYawOffset, player.renderYawOffset, partialTicks);
-            float sin = MathHelper.sin(bodyYaw * 0.017453292F);
-            float back = -MathHelper.cos(bodyYaw * 0.017453292F);
-            float verticalLag = MathHelper.clamp((float) cloakY * verticalLagScale, verticalLagMin, verticalLagMax);
-            float backwardLag = MathHelper.clamp((float) (cloakX * sin + cloakZ * back) * backwardLagScale, backwardLagMin, backwardLagMax);
-            float sidewaysLag = MathHelper.clamp((float) (cloakX * back - cloakZ * sin) * sidewaysLagScale, sidewaysLagMin, sidewaysLagMax);
-            lift = MathHelper.clamp(backwardLag / liftBackwardDivisor + verticalLag / liftVerticalDivisor, liftMin, liftMax);
+            float sin = CompatMath.sin(bodyYaw * 0.017453292F);
+            float back = -CompatMath.cos(bodyYaw * 0.017453292F);
+            float verticalLag = CompatMath.clamp((float) cloakY * verticalLagScale, verticalLagMin, verticalLagMax);
+            float backwardLag = CompatMath.clamp((float) (cloakX * sin + cloakZ * back) * backwardLagScale, backwardLagMin, backwardLagMax);
+            float sidewaysLag = CompatMath.clamp((float) (cloakX * back - cloakZ * sin) * sidewaysLagScale, sidewaysLagMin, sidewaysLagMax);
+            lift = CompatMath.clamp(backwardLag / liftBackwardDivisor + verticalLag / liftVerticalDivisor, liftMin, liftMax);
             sideLag = sidewaysLag / sideLagDivisor;
         }
 
@@ -153,11 +153,11 @@ public class TailAnimation {
         float[] z = new float[segments];
         for (int i = 0; i < segments; i++) {
             x[i] = lift * value(xLift, i) + walkWave * value(xWalk, i)
-                    + MathHelper.cos(idleSeed - value(xIdleDelay, i)) * value(xIdleCosAmplitude, i);
+                    + CompatMath.cos(idleSeed - value(xIdleDelay, i)) * value(xIdleCosAmplitude, i);
             float delay = i * yDelayStep;
             y[i] = sideLag * (ySideBase + i * ySideStep)
-                    + MathHelper.cos(idleSeed - delay) * yIdleCosAmplitude
-                    + MathHelper.sin(walkPhase - delay) * bob * yWalkAmplitude;
+                    + CompatMath.cos(idleSeed - delay) * yIdleCosAmplitude
+                    + CompatMath.sin(walkPhase - delay) * bob * yWalkAmplitude;
             z[i] = walkCounterWave * value(zWalkCounter, i);
         }
 
