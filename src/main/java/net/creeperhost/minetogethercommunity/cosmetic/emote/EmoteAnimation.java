@@ -14,8 +14,13 @@ public class EmoteAnimation {
             0.0F, 0.0F, 0.0F,
             0.0F,
             0.0F,
+            0.0F,
+            0.0F,
             28.0F, 0.0F, 0.0F, 0.0F, 0.0F, 28.0F, 0.0F,
             0.0F, 0.0F, 0.0F, 0.0F, 0.0F, 0.0F,
+            0.0F, 0.0F, 0.0F, 0.0F,
+            0.0F, 0.0F,
+            0.0F, 0.0F, 0.0F,
             0.0F, 0.0F, 0.0F, 0.0F, 0.62F,
             false
     );
@@ -41,6 +46,8 @@ public class EmoteAnimation {
     private final float bodyRollDegrees;
     private final float translateY;
     private final float renderPitchDegrees;
+    private final float renderYawDegrees;
+    private final float renderRollDegrees;
     private final float waveAmplitudeDegrees;
     private final float waveRightArmPitchAmplitudeDegrees;
     private final float waveLeftArmPitchAmplitudeDegrees;
@@ -54,9 +61,18 @@ public class EmoteAnimation {
     private final float waveLeftLegYawAmplitudeDegrees;
     private final float waveRightLegRollAmplitudeDegrees;
     private final float waveLeftLegRollAmplitudeDegrees;
+    private final float waveHeadPitchAmplitudeDegrees;
+    private final float waveHeadYawAmplitudeDegrees;
+    private final float waveHeadRollAmplitudeDegrees;
+    private final float waveBodyPitchAmplitudeDegrees;
     private final float waveBodyYawAmplitudeDegrees;
     private final float waveBodyRollAmplitudeDegrees;
+    private final float waveRenderPitchAmplitudeDegrees;
+    private final float waveRenderYawAmplitudeDegrees;
+    private final float waveRenderRollAmplitudeDegrees;
     private final float wavePitchSpinDegrees;
+    private final float waveYawSpinDegrees;
+    private final float waveRollSpinDegrees;
     private final float waveTranslateYAmplitude;
     private final float waveSpeed;
     private final boolean lockBody;
@@ -68,15 +84,21 @@ public class EmoteAnimation {
                           float leftLegPitchDegrees, float leftLegYawDegrees, float leftLegRollDegrees,
                           float headPitchDegrees, float headYawDegrees, float headRollDegrees,
                           float bodyPitchDegrees, float bodyYawDegrees, float bodyRollDegrees,
-                          float translateY, float renderPitchDegrees, float waveAmplitudeDegrees,
+                          float translateY, float renderPitchDegrees, float renderYawDegrees, float renderRollDegrees,
+                          float waveAmplitudeDegrees,
                           float waveRightArmPitchAmplitudeDegrees, float waveLeftArmPitchAmplitudeDegrees,
                           float waveRightArmYawAmplitudeDegrees, float waveLeftArmYawAmplitudeDegrees,
                           float waveRightArmRollAmplitudeDegrees, float waveLeftArmRollAmplitudeDegrees,
                           float waveRightLegPitchAmplitudeDegrees, float waveLeftLegPitchAmplitudeDegrees,
                           float waveRightLegYawAmplitudeDegrees, float waveLeftLegYawAmplitudeDegrees,
                           float waveRightLegRollAmplitudeDegrees, float waveLeftLegRollAmplitudeDegrees,
+                          float waveHeadPitchAmplitudeDegrees, float waveHeadYawAmplitudeDegrees,
+                          float waveHeadRollAmplitudeDegrees, float waveBodyPitchAmplitudeDegrees,
                           float waveBodyYawAmplitudeDegrees, float waveBodyRollAmplitudeDegrees,
-                          float wavePitchSpinDegrees, float waveTranslateYAmplitude, float waveSpeed,
+                          float waveRenderPitchAmplitudeDegrees, float waveRenderYawAmplitudeDegrees,
+                          float waveRenderRollAmplitudeDegrees, float wavePitchSpinDegrees,
+                          float waveYawSpinDegrees, float waveRollSpinDegrees,
+                          float waveTranslateYAmplitude, float waveSpeed,
                           boolean lockBody) {
         this.durationTicks = durationTicks;
         this.rightArmPitchDegrees = rightArmPitchDegrees;
@@ -99,6 +121,8 @@ public class EmoteAnimation {
         this.bodyRollDegrees = bodyRollDegrees;
         this.translateY = translateY;
         this.renderPitchDegrees = renderPitchDegrees;
+        this.renderYawDegrees = renderYawDegrees;
+        this.renderRollDegrees = renderRollDegrees;
         this.waveAmplitudeDegrees = waveAmplitudeDegrees;
         this.waveRightArmPitchAmplitudeDegrees = waveRightArmPitchAmplitudeDegrees;
         this.waveLeftArmPitchAmplitudeDegrees = waveLeftArmPitchAmplitudeDegrees;
@@ -112,9 +136,18 @@ public class EmoteAnimation {
         this.waveLeftLegYawAmplitudeDegrees = waveLeftLegYawAmplitudeDegrees;
         this.waveRightLegRollAmplitudeDegrees = waveRightLegRollAmplitudeDegrees;
         this.waveLeftLegRollAmplitudeDegrees = waveLeftLegRollAmplitudeDegrees;
+        this.waveHeadPitchAmplitudeDegrees = waveHeadPitchAmplitudeDegrees;
+        this.waveHeadYawAmplitudeDegrees = waveHeadYawAmplitudeDegrees;
+        this.waveHeadRollAmplitudeDegrees = waveHeadRollAmplitudeDegrees;
+        this.waveBodyPitchAmplitudeDegrees = waveBodyPitchAmplitudeDegrees;
         this.waveBodyYawAmplitudeDegrees = waveBodyYawAmplitudeDegrees;
         this.waveBodyRollAmplitudeDegrees = waveBodyRollAmplitudeDegrees;
+        this.waveRenderPitchAmplitudeDegrees = waveRenderPitchAmplitudeDegrees;
+        this.waveRenderYawAmplitudeDegrees = waveRenderYawAmplitudeDegrees;
+        this.waveRenderRollAmplitudeDegrees = waveRenderRollAmplitudeDegrees;
         this.wavePitchSpinDegrees = wavePitchSpinDegrees;
+        this.waveYawSpinDegrees = waveYawSpinDegrees;
+        this.waveRollSpinDegrees = waveRollSpinDegrees;
         this.waveTranslateYAmplitude = waveTranslateYAmplitude;
         this.waveSpeed = waveSpeed;
         this.lockBody = lockBody;
@@ -151,6 +184,8 @@ public class EmoteAnimation {
                 getFloat(body, "rollDegrees", WAVE.bodyRollDegrees),
                 getFloat(root, "translateY", WAVE.translateY),
                 getFloat(root, "renderPitchDegrees", WAVE.renderPitchDegrees),
+                getFloat(root, "renderYawDegrees", WAVE.renderYawDegrees),
+                getFloat(root, "renderRollDegrees", WAVE.renderRollDegrees),
                 getFloat(wave, "amplitudeDegrees", WAVE.waveAmplitudeDegrees),
                 getFloat(wave, "rightArmPitchAmplitudeDegrees", WAVE.waveRightArmPitchAmplitudeDegrees),
                 getFloat(wave, "leftArmPitchAmplitudeDegrees", WAVE.waveLeftArmPitchAmplitudeDegrees),
@@ -164,9 +199,18 @@ public class EmoteAnimation {
                 getFloat(wave, "leftLegYawAmplitudeDegrees", WAVE.waveLeftLegYawAmplitudeDegrees),
                 getFloat(wave, "rightLegRollAmplitudeDegrees", WAVE.waveRightLegRollAmplitudeDegrees),
                 getFloat(wave, "leftLegRollAmplitudeDegrees", WAVE.waveLeftLegRollAmplitudeDegrees),
+                getFloat(wave, "headPitchAmplitudeDegrees", WAVE.waveHeadPitchAmplitudeDegrees),
+                getFloat(wave, "headYawAmplitudeDegrees", WAVE.waveHeadYawAmplitudeDegrees),
+                getFloat(wave, "headRollAmplitudeDegrees", WAVE.waveHeadRollAmplitudeDegrees),
+                getFloat(wave, "bodyPitchAmplitudeDegrees", WAVE.waveBodyPitchAmplitudeDegrees),
                 getFloat(wave, "bodyYawAmplitudeDegrees", WAVE.waveBodyYawAmplitudeDegrees),
                 getFloat(wave, "bodyRollAmplitudeDegrees", WAVE.waveBodyRollAmplitudeDegrees),
+                getFloat(wave, "renderPitchAmplitudeDegrees", WAVE.waveRenderPitchAmplitudeDegrees),
+                getFloat(wave, "renderYawAmplitudeDegrees", WAVE.waveRenderYawAmplitudeDegrees),
+                getFloat(wave, "renderRollAmplitudeDegrees", WAVE.waveRenderRollAmplitudeDegrees),
                 getFloat(wave, "pitchSpinDegrees", WAVE.wavePitchSpinDegrees),
+                getFloat(wave, "yawSpinDegrees", WAVE.waveYawSpinDegrees),
+                getFloat(wave, "rollSpinDegrees", WAVE.waveRollSpinDegrees),
                 getFloat(wave, "translateYAmplitude", WAVE.waveTranslateYAmplitude),
                 getFloat(wave, "speed", WAVE.waveSpeed),
                 getBoolean(root, "lockBody", WAVE.lockBody)
@@ -194,6 +238,8 @@ public class EmoteAnimation {
     public float bodyRollDegrees() { return bodyRollDegrees; }
     public float translateY() { return translateY; }
     public float renderPitchDegrees() { return renderPitchDegrees; }
+    public float renderYawDegrees() { return renderYawDegrees; }
+    public float renderRollDegrees() { return renderRollDegrees; }
     public float waveRightArmPitchAmplitudeDegrees() { return waveRightArmPitchAmplitudeDegrees; }
     public float waveLeftArmPitchAmplitudeDegrees() { return waveLeftArmPitchAmplitudeDegrees; }
     public float waveRightArmYawAmplitudeDegrees() { return waveRightArmYawAmplitudeDegrees; }
@@ -206,9 +252,18 @@ public class EmoteAnimation {
     public float waveLeftLegYawAmplitudeDegrees() { return waveLeftLegYawAmplitudeDegrees; }
     public float waveRightLegRollAmplitudeDegrees() { return waveRightLegRollAmplitudeDegrees; }
     public float waveLeftLegRollAmplitudeDegrees() { return waveLeftLegRollAmplitudeDegrees; }
+    public float waveHeadPitchAmplitudeDegrees() { return waveHeadPitchAmplitudeDegrees; }
+    public float waveHeadYawAmplitudeDegrees() { return waveHeadYawAmplitudeDegrees; }
+    public float waveHeadRollAmplitudeDegrees() { return waveHeadRollAmplitudeDegrees; }
+    public float waveBodyPitchAmplitudeDegrees() { return waveBodyPitchAmplitudeDegrees; }
     public float waveBodyYawAmplitudeDegrees() { return waveBodyYawAmplitudeDegrees; }
     public float waveBodyRollAmplitudeDegrees() { return waveBodyRollAmplitudeDegrees; }
+    public float waveRenderPitchAmplitudeDegrees() { return waveRenderPitchAmplitudeDegrees; }
+    public float waveRenderYawAmplitudeDegrees() { return waveRenderYawAmplitudeDegrees; }
+    public float waveRenderRollAmplitudeDegrees() { return waveRenderRollAmplitudeDegrees; }
     public float wavePitchSpinDegrees() { return wavePitchSpinDegrees; }
+    public float waveYawSpinDegrees() { return waveYawSpinDegrees; }
+    public float waveRollSpinDegrees() { return waveRollSpinDegrees; }
     public float waveTranslateYAmplitude() { return waveTranslateYAmplitude; }
     public float waveSpeed() { return waveSpeed; }
     public boolean lockBody() { return lockBody; }
