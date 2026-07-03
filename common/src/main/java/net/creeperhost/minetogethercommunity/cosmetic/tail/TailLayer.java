@@ -1,6 +1,7 @@
 package net.creeperhost.minetogethercommunity.cosmetic.tail;
 
 import com.mojang.blaze3d.vertex.PoseStack;
+import net.creeperhost.minetogethercommunity.cosmetic.CosmeticPreviewTime;
 import net.creeperhost.minetogethercommunity.cosmetic.CosmeticSelections;
 import net.creeperhost.minetogethercommunity.cosmetic.PlayerCosmeticCache;
 import net.minecraft.client.Minecraft;
@@ -46,8 +47,9 @@ public class TailLayer<T extends AbstractClientPlayer> extends RenderLayer<T, Pl
         // z: start tail at body back face z=2 → +2.
         poseStack.translate(-8.0F / 16.0F, 2.0F / 16.0F, 2.0F / 16.0F);
 
-        TailPose tailPose = tail.animation().pose(player, partialTicks, ageInTicks);
-        TailElementPose elementPose = tail.animation().elementPose(ageInTicks);
+        float animationAge = CosmeticPreviewTime.ageInTicks(ageInTicks);
+        TailPose tailPose = tail.animation().pose(player, partialTicks, animationAge);
+        TailElementPose elementPose = tail.animation().elementPose(animationAge);
         int renderLight = CosmeticSelections.instance().fullBrightPreview ? LightTexture.FULL_BRIGHT : packedLight;
         tail.model().render(poseStack, bufferSource.getBuffer(RenderType.entityCutoutNoCull(tail.texture())), renderLight, tailPose, elementPose);
 
