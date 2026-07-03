@@ -2,6 +2,7 @@ package net.creeperhost.minetogethercommunity.cosmetic.wing;
 
 import com.mojang.blaze3d.vertex.PoseStack;
 import com.mojang.math.Axis;
+import net.creeperhost.minetogethercommunity.cosmetic.CosmeticPreviewTime;
 import net.creeperhost.minetogethercommunity.cosmetic.CosmeticSelections;
 import net.creeperhost.minetogethercommunity.cosmetic.PlayerCosmeticCache;
 import net.minecraft.client.Minecraft;
@@ -41,7 +42,8 @@ public class WingLayer<T extends AbstractClientPlayer> extends RenderLayer<T, Pl
         WingAnimation animation = wing.animation();
         float speed = flying ? animation.flyingSpeed() : animation.idleSpeed();
         float flapDegrees = flying ? animation.flyingFlapDegrees() : animation.idleFlapDegrees();
-        float flap = Mth.sin(ageInTicks * speed) * flapDegrees;
+        float animationAge = CosmeticPreviewTime.ageInTicks(ageInTicks);
+        float flap = Mth.sin(animationAge * speed) * flapDegrees;
         int renderLight = CosmeticSelections.instance().fullBrightPreview ? LightTexture.FULL_BRIGHT : packedLight;
 
         poseStack.pushPose();

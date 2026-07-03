@@ -2,6 +2,7 @@ package net.creeperhost.minetogethercommunity.cosmetic.hat;
 
 import com.mojang.blaze3d.vertex.PoseStack;
 import com.mojang.math.Axis;
+import net.creeperhost.minetogethercommunity.cosmetic.CosmeticPreviewTime;
 import net.creeperhost.minetogethercommunity.cosmetic.CosmeticSelections;
 import net.creeperhost.minetogethercommunity.cosmetic.PlayerCosmeticCache;
 import net.minecraft.client.Minecraft;
@@ -39,13 +40,14 @@ public class HatLayer<T extends AbstractClientPlayer> extends RenderLayer<T, Pla
         Hat hat = HatRegistry.getLoaded(hatId);
         if (hat == null) return;
         int renderLight = CosmeticSelections.instance().fullBrightPreview ? LightTexture.FULL_BRIGHT : packedLight;
+        float animationAge = CosmeticPreviewTime.ageInTicks(ageInTicks);
 
         poseStack.pushPose();
         getParentModel().head.translateAndRotate(poseStack);
         if (hat.isJsonModel() && hat.jsonModel() != null) {
             poseStack.scale(1.01F, 1.01F, 1.01F);
             poseStack.translate(-8.0F / 16.0F, -16.0F / 16.0F, -8.0F / 16.0F);
-            hat.jsonModel().render(poseStack, bufferSource.getBuffer(RenderType.entityCutoutNoCull(hat.texture())), renderLight, hat.animation().pose(ageInTicks));
+            hat.jsonModel().render(poseStack, bufferSource.getBuffer(RenderType.entityCutoutNoCull(hat.texture())), renderLight, hat.animation().pose(animationAge));
         } else {
             poseStack.scale(1.01f, 1.01f, 1.01f);
             poseStack.translate(0.0D, -1.5D, 0.0D);

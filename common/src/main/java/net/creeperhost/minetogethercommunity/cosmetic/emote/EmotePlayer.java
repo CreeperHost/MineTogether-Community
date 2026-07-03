@@ -1,5 +1,6 @@
 package net.creeperhost.minetogethercommunity.cosmetic.emote;
 
+import net.creeperhost.minetogethercommunity.cosmetic.CosmeticPreviewTime;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.player.AbstractClientPlayer;
 import org.jetbrains.annotations.Nullable;
@@ -12,6 +13,7 @@ public class EmotePlayer {
 
     private static final Map<UUID, ActiveEmote> ACTIVE = new ConcurrentHashMap<>();
     private static final ThreadLocal<PreviewEmote> PREVIEW = new ThreadLocal<>();
+    private static final ThreadLocal<Boolean> SUPPRESS_POSE = ThreadLocal.withInitial(() -> false);
     private static final int LOAD_RETRY_ATTEMPTS = 20;
     private static final double CANCEL_MOVE_THRESHOLD_SQR = 0.0001D;
 
@@ -97,12 +99,16 @@ public class EmotePlayer {
     }
 
     public static void withPreviewPose(String emoteId, Runnable render) {
+        withPreviewPose(emoteId, Float.NaN, render);
+    }
+
+    public static void withPreviewPose(String emoteId, float frozenTick, Runnable render) {
         Emote emote = EmoteRegistry.getLoaded(emoteId);
         if (emote == null || !emote.type().isAvailable()) {
             render.run();
             return;
         }
-        PREVIEW.set(new PreviewEmote(emote, System.currentTimeMillis()));
+        PREVIEW.set(new PreviewEmote(emote, System.currentTimeMillis(), frozenTick));
         try {
             render.run();
         } finally {
@@ -110,12 +116,26 @@ public class EmotePlayer {
         }
     }
 
+    public static void withoutPose(Runnable render) {
+        boolean previous = SUPPRESS_POSE.get();
+        SUPPRESS_POSE.set(true);
+        try {
+            render.run();
+        } finally {
+            SUPPRESS_POSE.set(previous);
+        }
+    }
+
     public static @Nullable Pose poseFor(AbstractClientPlayer player, float ageInTicks) {
         PreviewEmote preview = PREVIEW.get();
         if (preview != null) {
-            float elapsed = ((System.currentTimeMillis() - preview.startMillis) / 50.0F) % Math.max(1, preview.emote.animation().durationTicks());
+            float duration = Math.max(1, preview.emote().animation().durationTicks());
+            float elapsed = Float.isNaN(preview.frozenTick())
+                    ? CosmeticPreviewTime.currentAgeInTicks() % duration
+                    : preview.frozenTick();
             return poseFrom(preview.emote.animation(), elapsed, false);
         }
+        if (SUPPRESS_POSE.get()) return null;
 
         ActiveEmote active = ACTIVE.get(player.getUUID());
         if (active == null) return null;
@@ -212,7 +232,7 @@ public class EmotePlayer {
         return mc.player != null ? mc.player.tickCount : 0;
     }
 
-    private record PreviewEmote(Emote emote, long startMillis) {
+    private record PreviewEmote(Emote emote, long startMillis, float frozenTick) {
     }
 
     public record Pose(

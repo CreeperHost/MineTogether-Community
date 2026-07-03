@@ -188,6 +188,38 @@ public class CosmeticDownloader {
         t.start();
     }
 
+    /**
+     * Development helper used by the cosmetics screen refresh button. This keeps the remote
+     * catalog intact, but clears loaded assets and re-reads local metadata/model files on the
+     * next {@link #ensureAssetLoaded(String, String)} call.
+     */
+    public synchronized void reloadLocalAssetsForDev() {
+        if (!Platform.isDevelopmentEnvironment()) return;
+
+        loadingAssetIds.clear();
+        failedAssetIds.clear();
+        loadedHats.clear();
+        loadedCapes.clear();
+        loadedTails.clear();
+        loadedWings.clear();
+        loadedEmotes.clear();
+
+        removeLocalCatalogEntries(hatCatalogList, hatCatalogById);
+        removeLocalCatalogEntries(tailCatalogList, tailCatalogById);
+        removeLocalCatalogEntries(wingCatalogList, wingCatalogById);
+        removeLocalCatalogEntries(emoteCatalogList, emoteCatalogById);
+
+        try {
+            loadLocalHatCatalog();
+            loadLocalTailCatalog();
+            loadLocalWingCatalog();
+            loadLocalEmoteCatalog();
+            LOGGER.info("Reloaded local cosmetic assets for development");
+        } catch (Exception e) {
+            LOGGER.error("Failed to reload local cosmetic assets", e);
+        }
+    }
+
     // -- Catalog accessors ------------------------------------------------------
 
     public List<CosmeticItem> getHatCatalog() {
@@ -430,6 +462,14 @@ public class CosmeticDownloader {
     }
 
     // -- Internal: on-demand asset download ------------------------------------
+
+    private void removeLocalCatalogEntries(List<CosmeticItem> catalogList, ConcurrentHashMap<String, CosmeticItem> catalogById) {
+        catalogList.removeIf(item -> {
+            if (!"local".equals(item.mod())) return false;
+            catalogById.remove(item.id(), item);
+            return true;
+        });
+    }
 
     /**
      * Downloads the {@code .tc2} asset for a hat, parses it via {@link TechneLoader}, and
@@ -705,8 +745,11 @@ public class CosmeticDownloader {
         EmoteAnimation animation = parseEmoteAnimation(animationFile != null ? Files.readAllBytes(itemDir.resolve(animationFile)) : null);
         boolean toggle = metadataBoolean(metadata, "toggle", false);
         boolean allowMovement = metadataBoolean(metadata, "allowMovement", false);
+        float previewFrame = metadataFloat(metadata, "previewFrame", 0.0F);
+        float previewHeight = metadataFloat(metadata, "previewHeight", 0.28F);
 
-        Emote emote = new Emote(id, item.displayName(), item.author(), item.mod(), item.locked(), item.howToUnlock(), type, toggle, allowMovement, animation);
+        Emote emote = new Emote(id, item.displayName(), item.author(), item.mod(), item.locked(), item.howToUnlock(),
+                type, toggle, allowMovement, previewFrame, previewHeight, animation);
         loadedEmotes.put(id, emote);
         loadingAssetIds.remove(assetKey("emote", id));
         LOGGER.info("Emote asset ready: '{}'", id);
@@ -855,6 +898,15 @@ public class CosmeticDownloader {
         if (!metadata.has(key) || metadata.get(key).isJsonNull()) return fallback;
         try {
             return metadata.get(key).getAsBoolean();
+        } catch (Exception ignored) {
+            return fallback;
+        }
+    }
+
+    private static float metadataFloat(JsonObject metadata, String key, float fallback) {
+        if (!metadata.has(key) || metadata.get(key).isJsonNull()) return fallback;
+        try {
+            return metadata.get(key).getAsFloat();
         } catch (Exception ignored) {
             return fallback;
         }
