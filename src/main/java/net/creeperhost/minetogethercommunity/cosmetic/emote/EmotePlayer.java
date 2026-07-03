@@ -187,6 +187,18 @@ public final class EmotePlayer {
         Pose pose = poseFor(player, ageInTicks);
         if (pose == null) return null;
         ModelState state = new ModelState(model);
+        applyPoseToModel(model, pose);
+        return state;
+    }
+
+    public static boolean applyPoseToModel(ModelPlayer model, AbstractClientPlayer player, float ageInTicks) {
+        Pose pose = poseFor(player, ageInTicks);
+        if (pose == null) return false;
+        applyPoseToModel(model, pose);
+        return true;
+    }
+
+    private static void applyPoseToModel(ModelPlayer model, Pose pose) {
         float weight = pose.weight();
         model.bipedRightArm.rotateAngleX = lerp(model.bipedRightArm.rotateAngleX, pose.rightArmPitch(), weight);
         model.bipedRightArm.rotateAngleY = lerp(model.bipedRightArm.rotateAngleY, pose.rightArmYaw(), weight);
@@ -207,7 +219,6 @@ public final class EmotePlayer {
         model.bipedBody.rotateAngleY = lerp(model.bipedBody.rotateAngleY, pose.bodyYaw(), weight);
         model.bipedBody.rotateAngleZ = lerp(model.bipedBody.rotateAngleZ, pose.bodyRoll(), weight);
         syncWearLayers(model);
-        return state;
     }
 
     public static float renderTranslateY(AbstractClientPlayer player, float ageInTicks) {

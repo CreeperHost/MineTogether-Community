@@ -19,6 +19,7 @@ import net.creeperhost.minetogethercommunity.cosmetic.CosmeticApiClient;
 import net.creeperhost.minetogethercommunity.cosmetic.CosmeticDownloader;
 import net.creeperhost.minetogethercommunity.cosmetic.CosmeticSelections;
 import net.creeperhost.minetogethercommunity.cosmetic.PlayerCosmeticCache;
+import net.creeperhost.minetogethercommunity.cosmetic.emote.EmoteRenderPlayer;
 import net.creeperhost.minetogethercommunity.cosmetic.emote.EmoteNetworking;
 import net.creeperhost.minetogethercommunity.cosmetic.render.CosmeticLayer;
 import net.creeperhost.minetogethercommunity.cosmetic.render.MineTogetherCapeLayer;
@@ -26,9 +27,11 @@ import net.creeperhost.minetogethercommunity.cosmetic.render.MineTogetherElytraL
 import net.creeperhost.minetogethercommunity.util.MTSessionProvider;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.entity.AbstractClientPlayer;
+import net.minecraft.client.renderer.entity.RenderManager;
 import net.minecraft.client.renderer.entity.RenderLivingBase;
 import net.minecraft.client.renderer.entity.RenderPlayer;
 import net.minecraft.client.renderer.entity.layers.LayerCape;
+import net.minecraft.client.renderer.entity.layers.LayerCustomHead;
 import net.minecraft.client.renderer.entity.layers.LayerElytra;
 import net.minecraft.client.renderer.entity.layers.LayerRenderer;
 import net.minecraftforge.common.MinecraftForge;
@@ -39,9 +42,11 @@ import net.minecraftforge.fml.common.event.FMLPreInitializationEvent;
 import java.lang.reflect.Field;
 import java.util.Iterator;
 import java.util.List;
+import java.util.Map;
 
 public class ClientProxy extends CommonProxy {
 
+    private static final Field SKIN_MAP = findField(RenderManager.class, "skinMap", "field_178636_l", "l");
     private static final Field LAYER_RENDERERS = findField(RenderLivingBase.class, "layerRenderers", "field_177097_h", "h");
 
     @Override
@@ -83,11 +88,30 @@ public class ClientProxy extends CommonProxy {
     }
 
     private void registerCosmeticLayers() {
-        for (RenderPlayer renderer : Minecraft.getMinecraft().getRenderManager().getSkinMap().values()) {
+        for (Map.Entry<String, RenderPlayer> entry : playerSkinMap().entrySet()) {
+            RenderPlayer renderer = emoteRenderer(entry);
             removeConflictingLayers(renderer);
+            renderer.addLayer(new LayerCustomHead(renderer.getMainModel().bipedHead));
             renderer.addLayer(new MineTogetherCapeLayer(renderer));
             renderer.addLayer(new MineTogetherElytraLayer(renderer));
             renderer.addLayer(new CosmeticLayer<AbstractClientPlayer>(renderer));
+        }
+    }
+
+    private RenderPlayer emoteRenderer(Map.Entry<String, RenderPlayer> entry) {
+        RenderPlayer renderer = entry.getValue();
+        if (renderer instanceof EmoteRenderPlayer) return renderer;
+        renderer = new EmoteRenderPlayer(Minecraft.getMinecraft().getRenderManager(), "slim".equals(entry.getKey()));
+        entry.setValue(renderer);
+        return renderer;
+    }
+
+    @SuppressWarnings("unchecked")
+    private Map<String, RenderPlayer> playerSkinMap() {
+        try {
+            return (Map<String, RenderPlayer>) SKIN_MAP.get(Minecraft.getMinecraft().getRenderManager());
+        } catch (IllegalAccessException ex) {
+            throw new RuntimeException("Unable to update player renderers", ex);
         }
     }
 
@@ -99,6 +123,7 @@ public class ClientProxy extends CommonProxy {
             while (iterator.hasNext()) {
                 LayerRenderer<?> layer = iterator.next();
                 if (layer instanceof LayerCape
+                        || layer instanceof LayerCustomHead
                         || layer instanceof LayerElytra
                         || layer instanceof MineTogetherCapeLayer
                         || layer instanceof MineTogetherElytraLayer

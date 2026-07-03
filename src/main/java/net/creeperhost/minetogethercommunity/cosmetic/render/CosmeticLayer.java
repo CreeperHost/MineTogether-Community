@@ -3,7 +3,6 @@ package net.creeperhost.minetogethercommunity.cosmetic.render;
 import net.creeperhost.minetogethercommunity.cosmetic.CosmeticSelections;
 import net.creeperhost.minetogethercommunity.cosmetic.CosmeticPreviewTime;
 import net.creeperhost.minetogethercommunity.cosmetic.PlayerCosmeticCache;
-import net.creeperhost.minetogethercommunity.cosmetic.emote.EmotePlayer;
 import net.creeperhost.minetogethercommunity.cosmetic.hat.Hat;
 import net.creeperhost.minetogethercommunity.cosmetic.hat.HatRegistry;
 import net.creeperhost.minetogethercommunity.cosmetic.tail.Tail;
@@ -38,38 +37,14 @@ public class CosmeticLayer<T extends AbstractClientPlayer> implements LayerRende
         if (fullBrightPreview) {
             OpenGlHelper.setLightmapTextureCoords(OpenGlHelper.lightmapTexUnit, 240.0F, 240.0F);
         }
-        EmotePlayer.ModelState modelState = EmotePlayer.applyToModel(renderer.getMainModel(), player, ageInTicks);
-        float translateY = EmotePlayer.renderTranslateY(player, ageInTicks);
-        float pitch = EmotePlayer.renderPitch(player, ageInTicks);
-        float yaw = EmotePlayer.renderYaw(player, ageInTicks);
-        float roll = EmotePlayer.renderRoll(player, ageInTicks);
         GlStateManager.pushMatrix();
         try {
-            if (translateY != 0.0F) {
-                GlStateManager.translate(0.0F, translateY, 0.0F);
-            }
-            if (yaw != 0.0F) {
-                GlStateManager.rotate(yaw * 180.0F / (float) Math.PI, 0.0F, 1.0F, 0.0F);
-            }
-            if (roll != 0.0F) {
-                GlStateManager.translate(0.0F, -1.25F, 0.0F);
-                GlStateManager.rotate(roll * 180.0F / (float) Math.PI, 0.0F, 0.0F, 1.0F);
-                GlStateManager.translate(0.0F, 1.25F, 0.0F);
-            }
-            if (pitch != 0.0F) {
-                GlStateManager.translate(0.0F, -1.25F, 0.0F);
-                GlStateManager.rotate(pitch * 180.0F / (float) Math.PI, 1.0F, 0.0F, 0.0F);
-                GlStateManager.translate(0.0F, 1.25F, 0.0F);
-            }
             GlStateManager.color(1.0F, 1.0F, 1.0F, 1.0F);
             renderHat(player, ageInTicks, scale);
             renderTail(player, partialTicks, ageInTicks, scale);
             renderWing(player, ageInTicks, scale);
         } finally {
             GlStateManager.popMatrix();
-            if (modelState != null) {
-                modelState.restore(renderer.getMainModel());
-            }
             GlStateManager.color(1.0F, 1.0F, 1.0F, 1.0F);
             if (fullBrightPreview) {
                 OpenGlHelper.setLightmapTextureCoords(OpenGlHelper.lightmapTexUnit, previousLightX, previousLightY);
