@@ -689,7 +689,7 @@ public class CosmeticsGui implements GuiProvider {
                     int favoriteColor = favorite ? 0xFFFFD94A : EmoteFavorites.canAddMore() ? 0xFFAAAAAA : 0xFF666666;
                     double favoriteX = x + tileWidth() - 24;
                     render.rect(favoriteX, actionY, 18, 14, favorite ? 0xFF4A3E16 : 0xFF2B2B2B);
-                    drawStarIcon(render, favoriteX, actionY, favoriteColor);
+                    drawRadialIcon(render, favoriteX, actionY, favoriteColor);
                 }
                 if (item != null && item.locked()) {
                     render.drawString(Component.literal("Locked").withStyle(ChatFormatting.DARK_GRAY).getVisualOrderText(), x + 6, yMax() - 14, 0xFF777777);
@@ -989,15 +989,19 @@ public class CosmeticsGui implements GuiProvider {
             render.rect(px + 4, py + 2, 2, 2, color);
         }
 
-        private void drawStarIcon(GuiRender render, double x, double y, int color) {
-            double sx = Math.floor(x + 5);
-            double sy = Math.floor(y + 3);
-            render.rect(sx + 3, sy, 2, 2, color);
-            render.rect(sx + 1, sy + 2, 6, 2, color);
-            render.rect(sx, sy + 4, 8, 2, color);
-            render.rect(sx + 2, sy + 6, 4, 2, color);
-            render.rect(sx + 1, sy + 8, 2, 2, color);
-            render.rect(sx + 5, sy + 8, 2, 2, color);
+        private void drawRadialIcon(GuiRender render, double x, double y, int color) {
+            double sx = Math.floor(x + 4);
+            double sy = Math.floor(y + 2);
+            render.rect(sx + 4, sy, 2, 2, color);
+            render.rect(sx + 2, sy + 1, 2, 2, color);
+            render.rect(sx + 6, sy + 1, 2, 2, color);
+            render.rect(sx + 1, sy + 3, 2, 2, color);
+            render.rect(sx + 7, sy + 3, 2, 2, color);
+            render.rect(sx + 3, sy + 4, 4, 4, color);
+            render.rect(sx, sy + 6, 2, 2, color);
+            render.rect(sx + 8, sy + 6, 2, 2, color);
+            render.rect(sx + 2, sy + 9, 2, 2, color);
+            render.rect(sx + 6, sy + 9, 2, 2, color);
         }
 
         private String displayName(CosmeticItem item) {
