@@ -1,12 +1,15 @@
 package net.creeperhost.minetogethercommunity.cosmetic.render;
 
 import net.creeperhost.minetogethercommunity.cosmetic.CosmeticSelections;
+import net.creeperhost.minetogethercommunity.cosmetic.CosmeticPreviewTime;
 import net.creeperhost.minetogethercommunity.cosmetic.PlayerCosmeticCache;
 import net.creeperhost.minetogethercommunity.cosmetic.cape.Cape;
 import net.creeperhost.minetogethercommunity.cosmetic.cape.CapeRegistry;
+import net.creeperhost.minetogethercommunity.cosmetic.emote.EmotePlayer;
 import net.creeperhost.minetogethercommunity.cosmetic.hat.Hat;
 import net.creeperhost.minetogethercommunity.cosmetic.hat.HatRegistry;
 import net.creeperhost.minetogethercommunity.cosmetic.tail.Tail;
+import net.creeperhost.minetogethercommunity.cosmetic.tail.TailElementPose;
 import net.creeperhost.minetogethercommunity.cosmetic.tail.TailPose;
 import net.creeperhost.minetogethercommunity.cosmetic.tail.TailRegistry;
 import net.creeperhost.minetogethercommunity.util.CompatMath;
@@ -42,10 +45,39 @@ public class LegacyCosmeticRenderer {
 
         try {
             renderCape(event, player, renderer, event.partialRenderTick);
-            GlStateManager.color(1.0F, 1.0F, 1.0F, 1.0F);
-            renderHat(player, renderer);
-            renderTail(player, renderer, event.partialRenderTick, ageInTicks);
-            renderWing(player, renderer, ageInTicks);
+            EmotePlayer.ModelState modelState = EmotePlayer.applyToModel(renderer.modelBipedMain, player, ageInTicks);
+            float translateY = EmotePlayer.renderTranslateY(player, ageInTicks);
+            float pitch = EmotePlayer.renderPitch(player, ageInTicks);
+            float yaw = EmotePlayer.renderYaw(player, ageInTicks);
+            float roll = EmotePlayer.renderRoll(player, ageInTicks);
+            GlStateManager.pushMatrix();
+            try {
+                if (translateY != 0.0F) {
+                    GlStateManager.translate(0.0F, translateY, 0.0F);
+                }
+                if (yaw != 0.0F) {
+                    GlStateManager.rotate(yaw * 180.0F / (float) Math.PI, 0.0F, 1.0F, 0.0F);
+                }
+                if (roll != 0.0F) {
+                    GlStateManager.translate(0.0F, -1.25F, 0.0F);
+                    GlStateManager.rotate(roll * 180.0F / (float) Math.PI, 0.0F, 0.0F, 1.0F);
+                    GlStateManager.translate(0.0F, 1.25F, 0.0F);
+                }
+                if (pitch != 0.0F) {
+                    GlStateManager.translate(0.0F, -1.25F, 0.0F);
+                    GlStateManager.rotate(pitch * 180.0F / (float) Math.PI, 1.0F, 0.0F, 0.0F);
+                    GlStateManager.translate(0.0F, 1.25F, 0.0F);
+                }
+                GlStateManager.color(1.0F, 1.0F, 1.0F, 1.0F);
+                renderHat(player, renderer, ageInTicks);
+                renderTail(player, renderer, event.partialRenderTick, ageInTicks);
+                renderWing(player, renderer, ageInTicks);
+            } finally {
+                GlStateManager.popMatrix();
+                if (modelState != null) {
+                    modelState.restore(renderer.modelBipedMain);
+                }
+            }
         } finally {
             GlStateManager.color(1.0F, 1.0F, 1.0F, 1.0F);
             if (fullBrightPreview) {
@@ -68,7 +100,7 @@ public class LegacyCosmeticRenderer {
         renderCapeModel(player, renderer, partialTicks);
     }
 
-    private void renderHat(AbstractClientPlayer player, RenderPlayer renderer) {
+    private void renderHat(AbstractClientPlayer player, RenderPlayer renderer, float ageInTicks) {
         String id = selectionsFor(player).selectedHatId;
         if (id == null || id.isEmpty()) return;
         Hat hat = HatRegistry.getLoaded(id);
@@ -81,9 +113,10 @@ public class LegacyCosmeticRenderer {
         renderer.modelBipedMain.bipedHead.postRender(SCALE);
         Minecraft.getMinecraft().getTextureManager().bindTexture(hat.texture());
         if (hat.isJsonModel() && hat.jsonModel() != null) {
+            float animationAge = CosmeticPreviewTime.ageInTicks(ageInTicks);
             GlStateManager.scale(1.01F, 1.01F, 1.01F);
             GlStateManager.translate(-8.0F / 16.0F, -16.0F / 16.0F, -8.0F / 16.0F);
-            hat.jsonModel().render();
+            hat.jsonModel().render(hat.animation().pose(animationAge));
         } else {
             GlStateManager.scale(1.01F, 1.01F, 1.01F);
             GlStateManager.translate(0.0F, -1.5F, 0.0F);
@@ -102,7 +135,12 @@ public class LegacyCosmeticRenderer {
         GlStateManager.pushMatrix();
         renderer.modelBipedMain.bipedBody.postRender(SCALE);
         GlStateManager.translate(-8.0F / 16.0F, 2.0F / 16.0F, 2.0F / 16.0F);
-        tail.model().render(createTailPose(player, partialTicks, ageInTicks));
+        float animationAge = CosmeticPreviewTime.ageInTicks(ageInTicks);
+        TailPose tailPose = tail.animation().enabled()
+                ? tail.animation().pose(player, partialTicks, animationAge)
+                : createTailPose(player, partialTicks, animationAge);
+        TailElementPose elementPose = tail.animation().elementPose(animationAge);
+        tail.model().render(tailPose, elementPose);
         GlStateManager.popMatrix();
     }
 
@@ -116,7 +154,8 @@ public class LegacyCosmeticRenderer {
         WingAnimation animation = wing.animation();
         float speed = flying ? animation.flyingSpeed() : animation.idleSpeed();
         float flapDegrees = flying ? animation.flyingFlapDegrees() : animation.idleFlapDegrees();
-        float flap = CompatMath.sin(ageInTicks * speed) * flapDegrees;
+        float animationAge = CosmeticPreviewTime.ageInTicks(ageInTicks);
+        float flap = CompatMath.sin(animationAge * speed) * flapDegrees;
         float spread = animation.baseSpreadDegrees() + flap * animation.flapScale();
 
         Minecraft.getMinecraft().getTextureManager().bindTexture(wing.texture());
