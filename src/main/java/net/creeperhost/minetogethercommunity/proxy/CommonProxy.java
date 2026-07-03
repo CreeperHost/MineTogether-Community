@@ -1,6 +1,7 @@
 package net.creeperhost.minetogethercommunity.proxy;
 
 import net.creeperhost.minetogethercommunity.connect.DedicatedServerConnect;
+import net.creeperhost.minetogethercommunity.cosmetic.emote.EmoteNetworking;
 import net.minecraft.entity.player.EntityPlayerMP;
 import net.minecraftforge.fml.common.FMLCommonHandler;
 import net.minecraftforge.fml.common.event.FMLInitializationEvent;
@@ -14,6 +15,7 @@ public class CommonProxy {
     }
 
     public void init(FMLInitializationEvent event) {
+        EmoteNetworking.init(false);
         FMLCommonHandler.instance().bus().register(this);
     }
 

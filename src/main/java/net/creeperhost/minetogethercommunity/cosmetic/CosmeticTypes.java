@@ -4,7 +4,8 @@ public enum CosmeticTypes {
     HAT("hat", "minetogether.gui.cosmetics.tab.hat"),
     CAPE("cape", "minetogether.gui.cosmetics.tab.cape"),
     TAIL("tail", "minetogether.gui.cosmetics.tab.tail"),
-    WINGS("wing", "minetogether.gui.cosmetics.tab.wings");
+    WINGS("wing", "minetogether.gui.cosmetics.tab.wings"),
+    EMOTES("emote", "minetogether.gui.cosmetics.tab.emotes");
 
     private final String slotName;
     private final String translationKey;

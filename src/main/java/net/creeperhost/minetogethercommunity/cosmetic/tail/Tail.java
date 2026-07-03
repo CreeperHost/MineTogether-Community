@@ -17,9 +17,16 @@ public class Tail {
     private final int texHeight;
     private final List<TailElement> elements;
     private final TailModel model;
+    private final TailAnimation animation;
 
     public Tail(String id, String displayName, String author, String mod, boolean locked, String howToUnlock,
                 ResourceLocation texture, int texWidth, int texHeight, List<TailElement> elements, TailModel model) {
+        this(id, displayName, author, mod, locked, howToUnlock, texture, texWidth, texHeight, elements, model, TailAnimation.NONE);
+    }
+
+    public Tail(String id, String displayName, String author, String mod, boolean locked, String howToUnlock,
+                ResourceLocation texture, int texWidth, int texHeight, List<TailElement> elements, TailModel model,
+                TailAnimation animation) {
         this.id = id;
         this.displayName = displayName;
         this.author = author;
@@ -31,6 +38,7 @@ public class Tail {
         this.texHeight = texHeight;
         this.elements = elements;
         this.model = model;
+        this.animation = animation == null ? TailAnimation.NONE : animation;
     }
 
     public String id() { return id; }
@@ -44,4 +52,5 @@ public class Tail {
     public int texHeight() { return texHeight; }
     public List<TailElement> elements() { return elements; }
     public TailModel model() { return model; }
+    public TailAnimation animation() { return animation; }
 }

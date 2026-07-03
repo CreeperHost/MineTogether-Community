@@ -1,10 +1,13 @@
 package net.creeperhost.minetogethercommunity.cosmetic.render;
 
 import net.creeperhost.minetogethercommunity.cosmetic.CosmeticSelections;
+import net.creeperhost.minetogethercommunity.cosmetic.CosmeticPreviewTime;
 import net.creeperhost.minetogethercommunity.cosmetic.PlayerCosmeticCache;
+import net.creeperhost.minetogethercommunity.cosmetic.emote.EmotePlayer;
 import net.creeperhost.minetogethercommunity.cosmetic.hat.Hat;
 import net.creeperhost.minetogethercommunity.cosmetic.hat.HatRegistry;
 import net.creeperhost.minetogethercommunity.cosmetic.tail.Tail;
+import net.creeperhost.minetogethercommunity.cosmetic.tail.TailElementPose;
 import net.creeperhost.minetogethercommunity.cosmetic.tail.TailPose;
 import net.creeperhost.minetogethercommunity.cosmetic.tail.TailRegistry;
 import net.creeperhost.minetogethercommunity.cosmetic.wing.Wing;
@@ -35,12 +38,28 @@ public class CosmeticLayer<T extends AbstractClientPlayer> implements LayerRende
         if (fullBrightPreview) {
             OpenGlHelper.setLightmapTextureCoords(OpenGlHelper.lightmapTexUnit, 240.0F, 240.0F);
         }
+        EmotePlayer.ModelState modelState = EmotePlayer.applyToModel(renderer.getMainModel(), player, ageInTicks);
+        float translateY = EmotePlayer.renderTranslateY(player, ageInTicks);
+        float pitch = EmotePlayer.renderPitch(player, ageInTicks);
+        GlStateManager.pushMatrix();
         try {
+            if (translateY != 0.0F) {
+                GlStateManager.translate(0.0F, translateY, 0.0F);
+            }
+            if (pitch != 0.0F) {
+                GlStateManager.translate(0.0F, -1.25F, 0.0F);
+                GlStateManager.rotate(pitch * 180.0F / (float) Math.PI, 1.0F, 0.0F, 0.0F);
+                GlStateManager.translate(0.0F, 1.25F, 0.0F);
+            }
             GlStateManager.color(1.0F, 1.0F, 1.0F, 1.0F);
-            renderHat(player, scale);
+            renderHat(player, ageInTicks, scale);
             renderTail(player, partialTicks, ageInTicks, scale);
             renderWing(player, ageInTicks, scale);
         } finally {
+            GlStateManager.popMatrix();
+            if (modelState != null) {
+                modelState.restore(renderer.getMainModel());
+            }
             GlStateManager.color(1.0F, 1.0F, 1.0F, 1.0F);
             if (fullBrightPreview) {
                 OpenGlHelper.setLightmapTextureCoords(OpenGlHelper.lightmapTexUnit, previousLightX, previousLightY);
@@ -53,7 +72,7 @@ public class CosmeticLayer<T extends AbstractClientPlayer> implements LayerRende
         return false;
     }
 
-    private void renderHat(T player, float scale) {
+    private void renderHat(T player, float ageInTicks, float scale) {
         String id = selectionsFor(player).selectedHatId;
         if (id == null || id.isEmpty()) return;
         Hat hat = HatRegistry.getLoaded(id);
@@ -66,9 +85,10 @@ public class CosmeticLayer<T extends AbstractClientPlayer> implements LayerRende
         renderer.getMainModel().bipedHead.postRender(scale);
         Minecraft.getMinecraft().getTextureManager().bindTexture(hat.texture());
         if (hat.isJsonModel() && hat.jsonModel() != null) {
+            float animationAge = CosmeticPreviewTime.ageInTicks(ageInTicks);
             GlStateManager.scale(1.01F, 1.01F, 1.01F);
             GlStateManager.translate(-8.0F / 16.0F, -16.0F / 16.0F, -8.0F / 16.0F);
-            hat.jsonModel().render();
+            hat.jsonModel().render(hat.animation().pose(animationAge));
         } else {
             GlStateManager.scale(1.01F, 1.01F, 1.01F);
             GlStateManager.translate(0.0F, -1.5F, 0.0F);
@@ -87,7 +107,12 @@ public class CosmeticLayer<T extends AbstractClientPlayer> implements LayerRende
         GlStateManager.pushMatrix();
         renderer.getMainModel().bipedBody.postRender(scale);
         GlStateManager.translate(-8.0F / 16.0F, 2.0F / 16.0F, 2.0F / 16.0F);
-        tail.model().render(createTailPose(player, partialTicks, ageInTicks));
+        float animationAge = CosmeticPreviewTime.ageInTicks(ageInTicks);
+        TailPose tailPose = tail.animation().enabled()
+                ? tail.animation().pose(player, partialTicks, animationAge)
+                : createTailPose(player, partialTicks, animationAge);
+        TailElementPose elementPose = tail.animation().elementPose(animationAge);
+        tail.model().render(tailPose, elementPose);
         GlStateManager.popMatrix();
     }
 
@@ -101,7 +126,8 @@ public class CosmeticLayer<T extends AbstractClientPlayer> implements LayerRende
         WingAnimation animation = wing.animation();
         float speed = flying ? animation.flyingSpeed() : animation.idleSpeed();
         float flapDegrees = flying ? animation.flyingFlapDegrees() : animation.idleFlapDegrees();
-        float flap = MathHelper.sin(ageInTicks * speed) * flapDegrees;
+        float animationAge = CosmeticPreviewTime.ageInTicks(ageInTicks);
+        float flap = MathHelper.sin(animationAge * speed) * flapDegrees;
         float spread = animation.baseSpreadDegrees() + flap * animation.flapScale();
 
         Minecraft.getMinecraft().getTextureManager().bindTexture(wing.texture());

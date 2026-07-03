@@ -19,6 +19,7 @@ import net.creeperhost.minetogethercommunity.cosmetic.CosmeticApiClient;
 import net.creeperhost.minetogethercommunity.cosmetic.CosmeticDownloader;
 import net.creeperhost.minetogethercommunity.cosmetic.CosmeticSelections;
 import net.creeperhost.minetogethercommunity.cosmetic.PlayerCosmeticCache;
+import net.creeperhost.minetogethercommunity.cosmetic.emote.EmoteNetworking;
 import net.creeperhost.minetogethercommunity.cosmetic.render.CosmeticLayer;
 import net.creeperhost.minetogethercommunity.cosmetic.render.MineTogetherCapeLayer;
 import net.creeperhost.minetogethercommunity.cosmetic.render.MineTogetherElytraLayer;
@@ -52,6 +53,7 @@ public class ClientProxy extends CommonProxy {
 
     @Override
     public void init(FMLInitializationEvent event) {
+        EmoteNetworking.init(true);
         MineTogetherSession.getDefault().setProvider(new MTSessionProvider());
         ActivityTelemetry.init();
         Runtime.getRuntime().addShutdownHook(new Thread(new Runnable() {

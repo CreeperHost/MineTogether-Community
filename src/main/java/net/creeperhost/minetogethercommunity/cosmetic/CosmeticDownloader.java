@@ -7,10 +7,15 @@ import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
 import net.creeperhost.minetogethercommunity.MineTogether;
 import net.creeperhost.minetogethercommunity.cosmetic.cape.Cape;
+import net.creeperhost.minetogethercommunity.cosmetic.emote.Emote;
+import net.creeperhost.minetogethercommunity.cosmetic.emote.EmoteAnimation;
+import net.creeperhost.minetogethercommunity.cosmetic.emote.EmoteType;
 import net.creeperhost.minetogethercommunity.cosmetic.hat.Hat;
+import net.creeperhost.minetogethercommunity.cosmetic.hat.HatAnimation;
 import net.creeperhost.minetogethercommunity.cosmetic.hat.HatRegistry;
 import net.creeperhost.minetogethercommunity.cosmetic.hat.HatModelType;
 import net.creeperhost.minetogethercommunity.cosmetic.tail.Tail;
+import net.creeperhost.minetogethercommunity.cosmetic.tail.TailAnimation;
 import net.creeperhost.minetogethercommunity.cosmetic.tail.TailElement;
 import net.creeperhost.minetogethercommunity.cosmetic.tail.TailModel;
 import net.creeperhost.minetogethercommunity.cosmetic.tail.TailModelParser;
@@ -57,15 +62,19 @@ public class CosmeticDownloader {
     private final List<CosmeticItem> capeCatalogList = new CopyOnWriteArrayList<CosmeticItem>();
     private final List<CosmeticItem> tailCatalogList = new CopyOnWriteArrayList<CosmeticItem>();
     private final List<CosmeticItem> wingCatalogList = new CopyOnWriteArrayList<CosmeticItem>();
+    private final List<CosmeticItem> emoteCatalogList = new CopyOnWriteArrayList<CosmeticItem>();
     private final ConcurrentHashMap<String, CosmeticItem> hatCatalogById = new ConcurrentHashMap<String, CosmeticItem>();
     private final ConcurrentHashMap<String, CosmeticItem> capeCatalogById = new ConcurrentHashMap<String, CosmeticItem>();
     private final ConcurrentHashMap<String, CosmeticItem> tailCatalogById = new ConcurrentHashMap<String, CosmeticItem>();
     private final ConcurrentHashMap<String, CosmeticItem> wingCatalogById = new ConcurrentHashMap<String, CosmeticItem>();
+    private final ConcurrentHashMap<String, CosmeticItem> emoteCatalogById = new ConcurrentHashMap<String, CosmeticItem>();
     private final ConcurrentHashMap<String, Hat> loadedHats = new ConcurrentHashMap<String, Hat>();
     private final ConcurrentHashMap<String, Cape> loadedCapes = new ConcurrentHashMap<String, Cape>();
     private final ConcurrentHashMap<String, Tail> loadedTails = new ConcurrentHashMap<String, Tail>();
     private final ConcurrentHashMap<String, Wing> loadedWings = new ConcurrentHashMap<String, Wing>();
+    private final ConcurrentHashMap<String, Emote> loadedEmotes = new ConcurrentHashMap<String, Emote>();
     private final Set<String> loadingAssetIds = Collections.newSetFromMap(new ConcurrentHashMap<String, Boolean>());
+    private final Set<String> failedAssetIds = Collections.newSetFromMap(new ConcurrentHashMap<String, Boolean>());
     private volatile boolean catalogLoading;
     private volatile boolean catalogLoaded;
 
@@ -116,19 +125,24 @@ public class CosmeticDownloader {
         capeCatalogList.clear();
         tailCatalogList.clear();
         wingCatalogList.clear();
+        emoteCatalogList.clear();
         hatCatalogById.clear();
         capeCatalogById.clear();
         tailCatalogById.clear();
         wingCatalogById.clear();
+        emoteCatalogById.clear();
     }
 
     public void ensureAssetLoaded(final String slot, final String id) {
         if (id == null || id.isEmpty()) return;
+        final String assetKey = assetKey(slot, id);
+        if (failedAssetIds.contains(assetKey)) return;
         if ("hat".equals(slot) && loadedHats.containsKey(id)) return;
         if ("cape".equals(slot) && loadedCapes.containsKey(id)) return;
         if ("tail".equals(slot) && loadedTails.containsKey(id)) return;
         if ("wing".equals(slot) && loadedWings.containsKey(id)) return;
-        if (!loadingAssetIds.add(slot + ":" + id)) return;
+        if ("emote".equals(slot) && loadedEmotes.containsKey(id)) return;
+        if (!loadingAssetIds.add(assetKey)) return;
 
         Thread thread = new Thread(new Runnable() {
             @Override
@@ -142,12 +156,18 @@ public class CosmeticDownloader {
                         downloadAndRegisterTail(id);
                     } else if ("wing".equals(slot)) {
                         downloadAndRegisterWing(id);
+                    } else if ("emote".equals(slot)) {
+                        downloadAndRegisterEmote(id);
                     } else {
-                        loadingAssetIds.remove(slot + ":" + id);
+                        loadingAssetIds.remove(assetKey);
                     }
                 } catch (Exception e) {
                     LOGGER.error("Failed to download {} asset '{}'", slot, id, e);
-                    loadingAssetIds.remove(slot + ":" + id);
+                    if (isPermanentAssetFailure(e)) {
+                        failedAssetIds.add(assetKey);
+                    }
+                    cleanupEmptyAssetDirectory(slot, id);
+                    loadingAssetIds.remove(assetKey);
                 }
             }
         }, "CosmeticAssetLoad-" + slot + "-" + id);
@@ -169,6 +189,10 @@ public class CosmeticDownloader {
 
     public List<CosmeticItem> getWingCatalog() {
         return Collections.unmodifiableList(wingCatalogList);
+    }
+
+    public List<CosmeticItem> getEmoteCatalog() {
+        return Collections.unmodifiableList(emoteCatalogList);
     }
 
     public boolean isCatalogLoading() {
@@ -195,6 +219,10 @@ public class CosmeticDownloader {
         return loadedWings.get(id);
     }
 
+    public Emote getLoadedEmote(String id) {
+        return loadedEmotes.get(id);
+    }
+
     public boolean isAssetLoading(String slot, String id) {
         return loadingAssetIds.contains(slot + ":" + id);
     }
@@ -206,7 +234,9 @@ public class CosmeticDownloader {
             loadedCapes.clear();
             loadedTails.clear();
             loadedWings.clear();
+            loadedEmotes.clear();
             loadingAssetIds.clear();
+            failedAssetIds.clear();
             catalogLoaded = false;
             catalogLoading = false;
         }
@@ -225,8 +255,9 @@ public class CosmeticDownloader {
             mkdirs(new File(cacheBase, "capes"));
             mkdirs(new File(cacheBase, "tails"));
             mkdirs(new File(cacheBase, "wings"));
+            mkdirs(new File(cacheBase, "emotes"));
 
-            for (String slot : new String[]{"hat", "cape", "tail", "wing"}) {
+            for (String slot : new String[]{"hat", "cape", "tail", "wing", "emote"}) {
                 try {
                     fetchCatalogForSlot(slot);
                 } catch (Exception e) {
@@ -238,8 +269,9 @@ public class CosmeticDownloader {
             loadLocalCatalog("capes", capeCatalogList, capeCatalogById);
             loadLocalCatalog("tails", tailCatalogList, tailCatalogById);
             loadLocalCatalog("wings", wingCatalogList, wingCatalogById);
-            LOGGER.info("Cosmetic catalog loaded: {} hats, {} capes, {} tails, {} wings",
-                    hatCatalogList.size(), capeCatalogList.size(), tailCatalogList.size(), wingCatalogList.size());
+            loadLocalEmoteCatalog();
+            LOGGER.info("Cosmetic catalog loaded: {} hats, {} capes, {} tails, {} wings, {} emotes",
+                    hatCatalogList.size(), capeCatalogList.size(), tailCatalogList.size(), wingCatalogList.size(), emoteCatalogList.size());
         } catch (Exception e) {
             LOGGER.error("Failed to load cosmetics catalog", e);
         } finally {
@@ -326,6 +358,42 @@ public class CosmeticDownloader {
         } else if ("wing".equals(slot)) {
             wingCatalogList.add(item);
             wingCatalogById.put(item.id(), item);
+        } else if ("emote".equals(slot)) {
+            emoteCatalogList.add(item);
+            emoteCatalogById.put(item.id(), item);
+        }
+    }
+
+    private void loadLocalEmoteCatalog() throws IOException {
+        File dir = new File(cacheBase, "emotes");
+        File[] children = dir.listFiles();
+        if (children == null) return;
+        for (File child : children) {
+            if (!child.isDirectory()) continue;
+            File metadata = new File(child, "metadata.json");
+            if (!metadata.isFile()) continue;
+            InputStream inputStream = Files.newInputStream(metadata.toPath());
+            try {
+                JsonObject root = new JsonParser().parse(new InputStreamReader(inputStream, StandardCharsets.UTF_8)).getAsJsonObject();
+                String id = stringValue(root, "id", child.getName());
+                if (emoteCatalogById.containsKey(id)) continue;
+                EmoteType type = EmoteType.fromMetadata(stringValue(root, "type", EmoteType.SIMPLE.metadataValue()));
+                if (!type.isAvailable()) {
+                    LOGGER.info("Skipping local emote '{}' because runtime '{}' is not available", id, type.metadataValue());
+                    continue;
+                }
+                CosmeticItem item = new CosmeticItem(
+                        id,
+                        stringValue(root, "name", id),
+                        stringValue(root, "author", "Local"),
+                        stringValue(root, "mod", "local"),
+                        booleanValue(root, "locked", false),
+                        nullableString(root, "howToUnlock"));
+                emoteCatalogList.add(item);
+                emoteCatalogById.put(id, item);
+            } finally {
+                inputStream.close();
+            }
         }
     }
 
@@ -357,6 +425,7 @@ public class CosmeticDownloader {
     private void downloadAndRegisterJsonHat(final String id, CosmeticItem item, File itemDir, List<String> files) throws Exception {
         String jsonFile = findModelJson(files);
         String pngFile = findByExtension(files, ".png");
+        String animationFile = findExact(files, "animation.json");
         if (jsonFile == null) throw new IOException("No model .json file in metadata for JSON hat '" + id + "'");
         if (pngFile == null) throw new IOException("No .png file in metadata for JSON hat '" + id + "'");
 
@@ -364,12 +433,13 @@ public class CosmeticDownloader {
         List<TailElement> elements = TailModelParser.parse(root);
         int texW = textureSize(root, 0, 64);
         int texH = textureSize(root, 1, 32);
+        HatAnimation animation = parseHatAnimation(animationFile == null ? null : Files.readAllBytes(new File(itemDir, animationFile).toPath()));
         final BufferedImage image = ImageIO.read(new File(itemDir, pngFile));
         if (image == null) throw new IOException("Invalid JSON hat texture for '" + id + "'");
         final ResourceLocation location = textureLocation("hat", id);
         final Hat hat = new Hat(id, item.displayName(), item.author(), item.mod(), item.locked(), item.howToUnlock(),
                 location, texW, texH, HatModelType.JSON, Collections.<net.creeperhost.minetogethercommunity.cosmetic.hat.HatCuboid>emptyList(),
-                elements, new TailModel(elements, texW, texH));
+                elements, new TailModel(elements, texW, texH), animation);
         Minecraft.getMinecraft().addScheduledTask(new Runnable() {
             @Override
             public void run() {
@@ -410,18 +480,23 @@ public class CosmeticDownloader {
         List<String> files = fetchAndCacheFiles(CDN_BASE_URL + "/tail/" + id, itemDir);
         String jsonFile = findByExtension(files, ".json");
         String pngFile = findByExtension(files, ".png");
-        if (jsonFile == null) throw new IOException("No .json file in metadata for tail '" + id + "'");
+        String animationFile = findExact(files, "animation.json");
+        if ("metadata.json".equalsIgnoreCase(jsonFile) || "animation.json".equalsIgnoreCase(jsonFile)) {
+            jsonFile = findModelJson(files);
+        }
+        if (jsonFile == null) throw new IOException("No model .json file in metadata for tail '" + id + "'");
         if (pngFile == null) throw new IOException("No .png file in metadata for tail '" + id + "'");
 
         JsonObject root = parseJson(new File(itemDir, jsonFile));
         List<TailElement> elements = TailModelParser.parse(root);
         int texW = textureSize(root, 0, 64);
         int texH = textureSize(root, 1, 32);
+        TailAnimation animation = parseTailAnimation(animationFile == null ? null : Files.readAllBytes(new File(itemDir, animationFile).toPath()));
         final BufferedImage image = ImageIO.read(new File(itemDir, pngFile));
         if (image == null) throw new IOException("Invalid tail texture for '" + id + "'");
         final ResourceLocation location = textureLocation("tail", id);
         final Tail tail = new Tail(id, item.displayName(), item.author(), item.mod(), item.locked(), item.howToUnlock(),
-                location, texW, texH, elements, new TailModel(elements, texW, texH));
+                location, texW, texH, elements, new TailModel(elements, texW, texH), animation);
         Minecraft.getMinecraft().addScheduledTask(new Runnable() {
             @Override
             public void run() {
@@ -462,6 +537,68 @@ public class CosmeticDownloader {
                 LOGGER.info("Wing asset ready: '{}'", id);
             }
         });
+    }
+
+    private void downloadAndRegisterEmote(String id) throws Exception {
+        CosmeticItem item = catalogItemOrFallback(emoteCatalogById, id);
+        File itemDir = new File(new File(cacheBase, "emotes"), id);
+        List<String> files = fetchAndCacheFiles(CDN_BASE_URL + "/emote/" + id, itemDir);
+        JsonObject metadata = readMetadata(itemDir);
+        EmoteType type = EmoteType.fromMetadata(stringValue(metadata, "type", EmoteType.SIMPLE.metadataValue()));
+        if (!type.isAvailable()) {
+            loadingAssetIds.remove(assetKey("emote", id));
+            LOGGER.info("Skipping emote '{}' because runtime '{}' is not available", id, type.metadataValue());
+            return;
+        }
+
+        String animationFile = findExact(files, "animation.json");
+        EmoteAnimation animation = parseEmoteAnimation(animationFile == null ? null : Files.readAllBytes(new File(itemDir, animationFile).toPath()));
+        boolean toggle = booleanValue(metadata, "toggle", false);
+        boolean allowMovement = booleanValue(metadata, "allowMovement", false);
+        float previewFrame = floatValue(metadata, "previewFrame", 0.0F);
+        float previewHeight = floatValue(metadata, "previewHeight", 0.28F);
+
+        Emote emote = new Emote(id, item.displayName(), item.author(), item.mod(), item.locked(), item.howToUnlock(),
+                type, toggle, allowMovement, previewFrame, previewHeight, animation);
+        loadedEmotes.put(id, emote);
+        loadingAssetIds.remove(assetKey("emote", id));
+        LOGGER.info("Emote asset ready: '{}'", id);
+    }
+
+    private HatAnimation parseHatAnimation(byte[] animationData) {
+        if (animationData == null || animationData.length == 0) return HatAnimation.NONE;
+        try {
+            JsonObject root = new JsonParser().parse(new InputStreamReader(
+                    new ByteArrayInputStream(animationData), StandardCharsets.UTF_8)).getAsJsonObject();
+            return HatAnimation.fromJson(root);
+        } catch (Exception e) {
+            LOGGER.warn("Failed to parse hat animation config; hat will render without animation", e);
+            return HatAnimation.NONE;
+        }
+    }
+
+    private TailAnimation parseTailAnimation(byte[] animationData) {
+        if (animationData == null || animationData.length == 0) return TailAnimation.NONE;
+        try {
+            JsonObject root = new JsonParser().parse(new InputStreamReader(
+                    new ByteArrayInputStream(animationData), StandardCharsets.UTF_8)).getAsJsonObject();
+            return TailAnimation.fromJson(root);
+        } catch (Exception e) {
+            LOGGER.warn("Failed to parse tail animation config; tail will render without animation", e);
+            return TailAnimation.NONE;
+        }
+    }
+
+    private EmoteAnimation parseEmoteAnimation(byte[] animationData) {
+        if (animationData == null || animationData.length == 0) return EmoteAnimation.WAVE;
+        try {
+            JsonObject root = new JsonParser().parse(new InputStreamReader(
+                    new ByteArrayInputStream(animationData), StandardCharsets.UTF_8)).getAsJsonObject();
+            return EmoteAnimation.fromJson(root);
+        } catch (Exception e) {
+            LOGGER.warn("Failed to parse emote animation config; using wave fallback", e);
+            return EmoteAnimation.WAVE;
+        }
     }
 
     private List<String> fetchAndCacheFiles(String cdnBase, File itemDir) throws IOException {
@@ -557,6 +694,20 @@ public class CosmeticDownloader {
         }
     }
 
+    private void cleanupEmptyAssetDirectory(String slot, String id) {
+        File itemDir = new File(new File(cacheBase, slot + "s"), id);
+        try {
+            if (!itemDir.isDirectory()) return;
+            File[] files = itemDir.listFiles();
+            if (files != null && files.length > 0) return;
+            if (itemDir.delete()) {
+                LOGGER.debug("Removed empty failed {} asset directory '{}'", slot, itemDir);
+            }
+        } catch (Exception cleanupError) {
+            LOGGER.debug("Failed to remove empty failed {} asset directory '{}'", slot, itemDir, cleanupError);
+        }
+    }
+
     private static String findByExtension(List<String> files, String extension) {
         for (String file : files) {
             if (file.toLowerCase(Locale.ROOT).endsWith(extension)) return file;
@@ -604,6 +755,15 @@ public class CosmeticDownloader {
         return item == null ? new CosmeticItem(id, id, "", "", false, null) : item;
     }
 
+    private static String assetKey(String slot, String id) {
+        return slot + ":" + id;
+    }
+
+    private static boolean isPermanentAssetFailure(Exception e) {
+        String message = e.getMessage();
+        return message != null && (message.contains("HTTP 404") || message.contains("No files array"));
+    }
+
     private static String stringValue(JsonObject object, String key, String fallback) {
         String value = nullableString(object, key);
         return value == null || value.isEmpty() ? fallback : value;
@@ -615,5 +775,14 @@ public class CosmeticDownloader {
 
     private static boolean booleanValue(JsonObject object, String key, boolean fallback) {
         return object.has(key) && !object.get(key).isJsonNull() ? object.get(key).getAsBoolean() : fallback;
+    }
+
+    private static float floatValue(JsonObject object, String key, float fallback) {
+        if (!object.has(key) || object.get(key).isJsonNull()) return fallback;
+        try {
+            return object.get(key).getAsFloat();
+        } catch (Exception ignored) {
+            return fallback;
+        }
     }
 }
