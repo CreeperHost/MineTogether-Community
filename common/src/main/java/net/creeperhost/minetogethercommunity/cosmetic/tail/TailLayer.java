@@ -1,6 +1,7 @@
 package net.creeperhost.minetogethercommunity.cosmetic.tail;
 
 import com.mojang.blaze3d.vertex.PoseStack;
+import net.creeperhost.minetogethercommunity.cosmetic.CosmeticPreviewTime;
 import net.creeperhost.minetogethercommunity.cosmetic.renderstate.MineTogetherCosmeticRenderState;
 import net.minecraft.client.model.player.PlayerModel;
 import net.minecraft.client.renderer.SubmitNodeCollector;
@@ -32,8 +33,9 @@ public class TailLayer extends RenderLayer<AvatarRenderState, PlayerModel> {
         getParentModel().body.translateAndRotate(poseStack);
         poseStack.translate(-8.0F / 16.0F, 2.0F / 16.0F, 2.0F / 16.0F);
 
-        TailPose tailPose = tail.animation().pose(state);
-        TailElementPose elementPose = tail.animation().elementPose(state.ageInTicks);
+        float animationAge = CosmeticPreviewTime.ageInTicks(state.ageInTicks);
+        TailPose tailPose = tail.animation().pose(state, animationAge);
+        TailElementPose elementPose = tail.animation().elementPose(animationAge);
         boolean fullBright = cosmeticState.minetogether$fullBright();
         int renderLight = fullBright ? LightCoordsUtil.FULL_BRIGHT : lightCoords;
         submitNodeCollector.submitCustomGeometry(
