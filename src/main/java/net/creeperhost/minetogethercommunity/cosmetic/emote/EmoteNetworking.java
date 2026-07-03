@@ -16,6 +16,7 @@ import net.minecraftforge.fml.relauncher.Side;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
+import java.util.List;
 import java.util.UUID;
 
 public final class EmoteNetworking {
@@ -144,15 +145,16 @@ public final class EmoteNetworking {
     public static class StartServerHandler implements IMessageHandler<StartEmoteC2S, IMessage> {
         @Override
         public IMessage onMessage(final StartEmoteC2S message, final MessageContext ctx) {
-            final EntityPlayerMP sender = ctx.getServerHandler().player;
-            MinecraftServer server = FMLCommonHandler.instance().getMinecraftServerInstance();
+            final EntityPlayerMP sender = ctx.getServerHandler().playerEntity;
+            final MinecraftServer server = FMLCommonHandler.instance().getMinecraftServerInstance();
             if (server == null) return null;
             server.addScheduledTask(new Runnable() {
                 @Override
                 public void run() {
                     if (!validEmoteId(message.emoteId)) return;
                     StartEmoteS2C packet = new StartEmoteS2C(sender.getUniqueID(), message.emoteId);
-                    for (EntityPlayerMP target : FMLCommonHandler.instance().getMinecraftServerInstance().getPlayerList().getPlayers()) {
+                    List<EntityPlayerMP> players = server.getConfigurationManager().playerEntityList;
+                    for (EntityPlayerMP target : players) {
                         if (target == sender) continue;
                         CHANNEL.sendTo(packet, target);
                     }
@@ -165,14 +167,15 @@ public final class EmoteNetworking {
     public static class StopServerHandler implements IMessageHandler<StopEmoteC2S, IMessage> {
         @Override
         public IMessage onMessage(StopEmoteC2S message, final MessageContext ctx) {
-            final EntityPlayerMP sender = ctx.getServerHandler().player;
-            MinecraftServer server = FMLCommonHandler.instance().getMinecraftServerInstance();
+            final EntityPlayerMP sender = ctx.getServerHandler().playerEntity;
+            final MinecraftServer server = FMLCommonHandler.instance().getMinecraftServerInstance();
             if (server == null) return null;
             server.addScheduledTask(new Runnable() {
                 @Override
                 public void run() {
                     StopEmoteS2C packet = new StopEmoteS2C(sender.getUniqueID());
-                    for (EntityPlayerMP target : FMLCommonHandler.instance().getMinecraftServerInstance().getPlayerList().getPlayers()) {
+                    List<EntityPlayerMP> players = server.getConfigurationManager().playerEntityList;
+                    for (EntityPlayerMP target : players) {
                         if (target == sender) continue;
                         CHANNEL.sendTo(packet, target);
                     }
@@ -189,7 +192,7 @@ public final class EmoteNetworking {
                 @Override
                 public void run() {
                     if (!validEmoteId(message.emoteId)) return;
-                    if (Minecraft.getMinecraft().player != null && Minecraft.getMinecraft().player.getUniqueID().equals(message.playerId)) return;
+                    if (Minecraft.getMinecraft().thePlayer != null && Minecraft.getMinecraft().thePlayer.getUniqueID().equals(message.playerId)) return;
                     CosmeticDownloader.instance().ensureAssetLoaded("emote", message.emoteId);
                     EmotePlayer.playRemote(message.playerId, message.emoteId);
                 }
@@ -204,7 +207,7 @@ public final class EmoteNetworking {
             Minecraft.getMinecraft().addScheduledTask(new Runnable() {
                 @Override
                 public void run() {
-                    if (Minecraft.getMinecraft().player != null && Minecraft.getMinecraft().player.getUniqueID().equals(message.playerId)) return;
+                    if (Minecraft.getMinecraft().thePlayer != null && Minecraft.getMinecraft().thePlayer.getUniqueID().equals(message.playerId)) return;
                     EmotePlayer.stop(message.playerId);
                 }
             });
