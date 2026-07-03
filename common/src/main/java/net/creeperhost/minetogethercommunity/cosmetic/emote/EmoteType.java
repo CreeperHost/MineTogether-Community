@@ -1,6 +1,6 @@
 package net.creeperhost.minetogethercommunity.cosmetic.emote;
 
-import dev.architectury.platform.Platform;
+import net.creeperhost.minetogethercommunity.MineTogetherPlatform;
 
 import java.util.Locale;
 
@@ -21,7 +21,7 @@ public enum EmoteType {
     }
 
     public boolean isAvailable() {
-        return builtInRuntime || Platform.isModLoaded("geckolib");
+        return builtInRuntime || MineTogetherPlatform.isModLoaded("geckolib");
     }
 
     public static EmoteType fromMetadata(String value) {

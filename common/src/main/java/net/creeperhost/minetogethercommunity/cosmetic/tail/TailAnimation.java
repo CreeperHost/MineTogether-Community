@@ -78,9 +78,13 @@ public record TailAnimation(
     }
 
     public TailPose pose(AvatarRenderState state) {
-        if (!enabled()) return fallbackPose(state);
+        return pose(state, state.ageInTicks);
+    }
 
-        float idleSeed = state.ageInTicks * (float) (Math.PI * 2.0D) / idlePeriodTicks;
+    public TailPose pose(AvatarRenderState state, float ageInTicks) {
+        if (!enabled()) return fallbackPose(state, ageInTicks);
+
+        float idleSeed = ageInTicks * (float) (Math.PI * 2.0D) / idlePeriodTicks;
         float walk = state.walkAnimationPos;
         float bob = state.walkAnimationSpeed;
         float walkPhase = walk * walkPhaseScale;
@@ -115,8 +119,8 @@ public record TailAnimation(
         return new TailPose(cumulative(x), cumulative(y), cumulative(z));
     }
 
-    private TailPose fallbackPose(AvatarRenderState state) {
-        float idleSeed = state.ageInTicks * (float) (Math.PI * 2.0D) / 140.0F;
+    private TailPose fallbackPose(AvatarRenderState state, float ageInTicks) {
+        float idleSeed = ageInTicks * (float) (Math.PI * 2.0D) / 140.0F;
         float walk = state.walkAnimationPos;
         float bob = state.walkAnimationSpeed;
         float walkPhase = walk * 6.0F;

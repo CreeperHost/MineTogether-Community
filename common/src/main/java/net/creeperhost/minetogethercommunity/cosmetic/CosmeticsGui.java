@@ -1,5 +1,6 @@
 package net.creeperhost.minetogethercommunity.cosmetic;
 
+import net.creeperhost.minetogethercommunity.MineTogetherPlatform;
 import net.creeperhost.minetogethercommunity.chat.gui.MTStyle;
 import net.creeperhost.minetogethercommunity.cosmetic.cape.CapeRegistry;
 import net.creeperhost.minetogethercommunity.cosmetic.emote.EmoteFavorites;
@@ -128,6 +129,23 @@ public class CosmeticsGui implements GuiProvider {
                 .constrain(HEIGHT, literal(18));
         Constraints.bind(new HeaderIcon(backButton, HeaderIcon.Type.BACK, 0xFFEAEAEA), backButton);
 
+        if (MineTogetherPlatform.isDevelopmentEnvironment()) {
+            GuiButton refreshButton = MTStyle.Flat.button(header, Component.empty())
+                    .onPress(() -> {
+                        CosmeticDownloader.instance().reloadLocalAssetsForDev();
+                        ensureAssetLoaded(CosmeticTypes.HAT, pendingHatId[0]);
+                        ensureAssetLoaded(CosmeticTypes.CAPE, pendingCapeId[0]);
+                        ensureAssetLoaded(CosmeticTypes.TAIL, pendingTailId[0]);
+                        ensureAssetLoaded(CosmeticTypes.WINGS, pendingWingId[0]);
+                        ensureAssetLoaded(CosmeticTypes.EMOTES, previewEmoteId[0]);
+                    })
+                    .constrain(TOP, relative(header.get(TOP), 8))
+                    .constrain(RIGHT, relative(header.get(RIGHT), -56))
+                    .constrain(WIDTH, literal(18))
+                    .constrain(HEIGHT, literal(18));
+            Constraints.bind(new HeaderIcon(refreshButton, HeaderIcon.Type.REFRESH, 0xFFEAEAEA), refreshButton);
+        }
+
         // ── Far left: vertical category sidebar ──────────────────────────────
 
         GuiElement<?> categoryPanel = new SidebarPanel(container)
@@ -150,7 +168,12 @@ public class CosmeticsGui implements GuiProvider {
                                 if (activeTab[0] == type) return isHovered ? 0xFF2B5F94 : 0xFF17456F;
                                 return isHovered ? 0xFF242424 : 0x00151515;
                             })
-                    .onPress(() -> activeTab[0] = type)
+                    .onPress(() -> {
+                        if (activeTab[0] != type) {
+                            previewEmoteId[0] = "";
+                        }
+                        activeTab[0] = type;
+                    })
                     .constrain(TOP, relative(categoryPanel.get(TOP), topOffset))
                     .constrain(LEFT, relative(categoryPanel.get(LEFT), 4))
                     .constrain(RIGHT, relative(categoryPanel.get(RIGHT), -4))
@@ -521,6 +544,8 @@ public class CosmeticsGui implements GuiProvider {
             double cy = y + h / 2.0D;
             if (type == Type.BACK) {
                 drawBackArrow(render, cx, cy);
+            } else if (type == Type.REFRESH) {
+                drawRefresh(render, cx, cy);
             } else {
                 drawSave(render, cx, cy);
             }
@@ -547,8 +572,24 @@ public class CosmeticsGui implements GuiProvider {
             render.rect(x + 3, y + 7, 4, 2, 0xFF166B22);
         }
 
+        private void drawRefresh(GuiRender render, double cx, double cy) {
+            double x = Math.floor(cx - 5.0D);
+            double y = Math.floor(cy - 5.0D);
+            render.rect(x + 3, y, 5, 2, color);
+            render.rect(x + 7, y + 1, 2, 2, color);
+            render.rect(x + 8, y + 3, 2, 3, color);
+            render.rect(x + 6, y + 5, 4, 2, color);
+            render.rect(x + 7, y + 7, 2, 2, color);
+            render.rect(x + 8, y + 8, 2, 2, color);
+            render.rect(x + 1, y + 4, 2, 3, color);
+            render.rect(x + 2, y + 7, 5, 2, color);
+            render.rect(x, y + 2, 2, 2, color);
+            render.rect(x, y, 2, 2, color);
+        }
+
         private enum Type {
             BACK,
+            REFRESH,
             SAVE
         }
     }
@@ -582,8 +623,17 @@ public class CosmeticsGui implements GuiProvider {
             for (int i = 0; i < GRID_COLUMNS; i++) {
                 CosmeticItem item = row.item(i);
                 if (mouseX >= tileX(i) && mouseX <= tileX(i) + tileWidth() && mouseY >= yMin() && mouseY <= yMax()) {
-                    if (activeTab[0] == CosmeticTypes.EMOTES && item != null && !item.locked() && isFavoriteToggleClick(mouseX, mouseY, i)) {
-                        EmoteFavorites.toggle(item.id());
+                    if (activeTab[0] == CosmeticTypes.EMOTES) {
+                        if (item == null || item.locked()) return true;
+                        if (isFavoriteToggleClick(mouseX, mouseY, i)) {
+                            EmoteFavorites.toggle(item.id());
+                            return true;
+                        }
+                        if (isPlayClick(mouseX, mouseY, i)) {
+                            playEmote(item);
+                            return true;
+                        }
+                        previewEmote(item);
                         return true;
                     }
                     select(item);
@@ -633,19 +683,31 @@ public class CosmeticsGui implements GuiProvider {
                 if (item != null && !item.locked() && activeTab[0] == CosmeticTypes.EMOTES) {
                     boolean favorite = EmoteFavorites.isFavorite(item.id());
                     double actionY = yMax() - 18;
-                    render.rect(x + 5, actionY, 31, 14, 0xFF1F4A2A);
-                    render.drawString(Component.literal("Play").withStyle(ChatFormatting.GREEN).getVisualOrderText(), x + 9, actionY + 3, 0xFF44FF66);
+                    render.rect(x + 6, actionY, 18, 14, 0xFF1F4A2A);
+                    drawPlayIcon(render, x + 6, actionY, 0xFF44FF66);
 
-                    String favoriteText = favorite ? "Fav" : "+";
                     int favoriteColor = favorite ? 0xFFFFD94A : EmoteFavorites.canAddMore() ? 0xFFAAAAAA : 0xFF666666;
-                    double favoriteX = x + tileWidth() - 30;
-                    render.rect(favoriteX, actionY, 25, 14, favorite ? 0xFF4A3E16 : 0xFF2B2B2B);
-                    render.drawString(Component.literal(favoriteText).getVisualOrderText(), favoriteX + (25 - render.font().width(favoriteText)) / 2.0D, actionY + 3, favoriteColor);
+                    double favoriteX = x + tileWidth() - 24;
+                    render.rect(favoriteX, actionY, 18, 14, favorite ? 0xFF4A3E16 : 0xFF2B2B2B);
+                    drawStarIcon(render, favoriteX, actionY, favoriteColor);
                 }
                 if (item != null && item.locked()) {
                     render.drawString(Component.literal("Locked").withStyle(ChatFormatting.DARK_GRAY).getVisualOrderText(), x + 6, yMax() - 14, 0xFF777777);
                 }
             }
+        }
+
+        @Override
+        public boolean renderOverlay(GuiRender render, double mouseX, double mouseY, float partialTicks, boolean consumed) {
+            if (super.renderOverlay(render, mouseX, mouseY, partialTicks, consumed)) return true;
+            if (consumed) return false;
+
+            Component tooltip = hoveredActionTooltip(mouseX, mouseY);
+            if (tooltip != null) {
+                render.renderTooltip(tooltip, mouseX, mouseY);
+                return true;
+            }
+            return false;
         }
 
         private void drawCardTitle(GuiRender render, String title, double x, double y, double width, int color) {
@@ -722,11 +784,11 @@ public class CosmeticsGui implements GuiProvider {
 
                 render.pushScissorRect(x, y, width, height);
                 try {
-                    renderBrightEntityInInventory(render, scale, offsetY, entityRotation, cameraRotation, entity,
+                    EmotePlayer.withoutPose(() -> renderBrightEntityInInventory(render, scale, offsetY, entityRotation, cameraRotation, entity,
                             (int) Math.floor(x),
                             (int) Math.floor(y),
                             (int) Math.ceil(x + width),
-                            (int) Math.ceil(y + height));
+                            (int) Math.ceil(y + height)));
                 } finally {
                     render.popScissor();
                 }
@@ -758,10 +820,76 @@ public class CosmeticsGui implements GuiProvider {
 
         private void renderEmotePreview(GuiRender render, CosmeticItem item, double x, double y, double width, double height) {
             if (item == null || item.locked()) return;
-            boolean loaded = EmoteRegistry.getLoaded(item.id()) != null;
+            var emote = EmoteRegistry.getLoaded(item.id());
+            boolean loaded = emote != null;
             boolean favorite = EmoteFavorites.isFavorite(item.id());
-            render.drawString(Component.literal(loaded ? "Ready" : "Loading").withStyle(loaded ? ChatFormatting.AQUA : ChatFormatting.YELLOW).getVisualOrderText(), x + 6, y + 9, loaded ? 0xFF66DDEE : 0xFFFFDD55);
-            render.drawString(Component.literal(favorite ? "Radial" : "Add").getVisualOrderText(), x + 6, y + 23, favorite ? 0xFFFFD94A : 0xFFAAAAAA);
+            if (!loaded) {
+                render.drawString(Component.literal("Loading").withStyle(ChatFormatting.YELLOW).getVisualOrderText(), x + 6, y + 9, 0xFFFFDD55);
+                render.drawString(Component.literal(favorite ? "Radial" : "Add").getVisualOrderText(), x + 6, y + 23, favorite ? 0xFFFFD94A : 0xFFAAAAAA);
+                return;
+            }
+
+            LivingEntity entity = Minecraft.getInstance().player;
+            if (entity == null) return;
+
+            CosmeticSelections selections = CosmeticSelections.instance();
+            String previousHat = selections.selectedHatId;
+            String previousCape = selections.selectedCapeId;
+            String previousTail = selections.selectedTailId;
+            String previousWing = selections.selectedWingId;
+            boolean previousSuppressVanillaCapeForPreview = selections.suppressVanillaCapeForPreview;
+            boolean previousFullBrightPreview = selections.fullBrightPreview;
+
+            float prevBodyRot = entity.yBodyRot;
+            float prevYRot = entity.getYRot();
+            float prevXRot = entity.getXRot();
+            float prevHeadRotO = entity.yHeadRotO;
+            float prevHeadRot = entity.yHeadRot;
+
+            try {
+                selections.selectedHatId = "";
+                selections.selectedCapeId = "";
+                selections.selectedTailId = "";
+                selections.selectedWingId = "";
+                selections.suppressVanillaCapeForPreview = true;
+                selections.fullBrightPreview = true;
+
+                entity.yBodyRot = 180.0F;
+                entity.setYRot(entity.yBodyRot);
+                entity.setXRot(0.0F);
+                entity.yHeadRot = entity.getYRot();
+                entity.yHeadRotO = entity.getYRot();
+
+                float scale = Math.min((float) (height / entity.getBbHeight()) * 0.95F, 30.0F);
+                float yPos = (float) (y + height + scale * emote.previewHeight());
+                float offsetY = (float) (((yPos - (y + height / 2.0D)) / scale) - (entity.getBbHeight() / 2.0F));
+                Quaternionf entityRotation = new Quaternionf().rotateZ((float) Math.PI);
+                Quaternionf cameraRotation = new Quaternionf();
+
+                render.pushScissorRect(x, y, width, height);
+                try {
+                    EmotePlayer.withPreviewPose(item.id(), emote.previewFrame(), () ->
+                            renderBrightEntityInInventory(render, scale, offsetY, entityRotation, cameraRotation, entity,
+                                    (int) Math.floor(x),
+                                    (int) Math.floor(y),
+                                    (int) Math.ceil(x + width),
+                                    (int) Math.ceil(y + height)));
+                } finally {
+                    render.popScissor();
+                }
+            } finally {
+                selections.selectedHatId = previousHat;
+                selections.selectedCapeId = previousCape;
+                selections.selectedTailId = previousTail;
+                selections.selectedWingId = previousWing;
+                selections.suppressVanillaCapeForPreview = previousSuppressVanillaCapeForPreview;
+                selections.fullBrightPreview = previousFullBrightPreview;
+                entity.yBodyRot = prevBodyRot;
+                entity.setYRot(prevYRot);
+                entity.setXRot(prevXRot);
+                entity.yHeadRotO = prevHeadRotO;
+                entity.yHeadRot = prevHeadRot;
+            }
         }
 
         private void select(CosmeticItem item) {
@@ -790,14 +918,22 @@ public class CosmeticsGui implements GuiProvider {
                 }
                 case EMOTES -> {
                     if (!id.isEmpty()) {
-                        previewEmoteId[0] = id;
-                        CosmeticDownloader.instance().ensureAssetLoaded("emote", id);
-                        EmotePlayer.playLocal(id);
+                        playEmote(item);
                     }
                 }
                 default -> {
                 }
             }
+        }
+
+        private void previewEmote(CosmeticItem item) {
+            previewEmoteId[0] = item.id();
+            CosmeticDownloader.instance().ensureAssetLoaded("emote", item.id());
+        }
+
+        private void playEmote(CosmeticItem item) {
+            previewEmote(item);
+            EmotePlayer.playLocal(item.id());
         }
 
         private boolean isSelected(CosmeticItem item) {
@@ -817,7 +953,51 @@ public class CosmeticsGui implements GuiProvider {
         private boolean isFavoriteToggleClick(double mouseX, double mouseY, int index) {
             double x = tileX(index);
             double width = tileWidth();
-            return mouseX >= x + width - 34 && mouseX <= x + width - 4 && mouseY >= yMax() - 20 && mouseY <= yMax();
+            return mouseX >= x + width - 26 && mouseX <= x + width - 4 && mouseY >= yMax() - 20 && mouseY <= yMax();
+        }
+
+        private boolean isPlayClick(double mouseX, double mouseY, int index) {
+            double x = tileX(index);
+            return mouseX >= x + 4 && mouseX <= x + 28 && mouseY >= yMax() - 20 && mouseY <= yMax();
+        }
+
+        @Nullable
+        private Component hoveredActionTooltip(double mouseX, double mouseY) {
+            if (activeTab[0] != CosmeticTypes.EMOTES) return null;
+            for (int i = 0; i < GRID_COLUMNS; i++) {
+                CosmeticItem item = row.item(i);
+                if (item == null || item.locked()) continue;
+
+                if (isPlayClick(mouseX, mouseY, i)) {
+                    return Component.literal("Play emote");
+                }
+                if (isFavoriteToggleClick(mouseX, mouseY, i)) {
+                    if (EmoteFavorites.isFavorite(item.id())) return Component.literal("Remove from radial");
+                    return EmoteFavorites.canAddMore()
+                            ? Component.literal("Add to radial")
+                            : Component.literal("Radial full");
+                }
+            }
+            return null;
+        }
+
+        private void drawPlayIcon(GuiRender render, double x, double y, int color) {
+            double px = Math.floor(x + 6);
+            double py = Math.floor(y + 4);
+            render.rect(px, py, 2, 6, color);
+            render.rect(px + 2, py + 1, 2, 4, color);
+            render.rect(px + 4, py + 2, 2, 2, color);
+        }
+
+        private void drawStarIcon(GuiRender render, double x, double y, int color) {
+            double sx = Math.floor(x + 5);
+            double sy = Math.floor(y + 3);
+            render.rect(sx + 3, sy, 2, 2, color);
+            render.rect(sx + 1, sy + 2, 6, 2, color);
+            render.rect(sx, sy + 4, 8, 2, color);
+            render.rect(sx + 2, sy + 6, 4, 2, color);
+            render.rect(sx + 1, sy + 8, 2, 2, color);
+            render.rect(sx + 5, sy + 8, 2, 2, color);
         }
 
         private String displayName(CosmeticItem item) {
@@ -1162,7 +1342,7 @@ public class CosmeticsGui implements GuiProvider {
         }
 
         Vector3f translation = new Vector3f(0.0F, renderState.boundingBoxHeight / 2.0F + offsetY, 0.0F);
-        render.graphics().entity(
+        CosmeticPreviewTime.withAnimatedPreview(() -> render.graphics().entity(
                 renderState,
                 (float) scale,
                 translation,
@@ -1172,7 +1352,7 @@ public class CosmeticsGui implements GuiProvider {
                 y0,
                 x1,
                 y1
-        );
+        ));
     }
 
     private static class OffsetFollowRenderer extends GuiElement<OffsetFollowRenderer> implements BackgroundRender {
@@ -1239,11 +1419,11 @@ public class CosmeticsGui implements GuiProvider {
                             (int) Math.ceil(rect.x() + rect.width() - horizontalPadding),
                             (int) Math.ceil(renderBottom)));
                 } else {
-                    renderBrightEntityInInventory(render, scale, offsetY, quaternionf, quaternionf1, entity,
+                    EmotePlayer.withoutPose(() -> renderBrightEntityInInventory(render, scale, offsetY, quaternionf, quaternionf1, entity,
                             (int) Math.floor(rect.x() + horizontalPadding),
                             (int) Math.floor(renderTop),
                             (int) Math.ceil(rect.x() + rect.width() - horizontalPadding),
-                            (int) Math.ceil(renderBottom));
+                            (int) Math.ceil(renderBottom)));
                 }
             } finally {
                 CosmeticSelections.instance().fullBrightPreview = previousFullBrightPreview;
