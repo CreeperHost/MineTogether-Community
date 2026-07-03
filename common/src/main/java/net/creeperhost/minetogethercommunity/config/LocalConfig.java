@@ -17,7 +17,9 @@ import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.ArrayList;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Set;
 
 import static net.creeperhost.minetogethercommunity.MineTogether.MOD_ID;
@@ -130,5 +132,8 @@ public class LocalConfig {
 
     @Comment ("CreeperHost version id used only for display/context.")
     public int connectPackCreeperHostVersionId = -1;
+
+    @Comment ("Client-only favorite emote ids shown in the emote radial menu.")
+    public List<String> favoriteEmoteIds = new ArrayList<>();
 
 }
