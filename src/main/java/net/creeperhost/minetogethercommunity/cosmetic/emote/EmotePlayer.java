@@ -1,10 +1,10 @@
 package net.creeperhost.minetogethercommunity.cosmetic.emote;
 
 import net.creeperhost.minetogethercommunity.cosmetic.CosmeticPreviewTime;
+import net.creeperhost.minetogethercommunity.util.ClientTaskRunner;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.entity.AbstractClientPlayer;
 import net.minecraft.client.model.ModelBiped;
-import net.minecraft.client.model.ModelPlayer;
 import net.minecraft.client.model.ModelRenderer;
 
 import java.util.Map;
@@ -79,7 +79,7 @@ public final class EmotePlayer {
                         return;
                     }
                     if (EmoteRegistry.getLoaded(emoteId) != null) {
-                        Minecraft.getMinecraft().addScheduledTask(new Runnable() {
+                        ClientTaskRunner.run(new Runnable() {
                             @Override
                             public void run() {
                                 playRemote(playerId, emoteId, false);
@@ -106,7 +106,7 @@ public final class EmotePlayer {
                         return;
                     }
                     if (EmoteRegistry.getLoaded(emoteId) != null) {
-                        Minecraft.getMinecraft().addScheduledTask(new Runnable() {
+                        ClientTaskRunner.run(new Runnable() {
                             @Override
                             public void run() {
                                 playLocal(emoteId, false);
@@ -183,7 +183,7 @@ public final class EmotePlayer {
         return poseFrom(animation, elapsed, !loopingToggle);
     }
 
-    public static ModelState applyToModel(ModelPlayer model, AbstractClientPlayer player, float ageInTicks) {
+    public static ModelState applyToModel(ModelBiped model, AbstractClientPlayer player, float ageInTicks) {
         Pose pose = poseFor(player, ageInTicks);
         if (pose == null) return null;
         ModelState state = new ModelState(model);
@@ -294,13 +294,13 @@ public final class EmotePlayer {
         return mc.thePlayer != null ? mc.thePlayer.ticksExisted : 0;
     }
 
-    private static void syncWearLayers(ModelPlayer model) {
-        ModelBiped.copyModelAngles(model.bipedHead, model.bipedHeadwear);
-        ModelBiped.copyModelAngles(model.bipedBody, model.bipedBodyWear);
-        ModelBiped.copyModelAngles(model.bipedRightArm, model.bipedRightArmwear);
-        ModelBiped.copyModelAngles(model.bipedLeftArm, model.bipedLeftArmwear);
-        ModelBiped.copyModelAngles(model.bipedRightLeg, model.bipedRightLegwear);
-        ModelBiped.copyModelAngles(model.bipedLeftLeg, model.bipedLeftLegwear);
+    private static void syncWearLayers(ModelBiped model) {
+        model.bipedHeadwear.rotateAngleX = model.bipedHead.rotateAngleX;
+        model.bipedHeadwear.rotateAngleY = model.bipedHead.rotateAngleY;
+        model.bipedHeadwear.rotateAngleZ = model.bipedHead.rotateAngleZ;
+        model.bipedHeadwear.rotationPointX = model.bipedHead.rotationPointX;
+        model.bipedHeadwear.rotationPointY = model.bipedHead.rotationPointY;
+        model.bipedHeadwear.rotationPointZ = model.bipedHead.rotationPointZ;
     }
 
     private static class ActiveEmote {
@@ -331,7 +331,7 @@ public final class EmotePlayer {
         private final PartState rightLeg;
         private final PartState leftLeg;
 
-        private ModelState(ModelPlayer model) {
+        private ModelState(ModelBiped model) {
             this.head = new PartState(model.bipedHead);
             this.body = new PartState(model.bipedBody);
             this.rightArm = new PartState(model.bipedRightArm);
@@ -340,7 +340,7 @@ public final class EmotePlayer {
             this.leftLeg = new PartState(model.bipedLeftLeg);
         }
 
-        public void restore(ModelPlayer model) {
+        public void restore(ModelBiped model) {
             head.restore(model.bipedHead);
             body.restore(model.bipedBody);
             rightArm.restore(model.bipedRightArm);

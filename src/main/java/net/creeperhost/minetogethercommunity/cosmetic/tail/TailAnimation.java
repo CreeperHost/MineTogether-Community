@@ -135,9 +135,9 @@ public class TailAnimation {
             lift = (float) Math.toRadians(passengerLiftDegrees);
             sideLag = 0.0F;
         } else {
-            double cloakX = interpolate(player.prevChasingPosX, player.chasingPosX, partialTicks) - interpolate(player.prevPosX, player.posX, partialTicks);
-            double cloakY = interpolate(player.prevChasingPosY, player.chasingPosY, partialTicks) - interpolate(player.prevPosY, player.posY, partialTicks);
-            double cloakZ = interpolate(player.prevChasingPosZ, player.chasingPosZ, partialTicks) - interpolate(player.prevPosZ, player.posZ, partialTicks);
+            double cloakX = interpolate(player.field_71091_bM, player.field_71094_bP, partialTicks) - interpolate(player.prevPosX, player.posX, partialTicks);
+            double cloakY = interpolate(player.field_71096_bN, player.field_71095_bQ, partialTicks) - interpolate(player.prevPosY, player.posY, partialTicks);
+            double cloakZ = interpolate(player.field_71097_bO, player.field_71085_bR, partialTicks) - interpolate(player.prevPosZ, player.posZ, partialTicks);
             float bodyYaw = interpolate(player.prevRenderYawOffset, player.renderYawOffset, partialTicks);
             float sin = CompatMath.sin(bodyYaw * 0.017453292F);
             float back = -CompatMath.cos(bodyYaw * 0.017453292F);

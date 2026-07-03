@@ -2,17 +2,18 @@ package net.creeperhost.minetogethercommunity.cosmetic.emote;
 
 import io.netty.buffer.ByteBuf;
 import net.creeperhost.minetogethercommunity.cosmetic.CosmeticDownloader;
+import net.creeperhost.minetogethercommunity.util.ClientTaskRunner;
 import net.minecraft.client.Minecraft;
 import net.minecraft.entity.player.EntityPlayerMP;
 import net.minecraft.server.MinecraftServer;
-import net.minecraftforge.fml.common.FMLCommonHandler;
-import net.minecraftforge.fml.common.network.ByteBufUtils;
-import net.minecraftforge.fml.common.network.NetworkRegistry;
-import net.minecraftforge.fml.common.network.simpleimpl.IMessage;
-import net.minecraftforge.fml.common.network.simpleimpl.IMessageHandler;
-import net.minecraftforge.fml.common.network.simpleimpl.MessageContext;
-import net.minecraftforge.fml.common.network.simpleimpl.SimpleNetworkWrapper;
-import net.minecraftforge.fml.relauncher.Side;
+import cpw.mods.fml.common.FMLCommonHandler;
+import cpw.mods.fml.common.network.ByteBufUtils;
+import cpw.mods.fml.common.network.NetworkRegistry;
+import cpw.mods.fml.common.network.simpleimpl.IMessage;
+import cpw.mods.fml.common.network.simpleimpl.IMessageHandler;
+import cpw.mods.fml.common.network.simpleimpl.MessageContext;
+import cpw.mods.fml.common.network.simpleimpl.SimpleNetworkWrapper;
+import cpw.mods.fml.relauncher.Side;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
@@ -148,18 +149,13 @@ public final class EmoteNetworking {
             final EntityPlayerMP sender = ctx.getServerHandler().playerEntity;
             final MinecraftServer server = FMLCommonHandler.instance().getMinecraftServerInstance();
             if (server == null) return null;
-            server.addScheduledTask(new Runnable() {
-                @Override
-                public void run() {
-                    if (!validEmoteId(message.emoteId)) return;
-                    StartEmoteS2C packet = new StartEmoteS2C(sender.getUniqueID(), message.emoteId);
-                    List<EntityPlayerMP> players = server.getConfigurationManager().playerEntityList;
-                    for (EntityPlayerMP target : players) {
-                        if (target == sender) continue;
-                        CHANNEL.sendTo(packet, target);
-                    }
-                }
-            });
+            if (!validEmoteId(message.emoteId)) return null;
+            StartEmoteS2C packet = new StartEmoteS2C(sender.getUniqueID(), message.emoteId);
+            List<EntityPlayerMP> players = server.getConfigurationManager().playerEntityList;
+            for (EntityPlayerMP target : players) {
+                if (target == sender) continue;
+                CHANNEL.sendTo(packet, target);
+            }
             return null;
         }
     }
@@ -170,17 +166,12 @@ public final class EmoteNetworking {
             final EntityPlayerMP sender = ctx.getServerHandler().playerEntity;
             final MinecraftServer server = FMLCommonHandler.instance().getMinecraftServerInstance();
             if (server == null) return null;
-            server.addScheduledTask(new Runnable() {
-                @Override
-                public void run() {
-                    StopEmoteS2C packet = new StopEmoteS2C(sender.getUniqueID());
-                    List<EntityPlayerMP> players = server.getConfigurationManager().playerEntityList;
-                    for (EntityPlayerMP target : players) {
-                        if (target == sender) continue;
-                        CHANNEL.sendTo(packet, target);
-                    }
-                }
-            });
+            StopEmoteS2C packet = new StopEmoteS2C(sender.getUniqueID());
+            List<EntityPlayerMP> players = server.getConfigurationManager().playerEntityList;
+            for (EntityPlayerMP target : players) {
+                if (target == sender) continue;
+                CHANNEL.sendTo(packet, target);
+            }
             return null;
         }
     }
@@ -188,7 +179,7 @@ public final class EmoteNetworking {
     public static class StartClientHandler implements IMessageHandler<StartEmoteS2C, IMessage> {
         @Override
         public IMessage onMessage(final StartEmoteS2C message, MessageContext ctx) {
-            Minecraft.getMinecraft().addScheduledTask(new Runnable() {
+            ClientTaskRunner.run(new Runnable() {
                 @Override
                 public void run() {
                     if (!validEmoteId(message.emoteId)) return;
@@ -204,7 +195,7 @@ public final class EmoteNetworking {
     public static class StopClientHandler implements IMessageHandler<StopEmoteS2C, IMessage> {
         @Override
         public IMessage onMessage(final StopEmoteS2C message, MessageContext ctx) {
-            Minecraft.getMinecraft().addScheduledTask(new Runnable() {
+            ClientTaskRunner.run(new Runnable() {
                 @Override
                 public void run() {
                     if (Minecraft.getMinecraft().thePlayer != null && Minecraft.getMinecraft().thePlayer.getUniqueID().equals(message.playerId)) return;

@@ -5,12 +5,9 @@ import net.creeperhost.minetogethercommunity.cosmetic.CosmeticItem;
 import net.minecraft.client.gui.GuiScreen;
 import net.minecraft.client.renderer.GlStateManager;
 import net.minecraft.client.renderer.Tessellator;
-import net.minecraft.client.renderer.WorldRenderer;
-import net.minecraft.client.renderer.vertex.DefaultVertexFormats;
 import net.minecraft.client.resources.I18n;
 import org.lwjgl.opengl.GL11;
 
-import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -97,7 +94,7 @@ public class EmoteRadialScreen extends GuiScreen {
     }
 
     @Override
-    protected void mouseClicked(int mouseX, int mouseY, int mouseButton) throws IOException {
+    protected void mouseClicked(int mouseX, int mouseY, int mouseButton) {
         int selected = selectedIndex(mouseX, mouseY);
         if (mouseButton == 0 && selected >= 0 && selected < emotes.size()) {
             EmotePlayer.playLocal(emotes.get(selected).id());
@@ -134,13 +131,12 @@ public class EmoteRadialScreen extends GuiScreen {
         double start = startAngle + SECTOR_GAP;
         double end = endAngle - SECTOR_GAP;
         beginColored();
-        Tessellator tessellator = Tessellator.getInstance();
-        WorldRenderer buffer = tessellator.getWorldRenderer();
-        buffer.begin(GL11.GL_TRIANGLE_STRIP, DefaultVertexFormats.POSITION_COLOR);
+        Tessellator tessellator = Tessellator.instance;
+        tessellator.startDrawing(GL11.GL_TRIANGLE_STRIP);
         for (int i = 0; i <= ARC_STEPS; i++) {
             double angle = start + (end - start) * i / ARC_STEPS;
-            addPolarVertex(buffer, centerX, centerY, outerRadius, angle, color);
-            addPolarVertex(buffer, centerX, centerY, innerRadius, angle, color);
+            addPolarVertex(tessellator, centerX, centerY, outerRadius, angle, color);
+            addPolarVertex(tessellator, centerX, centerY, innerRadius, angle, color);
         }
         tessellator.draw();
         endColored();
@@ -158,13 +154,12 @@ public class EmoteRadialScreen extends GuiScreen {
 
     private void drawDisc(int centerX, int centerY, int radius, int color, int steps) {
         beginColored();
-        Tessellator tessellator = Tessellator.getInstance();
-        WorldRenderer buffer = tessellator.getWorldRenderer();
-        buffer.begin(GL11.GL_TRIANGLE_FAN, DefaultVertexFormats.POSITION_COLOR);
-        addVertex(buffer, centerX, centerY, color);
+        Tessellator tessellator = Tessellator.instance;
+        tessellator.startDrawing(GL11.GL_TRIANGLE_FAN);
+        addVertex(tessellator, centerX, centerY, color);
         for (int i = 0; i <= steps; i++) {
             double angle = Math.PI * 2.0D * i / steps;
-            addPolarVertex(buffer, centerX, centerY, radius, angle, color);
+            addPolarVertex(tessellator, centerX, centerY, radius, angle, color);
         }
         tessellator.draw();
         endColored();
@@ -172,14 +167,13 @@ public class EmoteRadialScreen extends GuiScreen {
 
     private void drawRing(int centerX, int centerY, int innerRadius, int outerRadius, int color) {
         beginColored();
-        Tessellator tessellator = Tessellator.getInstance();
-        WorldRenderer buffer = tessellator.getWorldRenderer();
-        buffer.begin(GL11.GL_TRIANGLE_STRIP, DefaultVertexFormats.POSITION_COLOR);
+        Tessellator tessellator = Tessellator.instance;
+        tessellator.startDrawing(GL11.GL_TRIANGLE_STRIP);
         int steps = 48;
         for (int i = 0; i <= steps; i++) {
             double angle = Math.PI * 2.0D * i / steps;
-            addPolarVertex(buffer, centerX, centerY, outerRadius, angle, color);
-            addPolarVertex(buffer, centerX, centerY, innerRadius, angle, color);
+            addPolarVertex(tessellator, centerX, centerY, outerRadius, angle, color);
+            addPolarVertex(tessellator, centerX, centerY, innerRadius, angle, color);
         }
         tessellator.draw();
         endColored();
@@ -193,27 +187,27 @@ public class EmoteRadialScreen extends GuiScreen {
         float nx = (float) (-dy / length);
         float ny = (float) (dx / length);
         beginColored();
-        Tessellator tessellator = Tessellator.getInstance();
-        WorldRenderer buffer = tessellator.getWorldRenderer();
-        buffer.begin(GL11.GL_QUADS, DefaultVertexFormats.POSITION_COLOR);
-        addVertex(buffer, x1 + nx, y1 + ny, color);
-        addVertex(buffer, x2 + nx, y2 + ny, color);
-        addVertex(buffer, x2 - nx, y2 - ny, color);
-        addVertex(buffer, x1 - nx, y1 - ny, color);
+        Tessellator tessellator = Tessellator.instance;
+        tessellator.startDrawing(GL11.GL_QUADS);
+        addVertex(tessellator, x1 + nx, y1 + ny, color);
+        addVertex(tessellator, x2 + nx, y2 + ny, color);
+        addVertex(tessellator, x2 - nx, y2 - ny, color);
+        addVertex(tessellator, x1 - nx, y1 - ny, color);
         tessellator.draw();
         endColored();
     }
 
-    private void addPolarVertex(WorldRenderer buffer, int centerX, int centerY, int radius, double angle, int color) {
-        addVertex(buffer, centerX + (float) Math.cos(angle) * radius, centerY + (float) Math.sin(angle) * radius, color);
+    private void addPolarVertex(Tessellator tessellator, int centerX, int centerY, int radius, double angle, int color) {
+        addVertex(tessellator, centerX + (float) Math.cos(angle) * radius, centerY + (float) Math.sin(angle) * radius, color);
     }
 
-    private void addVertex(WorldRenderer buffer, float x, float y, int color) {
+    private void addVertex(Tessellator tessellator, float x, float y, int color) {
         int alpha = color >>> 24 & 255;
         int red = color >>> 16 & 255;
         int green = color >>> 8 & 255;
         int blue = color & 255;
-        buffer.pos(x, y, 0.0D).color(red, green, blue, alpha).endVertex();
+        tessellator.setColorRGBA(red, green, blue, alpha);
+        tessellator.addVertex(x, y, 0.0D);
     }
 
     private void beginColored() {

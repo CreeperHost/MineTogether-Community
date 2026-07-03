@@ -1,6 +1,6 @@
 package net.creeperhost.minetogethercommunity.cosmetic.emote;
 
-import net.minecraftforge.fml.common.Loader;
+import cpw.mods.fml.common.Loader;
 
 import java.util.Locale;
 
