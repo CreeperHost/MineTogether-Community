@@ -102,7 +102,7 @@ public class CosmeticsGui implements GuiProvider {
                 .constrain(LEFT, relative(header.get(LEFT), 8))
                 .constrain(WIDTH, literal(120));
 
-        MTStyle.Flat.buttonPrimary(header, Component.literal("+"))
+        GuiButton saveButton = MTStyle.Flat.buttonPrimary(header, Component.empty())
                 .onPress(() -> {
                     String hatId  = pendingHatId[0];
                     String capeId = pendingCapeId[0];
@@ -112,18 +112,21 @@ public class CosmeticsGui implements GuiProvider {
                     CosmeticApiClient.selectAsync("cape", capeId == null || capeId.isEmpty() ? null : capeId);
                     CosmeticApiClient.selectAsync("tail", tailId == null || tailId.isEmpty() ? null : tailId);
                     CosmeticApiClient.selectAsync("wing", wingId == null || wingId.isEmpty() ? null : wingId);
-                })
+                });
+        saveButton
                 .constrain(TOP, relative(header.get(TOP), 8))
                 .constrain(RIGHT, relative(header.get(RIGHT), -8))
                 .constrain(WIDTH, literal(18))
                 .constrain(HEIGHT, literal(18));
+        Constraints.bind(new HeaderIcon(saveButton, HeaderIcon.Type.SAVE, 0xFFFFFFFF), saveButton);
 
-        MTStyle.Flat.button(header, Component.translatable("minetogether:gui.button.back_arrow"))
+        GuiButton backButton = MTStyle.Flat.button(header, Component.empty())
                 .onPress(() -> gui.mc().setScreen(gui.getParentScreen()))
                 .constrain(TOP, relative(header.get(TOP), 8))
                 .constrain(RIGHT, relative(header.get(RIGHT), -32))
                 .constrain(WIDTH, literal(18))
                 .constrain(HEIGHT, literal(18));
+        Constraints.bind(new HeaderIcon(backButton, HeaderIcon.Type.BACK, 0xFFEAEAEA), backButton);
 
         // ── Far left: vertical category sidebar ──────────────────────────────
 
@@ -495,6 +498,58 @@ public class CosmeticsGui implements GuiProvider {
     private static class PreviewPanel extends PanelElement<PreviewPanel> {
         public PreviewPanel(@NotNull GuiParent<?> parent) {
             super(parent, 0xE0101010, 0xFF242424);
+        }
+    }
+
+    private static class HeaderIcon extends GuiElement<HeaderIcon> implements ForegroundRender {
+        private final Type type;
+        private final int color;
+
+        public HeaderIcon(@NotNull GuiParent<?> parent, Type type, int color) {
+            super(parent);
+            this.type = type;
+            this.color = color;
+        }
+
+        @Override
+        public void renderInFront(GuiRender render, double mouseX, double mouseY, float partialTicks) {
+            double x = xMin();
+            double y = yMin();
+            double w = xSize();
+            double h = ySize();
+            double cx = x + w / 2.0D;
+            double cy = y + h / 2.0D;
+            if (type == Type.BACK) {
+                drawBackArrow(render, cx, cy);
+            } else {
+                drawSave(render, cx, cy);
+            }
+        }
+
+        private void drawBackArrow(GuiRender render, double cx, double cy) {
+            double x = Math.floor(cx - 4.0D);
+            double y = Math.floor(cy - 5.0D);
+            render.rect(x + 3, y, 2, 2, color);
+            render.rect(x + 2, y + 2, 2, 2, color);
+            render.rect(x + 1, y + 4, 8, 2, color);
+            render.rect(x + 2, y + 6, 2, 2, color);
+            render.rect(x + 3, y + 8, 2, 2, color);
+        }
+
+        private void drawSave(GuiRender render, double cx, double cy) {
+            double x = Math.floor(cx - 5.0D);
+            double y = Math.floor(cy - 5.0D);
+            render.rect(x, y, 10, 10, color);
+            render.rect(x + 1, y + 1, 8, 8, 0xFF166B22);
+            render.rect(x + 2, y + 1, 4, 3, color);
+            render.rect(x + 7, y + 1, 1, 3, 0xFF0D3F15);
+            render.rect(x + 2, y + 6, 6, 3, color);
+            render.rect(x + 3, y + 7, 4, 2, 0xFF166B22);
+        }
+
+        private enum Type {
+            BACK,
+            SAVE
         }
     }
 
