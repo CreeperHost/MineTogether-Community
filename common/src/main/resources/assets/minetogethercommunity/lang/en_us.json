@@ -304,6 +304,7 @@
     "key.minetogether.friend_chat": "Open friend chat",
     "key.minetogether.global_chat": "Open global chat",
     "key.minetogether.settings": "Open Settings",
+    "key.minetogether.cosmetics": "Open Cosmetics",
     "key.minetogether.emote_favorite_1": "Play Favorite Emote 1",
     "key.minetogether.emote_favorite_2": "Play Favorite Emote 2",
     "key.minetogether.emote_favorite_3": "Play Favorite Emote 3",
@@ -316,6 +317,7 @@
     "minetogether:keybind.friend_chat": "Open friend chat",
     "minetogether:keybind.global_chat": "Open global chat",
     "minetogether:keybind.settings": "Open Settings",
+    "minetogether:keybind.cosmetics": "Open Cosmetics",
 
     "minetogether:toast.fiend_request_received": "%s has sent you a friend request",
     "minetogether:toast.fiend_request_accepted": "%s has accepted your friend request",
