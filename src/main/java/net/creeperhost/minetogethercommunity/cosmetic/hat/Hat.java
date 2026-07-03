@@ -22,16 +22,24 @@ public class Hat {
     private final List<HatCuboid> cuboids;
     private final List<TailElement> jsonElements;
     private final TailModel jsonModel;
+    private final HatAnimation animation;
 
     public Hat(String id, String displayName, String author, String mod, boolean locked, String howToUnlock,
                ResourceLocation texture, int texWidth, int texHeight, HatModelType type, List<HatCuboid> cuboids) {
         this(id, displayName, author, mod, locked, howToUnlock, texture, texWidth, texHeight, type, cuboids,
-                Collections.<TailElement>emptyList(), null);
+                Collections.<TailElement>emptyList(), null, HatAnimation.NONE);
     }
 
     public Hat(String id, String displayName, String author, String mod, boolean locked, String howToUnlock,
                ResourceLocation texture, int texWidth, int texHeight, HatModelType type, List<HatCuboid> cuboids,
                List<TailElement> jsonElements, TailModel jsonModel) {
+        this(id, displayName, author, mod, locked, howToUnlock, texture, texWidth, texHeight, type, cuboids,
+                jsonElements, jsonModel, HatAnimation.NONE);
+    }
+
+    public Hat(String id, String displayName, String author, String mod, boolean locked, String howToUnlock,
+               ResourceLocation texture, int texWidth, int texHeight, HatModelType type, List<HatCuboid> cuboids,
+               List<TailElement> jsonElements, TailModel jsonModel, HatAnimation animation) {
         this.id = id;
         this.displayName = displayName;
         this.author = author;
@@ -45,6 +53,7 @@ public class Hat {
         this.cuboids = cuboids == null ? Collections.<HatCuboid>emptyList() : cuboids;
         this.jsonElements = jsonElements == null ? Collections.<TailElement>emptyList() : jsonElements;
         this.jsonModel = jsonModel;
+        this.animation = animation == null ? HatAnimation.NONE : animation;
     }
 
     public String id() { return id; }
@@ -60,6 +69,7 @@ public class Hat {
     public List<HatCuboid> cuboids() { return cuboids; }
     public List<TailElement> jsonElements() { return jsonElements; }
     public TailModel jsonModel() { return jsonModel; }
+    public HatAnimation animation() { return animation; }
 
     public boolean isJsonModel() {
         return type == HatModelType.JSON;

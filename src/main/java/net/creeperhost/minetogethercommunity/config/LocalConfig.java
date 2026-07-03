@@ -11,7 +11,9 @@ import java.io.File;
 import java.io.FileReader;
 import java.io.FileWriter;
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Set;
 
 public class LocalConfig {
@@ -39,6 +41,7 @@ public class LocalConfig {
     public String connectPackProjectVersion = "";
     public String connectPackMinecraftVersion = "";
     public int connectPackCreeperHostVersionId = -1;
+    public List<String> favoriteEmoteIds = new ArrayList<String>();
 
     public static synchronized LocalConfig instance() {
         if (INSTANCE == null) {
@@ -88,6 +91,7 @@ public class LocalConfig {
         if (config.connectPackProjectId == null) config.connectPackProjectId = "";
         if (config.connectPackProjectVersion == null) config.connectPackProjectVersion = "";
         if (config.connectPackMinecraftVersion == null) config.connectPackMinecraftVersion = "";
+        if (config.favoriteEmoteIds == null) config.favoriteEmoteIds = new ArrayList<String>();
         return config;
     }
 }

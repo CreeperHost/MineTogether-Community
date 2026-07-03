@@ -4,6 +4,7 @@ import net.minecraft.client.renderer.Tessellator;
 import net.minecraft.client.renderer.WorldRenderer;
 import net.minecraft.client.renderer.vertex.DefaultVertexFormats;
 
+import java.util.ArrayList;
 import java.util.List;
 
 public class TailModel {
@@ -29,14 +30,22 @@ public class TailModel {
     }
 
     public void render(TailPose pose) {
+        render(pose, TailElementPose.none());
+    }
+
+    public void render(TailElementPose elementPose) {
+        render(TailPose.none(), elementPose);
+    }
+
+    public void render(TailPose pose, TailElementPose elementPose) {
         Tessellator tessellator = Tessellator.getInstance();
         WorldRenderer renderer = tessellator.getWorldRenderer();
         renderer.begin(7, DefaultVertexFormats.POSITION_TEX_NORMAL);
         if (animatedChain) {
-            renderAnimatedChain(renderer, pose);
+            renderAnimatedChain(renderer, pose, elementPose);
         } else {
             for (TailElement element : elements) {
-                emitElement(renderer, element, null, null);
+                emitElement(renderer, element, null, null, elementPose);
             }
         }
         tessellator.draw();
@@ -46,48 +55,99 @@ public class TailModel {
         return elements;
     }
 
-    private void emitElement(WorldRenderer renderer, TailElement element, float[] dynamicOrigin, float[] dynamicAngles) {
+    private void emitElement(WorldRenderer renderer, TailElement element, float[] dynamicOrigin, float[] dynamicAngles, TailElementPose elementPose) {
         float x0 = element.from()[0], y0 = element.from()[1], z0 = element.from()[2];
         float x1 = element.to()[0], y1 = element.to()[1], z1 = element.to()[2];
-        if (element.south() != null) emitFace(renderer, element.south(), verts(element, dynamicOrigin, dynamicAngles, new float[][] {{x0, y0, z1}, {x1, y0, z1}, {x1, y1, z1}, {x0, y1, z1}}), normal(element, dynamicAngles, 0, 0, 1));
-        if (element.north() != null) emitFace(renderer, element.north(), verts(element, dynamicOrigin, dynamicAngles, new float[][] {{x1, y0, z0}, {x0, y0, z0}, {x0, y1, z0}, {x1, y1, z0}}), normal(element, dynamicAngles, 0, 0, -1));
-        if (element.east() != null) emitFace(renderer, element.east(), verts(element, dynamicOrigin, dynamicAngles, new float[][] {{x1, y0, z1}, {x1, y0, z0}, {x1, y1, z0}, {x1, y1, z1}}), normal(element, dynamicAngles, 1, 0, 0));
-        if (element.west() != null) emitFace(renderer, element.west(), verts(element, dynamicOrigin, dynamicAngles, new float[][] {{x0, y0, z0}, {x0, y0, z1}, {x0, y1, z1}, {x0, y1, z0}}), normal(element, dynamicAngles, -1, 0, 0));
-        if (element.up() != null) emitFace(renderer, element.up(), verts(element, dynamicOrigin, dynamicAngles, new float[][] {{x0, y1, z1}, {x1, y1, z1}, {x1, y1, z0}, {x0, y1, z0}}), normal(element, dynamicAngles, 0, 1, 0));
-        if (element.down() != null) emitFace(renderer, element.down(), verts(element, dynamicOrigin, dynamicAngles, new float[][] {{x0, y0, z0}, {x1, y0, z0}, {x1, y0, z1}, {x0, y0, z1}}), normal(element, dynamicAngles, 0, -1, 0));
+        if (element.south() != null) emitFace(renderer, element.south(), verts(element, dynamicOrigin, dynamicAngles, elementPose, new float[][] {{x0, y0, z1}, {x1, y0, z1}, {x1, y1, z1}, {x0, y1, z1}}), normal(element, dynamicAngles, elementPose, 0, 0, 1));
+        if (element.north() != null) emitFace(renderer, element.north(), verts(element, dynamicOrigin, dynamicAngles, elementPose, new float[][] {{x1, y0, z0}, {x0, y0, z0}, {x0, y1, z0}, {x1, y1, z0}}), normal(element, dynamicAngles, elementPose, 0, 0, -1));
+        if (element.east() != null) emitFace(renderer, element.east(), verts(element, dynamicOrigin, dynamicAngles, elementPose, new float[][] {{x1, y0, z1}, {x1, y0, z0}, {x1, y1, z0}, {x1, y1, z1}}), normal(element, dynamicAngles, elementPose, 1, 0, 0));
+        if (element.west() != null) emitFace(renderer, element.west(), verts(element, dynamicOrigin, dynamicAngles, elementPose, new float[][] {{x0, y0, z0}, {x0, y0, z1}, {x0, y1, z1}, {x0, y1, z0}}), normal(element, dynamicAngles, elementPose, -1, 0, 0));
+        if (element.up() != null) emitFace(renderer, element.up(), verts(element, dynamicOrigin, dynamicAngles, elementPose, new float[][] {{x0, y1, z1}, {x1, y1, z1}, {x1, y1, z0}, {x0, y1, z0}}), normal(element, dynamicAngles, elementPose, 0, 1, 0));
+        if (element.down() != null) emitFace(renderer, element.down(), verts(element, dynamicOrigin, dynamicAngles, elementPose, new float[][] {{x0, y0, z0}, {x1, y0, z0}, {x1, y0, z1}, {x0, y0, z1}}), normal(element, dynamicAngles, elementPose, 0, -1, 0));
     }
 
-    private void renderAnimatedChain(WorldRenderer renderer, TailPose pose) {
+    private void renderAnimatedChain(WorldRenderer renderer, TailPose pose, TailElementPose elementPose) {
         float[] previousStaticOrigin = null;
         float[] previousDynamicOrigin = null;
         float[] previousStaticAngles = null;
         float[] previousDynamicAngles = null;
+        List<ChainState> chainStates = new ArrayList<ChainState>();
 
         for (TailElement element : elements) {
             int animationIndex = animationIndex(element.name());
+            if (animationIndex < 0) continue;
             float[] staticOrigin = elementOrigin(element);
             float[] staticAngles = elementAngles(element, 0.0F, 0.0F, 0.0F);
             float[] dynamicAngles = elementAngles(element,
-                    pose.x(animationIndex) * animationScale,
-                    pose.y(animationIndex) * animationScale,
-                    pose.z(animationIndex) * animationScale);
+                    pose.x(animationIndex) * animationScale + elementPose.x(element.name()),
+                    pose.y(animationIndex) * animationScale + elementPose.y(element.name()),
+                    pose.z(animationIndex) * animationScale + elementPose.z(element.name()));
             float[] dynamicOrigin = dynamicOrigin(staticOrigin, previousStaticOrigin, previousDynamicOrigin, previousStaticAngles, previousDynamicAngles);
-            emitElement(renderer, element, dynamicOrigin, dynamicAngles);
+            emitElement(renderer, element, dynamicOrigin, dynamicAngles, TailElementPose.none());
             previousStaticOrigin = staticOrigin;
             previousDynamicOrigin = dynamicOrigin;
             previousStaticAngles = staticAngles;
             previousDynamicAngles = dynamicAngles;
+            chainStates.add(new ChainState(staticOrigin, dynamicOrigin, staticAngles, dynamicAngles));
+        }
+
+        for (TailElement element : elements) {
+            if (animationIndex(element.name()) >= 0) continue;
+            ChainState parent = nearestChainState(element, chainStates);
+            if (parent == null) continue;
+            float[] staticOrigin = elementOrigin(element);
+            float[] staticAngles = elementAngles(element, 0.0F, 0.0F, 0.0F);
+            float[] deltaAngles = new float[] {
+                    parent.dynamicAngles[0] - parent.staticAngles[0],
+                    parent.dynamicAngles[1] - parent.staticAngles[1],
+                    parent.dynamicAngles[2] - parent.staticAngles[2]
+            };
+            float[] dynamicAngles = new float[] {
+                    staticAngles[0] + deltaAngles[0] + elementPose.x(element.name()),
+                    staticAngles[1] + deltaAngles[1] + elementPose.y(element.name()),
+                    staticAngles[2] + deltaAngles[2] + elementPose.z(element.name())
+            };
+            float[] dynamicOrigin = dynamicOrigin(staticOrigin, parent.staticOrigin, parent.dynamicOrigin, parent.staticAngles, parent.dynamicAngles);
+            emitElement(renderer, element, dynamicOrigin, dynamicAngles, TailElementPose.none());
         }
     }
 
-    private float[][] verts(TailElement element, float[] dynamicOrigin, float[] dynamicAngles, float[][] verts) {
+    private ChainState nearestChainState(TailElement element, List<ChainState> chainStates) {
+        if (chainStates.isEmpty()) return null;
+        float[] origin = elementOrigin(element);
+        ChainState nearest = chainStates.get(0);
+        float nearestDistance = distanceSquared(origin, nearest.staticOrigin);
+        for (int i = 1; i < chainStates.size(); i++) {
+            ChainState state = chainStates.get(i);
+            float distance = distanceSquared(origin, state.staticOrigin);
+            if (distance < nearestDistance) {
+                nearest = state;
+                nearestDistance = distance;
+            }
+        }
+        return nearest;
+    }
+
+    private float distanceSquared(float[] a, float[] b) {
+        float dx = a[0] - b[0];
+        float dy = a[1] - b[1];
+        float dz = a[2] - b[2];
+        return dx * dx + dy * dy + dz * dz;
+    }
+
+    private float[][] verts(TailElement element, float[] dynamicOrigin, float[] dynamicAngles, TailElementPose elementPose, float[][] verts) {
         if (dynamicOrigin != null && dynamicAngles != null) {
             float[] staticOrigin = elementOrigin(element);
             return transformAround(verts, staticOrigin, dynamicOrigin, dynamicAngles);
         }
         TailRotation rotation = element.rotation();
-        if (rotation == null || (rotation.x() == 0.0F && rotation.y() == 0.0F && rotation.z() == 0.0F)) return verts;
-        return transformAround(verts, rotation.origin(), rotation.origin(), elementAngles(element, 0.0F, 0.0F, 0.0F));
+        float xOffset = elementPose.x(element.name());
+        float yOffset = elementPose.y(element.name());
+        float zOffset = elementPose.z(element.name());
+        if ((rotation == null || (rotation.x() == 0.0F && rotation.y() == 0.0F && rotation.z() == 0.0F))
+                && xOffset == 0.0F && yOffset == 0.0F && zOffset == 0.0F) return verts;
+        float[] origin = elementOrigin(element);
+        return transformAround(verts, origin, origin, elementAngles(element, xOffset, yOffset, zOffset));
     }
 
     private float[][] transformAround(float[][] verts, float[] sourceOrigin, float[] targetOrigin, float[] angles) {
@@ -101,11 +161,15 @@ public class TailModel {
         return out;
     }
 
-    private float[] normal(TailElement element, float[] dynamicAngles, float x, float y, float z) {
+    private float[] normal(TailElement element, float[] dynamicAngles, TailElementPose elementPose, float x, float y, float z) {
         if (dynamicAngles != null) return rotate(x, y, z, dynamicAngles);
         TailRotation rotation = element.rotation();
-        if (rotation == null || (rotation.x() == 0.0F && rotation.y() == 0.0F && rotation.z() == 0.0F)) return new float[] {x, y, z};
-        return rotate(x, y, z, elementAngles(element, 0.0F, 0.0F, 0.0F));
+        float xOffset = elementPose.x(element.name());
+        float yOffset = elementPose.y(element.name());
+        float zOffset = elementPose.z(element.name());
+        if ((rotation == null || (rotation.x() == 0.0F && rotation.y() == 0.0F && rotation.z() == 0.0F))
+                && xOffset == 0.0F && yOffset == 0.0F && zOffset == 0.0F) return new float[] {x, y, z};
+        return rotate(x, y, z, elementAngles(element, xOffset, yOffset, zOffset));
     }
 
     private void emitFace(WorldRenderer renderer, TailFace face, float[][] verts, float[] normal) {
@@ -142,7 +206,6 @@ public class TailModel {
         for (TailElement element : elements) {
             String name = element.name();
             if ("tail1".equals(name)) hasTail1 = true;
-            if (!"tailBase".equals(name) && !"tailTip".equals(name) && !isTailSegment(name)) return false;
         }
         return hasTail1;
     }
@@ -150,6 +213,14 @@ public class TailModel {
     private boolean isTailSegment(String name) {
         if (name == null || !name.startsWith("tail") || name.length() <= 4) return false;
         for (int i = 4; i < name.length(); i++) {
+            if (!Character.isDigit(name.charAt(i))) return false;
+        }
+        return true;
+    }
+
+    private boolean isTailSubSegment(String name) {
+        if (name == null || !name.startsWith("tailSub") || name.length() <= 7) return false;
+        for (int i = 7; i < name.length(); i++) {
             if (!Character.isDigit(name.charAt(i))) return false;
         }
         return true;
@@ -170,13 +241,15 @@ public class TailModel {
 
     private int animationIndex(String name) {
         if ("tailBase".equals(name)) return 0;
+        if ("tailSubBase".equals(name)) return 0;
         if ("tailTip".equals(name)) return tailTipAnimationIndex;
         return segmentIndex(name);
     }
 
     private int segmentIndex(String name) {
-        if (!isTailSegment(name)) return -1;
-        return Integer.parseInt(name.substring(4));
+        if (isTailSegment(name)) return Integer.parseInt(name.substring(4));
+        if (isTailSubSegment(name)) return Integer.parseInt(name.substring(7));
+        return -1;
     }
 
     private float[] elementOrigin(TailElement element) {
@@ -231,5 +304,19 @@ public class TailModel {
         float sin = (float) Math.sin(angle);
         float cos = (float) Math.cos(angle);
         return new float[] {x * cos - y * sin, x * sin + y * cos, z};
+    }
+
+    private static class ChainState {
+        private final float[] staticOrigin;
+        private final float[] dynamicOrigin;
+        private final float[] staticAngles;
+        private final float[] dynamicAngles;
+
+        private ChainState(float[] staticOrigin, float[] dynamicOrigin, float[] staticAngles, float[] dynamicAngles) {
+            this.staticOrigin = staticOrigin;
+            this.dynamicOrigin = dynamicOrigin;
+            this.staticAngles = staticAngles;
+            this.dynamicAngles = dynamicAngles;
+        }
     }
 }

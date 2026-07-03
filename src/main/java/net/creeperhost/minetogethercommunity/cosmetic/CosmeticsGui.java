@@ -1,6 +1,10 @@
 package net.creeperhost.minetogethercommunity.cosmetic;
 
 import net.creeperhost.minetogethercommunity.gui.chat.MTStyle;
+import net.creeperhost.minetogethercommunity.cosmetic.emote.Emote;
+import net.creeperhost.minetogethercommunity.cosmetic.emote.EmoteFavorites;
+import net.creeperhost.minetogethercommunity.cosmetic.emote.EmotePlayer;
+import net.creeperhost.minetogethercommunity.cosmetic.emote.EmoteRegistry;
 import net.creeperhost.minetogethercommunity.modulargui.GuiButton;
 import net.creeperhost.minetogethercommunity.modulargui.GuiClip;
 import net.creeperhost.minetogethercommunity.modulargui.GuiElement;
@@ -19,6 +23,7 @@ import net.minecraft.client.renderer.entity.RenderManager;
 import net.minecraft.entity.Entity;
 import net.minecraft.entity.EntityLivingBase;
 import org.lwjgl.input.Mouse;
+import org.lwjgl.input.Keyboard;
 import org.lwjgl.opengl.GL13;
 
 import java.util.ArrayList;
@@ -53,6 +58,7 @@ public class CosmeticsGui implements GuiProvider {
     private String pendingCapeId = "";
     private String pendingTailId = "";
     private String pendingWingId = "";
+    private String previewEmoteId = "";
     private float previewYaw = -20.0F;
     private boolean previewTracking = true;
 
@@ -287,7 +293,12 @@ public class CosmeticsGui implements GuiProvider {
 
         @Override
         public boolean mouseClicked(int mouseX, int mouseY, int mouseButton) {
-            if (mouseButton != 0 || !isMouseOver(mouseX, mouseY)) return false;
+            if (!isMouseOver(mouseX, mouseY)) return false;
+            if (activeTab == CosmeticTypes.EMOTES) {
+                if (mouseButton != 0 && mouseButton != 1) return false;
+            } else if (mouseButton != 0) {
+                return false;
+            }
             List<CosmeticItem> catalog = filteredCatalogFor(activeTab);
             int totalEntries = catalog.size() + 1;
             if (maxScroll(totalEntries) > 0 && isOverScrollBar(mouseX, mouseY)) {
@@ -306,10 +317,21 @@ public class CosmeticsGui implements GuiProvider {
             int index = row * GRID_COLUMNS + column;
             if (index < 0 || index >= totalEntries) return true;
             if (index == 0) {
-                setPending(activeTab, "");
+                if (activeTab != CosmeticTypes.EMOTES) {
+                    setPending(activeTab, "");
+                }
             } else {
                 CosmeticItem item = catalog.get(index - 1);
-                if (!item.locked()) setPending(activeTab, item.id());
+                if (item.locked()) return true;
+                if (activeTab == CosmeticTypes.EMOTES) {
+                    if (mouseButton == 1 || Keyboard.isKeyDown(Keyboard.KEY_LSHIFT) || Keyboard.isKeyDown(Keyboard.KEY_RSHIFT)) {
+                        EmoteFavorites.toggle(item.id());
+                    } else {
+                        setPending(activeTab, item.id());
+                    }
+                } else {
+                    setPending(activeTab, item.id());
+                }
             }
             return true;
         }
@@ -400,6 +422,8 @@ public class CosmeticsGui implements GuiProvider {
                 drawCenteredString(font(), I18n.format("minetogether.gui.cosmetics.none"), tileX + tileWidth / 2, tileY + 44, 0xAAAAAA);
             } else if (locked) {
                 // Locked cards have no live preview, but their foreground text is still drawn below.
+            } else if (activeTab == CosmeticTypes.EMOTES) {
+                renderEmotePreview(item, tileX + 4, tileY + 22, tileWidth - 8, tileHeight - 28);
             } else {
                 ensurePreviewAsset(item);
                 if (isItemAssetLoaded(activeTab, item.id())) {
@@ -429,7 +453,59 @@ public class CosmeticsGui implements GuiProvider {
             if (item != null && locked) {
                 font().drawString(trimToWidth(subtitle(item), tileWidth - 12), tileX + 6, tileY + tileHeight - 15, 0x777777);
                 resetGlColor();
+            } else if (item != null && selected) {
+                font().drawString("v", tileX + tileWidth - 14, tileY + tileHeight - 15, 0xFF00FF55);
+                resetGlColor();
+            } else if (item != null && activeTab == CosmeticTypes.EMOTES) {
+                int actionY = tileY + tileHeight - 18;
+                drawRect(tileX + 6, actionY, tileX + 24, actionY + 14, 0xFF1F4A2A);
+                drawPlayIcon(tileX + 6, actionY, 0xFF44FF66);
+                boolean favorite = EmoteFavorites.isFavorite(item.id());
+                int favoriteColor = favorite ? 0xFFFFD94A : EmoteFavorites.canAddMore() ? 0xFFAAAAAA : 0xFF666666;
+                int favoriteX = tileX + tileWidth - 24;
+                drawRect(favoriteX, actionY, favoriteX + 18, actionY + 14, favorite ? 0xFF4A3E16 : 0xFF2B2B2B);
+                drawRadialIcon(favoriteX, actionY, favoriteColor);
+                resetGlColor();
             }
+        }
+
+        private void renderEmotePreview(CosmeticItem item, int x, int y, int width, int height) {
+            if (item == null || item.locked()) return;
+            Emote emote = EmoteRegistry.getLoaded(item.id());
+            boolean loaded = emote != null;
+            boolean favorite = EmoteFavorites.isFavorite(item.id());
+            String state = loaded
+                    ? I18n.format("minetogether.gui.cosmetics.emote.ready")
+                    : I18n.format("minetogether.gui.cosmetics.preview.loading");
+            int stateColor = loaded ? 0xFF7DFF91 : 0xFFFFDD55;
+            font().drawString(trimToWidth(state, width - 12), x + 6, y + 9, stateColor);
+            font().drawString(trimToWidth(favorite
+                    ? I18n.format("minetogether.gui.cosmetics.emote.radial")
+                    : I18n.format("minetogether.gui.cosmetics.emote.add"), width - 12), x + 6, y + 23,
+                    favorite ? 0xFFFFD94A : 0xFFAAAAAA);
+        }
+
+        private void drawPlayIcon(int x, int y, int color) {
+            int px = x + 6;
+            int py = y + 4;
+            drawRect(px, py, px + 2, py + 6, color);
+            drawRect(px + 2, py + 1, px + 4, py + 5, color);
+            drawRect(px + 4, py + 2, px + 6, py + 4, color);
+        }
+
+        private void drawRadialIcon(int x, int y, int color) {
+            int sx = x + 4;
+            int sy = y + 2;
+            drawRect(sx + 4, sy, sx + 6, sy + 2, color);
+            drawRect(sx + 2, sy + 1, sx + 4, sy + 3, color);
+            drawRect(sx + 6, sy + 1, sx + 8, sy + 3, color);
+            drawRect(sx + 1, sy + 3, sx + 3, sy + 5, color);
+            drawRect(sx + 7, sy + 3, sx + 9, sy + 5, color);
+            drawRect(sx + 3, sy + 4, sx + 7, sy + 8, color);
+            drawRect(sx, sy + 6, sx + 2, sy + 8, color);
+            drawRect(sx + 8, sy + 6, sx + 10, sy + 8, color);
+            drawRect(sx + 2, sy + 9, sx + 4, sy + 11, color);
+            drawRect(sx + 6, sy + 9, sx + 8, sy + 11, color);
         }
 
         private void ensurePreviewAsset(CosmeticItem item) {
@@ -438,6 +514,7 @@ public class CosmeticsGui implements GuiProvider {
         }
 
         private boolean isSelected(CosmeticItem item) {
+            if (activeTab == CosmeticTypes.EMOTES) return false;
             return item == null ? pendingFor(activeTab).isEmpty() : item.id().equals(pendingFor(activeTab));
         }
 
@@ -526,6 +603,8 @@ public class CosmeticsGui implements GuiProvider {
                 return I18n.format("minetogether.gui.cosmetics.tail.none");
             case WINGS:
                 return I18n.format("minetogether.gui.cosmetics.wing.none");
+            case EMOTES:
+                return I18n.format("minetogether.gui.cosmetics.emote.none");
             case HAT:
             default:
                 return I18n.format("minetogether.gui.cosmetics.hat.none");
@@ -581,6 +660,8 @@ public class CosmeticsGui implements GuiProvider {
                 return pendingTailId;
             case WINGS:
                 return pendingWingId;
+            case EMOTES:
+                return previewEmoteId;
             default:
                 return "";
         }
@@ -588,6 +669,14 @@ public class CosmeticsGui implements GuiProvider {
 
     private void setPending(CosmeticTypes type, String id) {
         String safeId = safeId(id);
+        if (type == CosmeticTypes.EMOTES) {
+            previewEmoteId = safeId;
+            if (!safeId.isEmpty()) {
+                CosmeticDownloader.instance().ensureAssetLoaded("emote", safeId);
+                EmotePlayer.playLocal(safeId);
+            }
+            return;
+        }
         userTouchedSelections = true;
         switch (type) {
             case HAT:
@@ -631,6 +720,7 @@ public class CosmeticsGui implements GuiProvider {
         if (!pendingCapeId.isEmpty()) downloader.ensureAssetLoaded(CosmeticTypes.CAPE.slotName(), pendingCapeId);
         if (!pendingTailId.isEmpty()) downloader.ensureAssetLoaded(CosmeticTypes.TAIL.slotName(), pendingTailId);
         if (!pendingWingId.isEmpty()) downloader.ensureAssetLoaded(CosmeticTypes.WINGS.slotName(), pendingWingId);
+        if (!previewEmoteId.isEmpty()) downloader.ensureAssetLoaded(CosmeticTypes.EMOTES.slotName(), previewEmoteId);
     }
 
     private void applyPendingSelections() {
@@ -676,6 +766,8 @@ public class CosmeticsGui implements GuiProvider {
                 return downloader.getTailCatalog();
             case WINGS:
                 return downloader.getWingCatalog();
+            case EMOTES:
+                return downloader.getEmoteCatalog();
             default:
                 return downloader.getHatCatalog();
         }
@@ -704,6 +796,9 @@ public class CosmeticsGui implements GuiProvider {
 
     private String currentPendingName() {
         String id = pendingFor(activeTab);
+        if (activeTab == CosmeticTypes.EMOTES) {
+            if (id.isEmpty()) return I18n.format("minetogether.gui.cosmetics.emote.hint");
+        }
         if (id.isEmpty()) return I18n.format("minetogether.gui.cosmetics.none");
         CosmeticItem item = catalogEntry(activeTab, id);
         return item == null ? id : item.displayName();
@@ -792,7 +887,16 @@ public class CosmeticsGui implements GuiProvider {
                 int scale = Math.max(18, Math.round(Math.min((height / entityHeight) * 1.45F, 46.0F) * cardPreviewScale()));
                 int yPos = Math.round(y + height + scale * cardPreviewYOffset());
                 try {
-                    drawStaticEntityPreview(x + width / 2, yPos, scale, entity, cardPreviewYaw());
+                    final int previewX = x + width / 2;
+                    final int previewY = yPos;
+                    final int previewScale = scale;
+                    final float yaw = cardPreviewYaw();
+                    EmotePlayer.withoutPose(new Runnable() {
+                        @Override
+                        public void run() {
+                            drawStaticEntityPreview(previewX, previewY, previewScale, entity, yaw);
+                        }
+                    });
                 } catch (Throwable ignored) {
                     resetGuiGlState();
                     String label = trimToWidth(I18n.format("minetogether.gui.cosmetics.preview.card_unavailable"), width - 8);
@@ -889,11 +993,16 @@ public class CosmeticsGui implements GuiProvider {
             entity.deathTime = 0;
             entity.attackedAtYaw = 0.0F;
 
-            RenderManager renderManager = Minecraft.getMinecraft().getRenderManager();
+            final RenderManager renderManager = Minecraft.getMinecraft().getRenderManager();
             float previousPlayerViewY = renderManager.playerViewY;
             try {
                 renderManager.playerViewY = 180.0F;
-                renderManager.doRenderEntity(entity, 0.0D, 0.0D, 0.0D, 0.0F, 1.0F, false);
+                CosmeticPreviewTime.withAnimatedPreview(new Runnable() {
+                    @Override
+                    public void run() {
+                        renderManager.doRenderEntity(entity, 0.0D, 0.0D, 0.0D, 0.0F, 1.0F, false);
+                    }
+                });
             } finally {
                 renderManager.playerViewY = previousPlayerViewY;
             }
@@ -955,11 +1064,26 @@ public class CosmeticsGui implements GuiProvider {
             entity.deathTime = 0;
             entity.attackedAtYaw = 0.0F;
 
-            RenderManager renderManager = Minecraft.getMinecraft().getRenderManager();
+            final RenderManager renderManager = Minecraft.getMinecraft().getRenderManager();
             float previousPlayerViewY = renderManager.playerViewY;
             try {
                 renderManager.playerViewY = 180.0F;
-                renderManager.doRenderEntity(entity, 0.0D, 0.0D, 0.0D, 0.0F, 1.0F, false);
+                Runnable render = new Runnable() {
+                    @Override
+                    public void run() {
+                        CosmeticPreviewTime.withAnimatedPreview(new Runnable() {
+                            @Override
+                            public void run() {
+                                renderManager.doRenderEntity(entity, 0.0D, 0.0D, 0.0D, 0.0F, 1.0F, false);
+                            }
+                        });
+                    }
+                };
+                if (activeTab == CosmeticTypes.EMOTES && previewEmoteId != null && !previewEmoteId.isEmpty()) {
+                    EmotePlayer.withPreviewPose(previewEmoteId, render);
+                } else {
+                    EmotePlayer.withoutPose(render);
+                }
             } finally {
                 renderManager.playerViewY = previousPlayerViewY;
             }
@@ -1000,6 +1124,10 @@ public class CosmeticsGui implements GuiProvider {
     }
 
     private String previewStatus() {
+        if (activeTab == CosmeticTypes.EMOTES) {
+            return I18n.format("minetogether.gui.cosmetics.emote.favorites",
+                    EmoteFavorites.ids().size(), EmoteFavorites.MAX_FAVORITES);
+        }
         String id = pendingFor(activeTab);
         if (id.isEmpty()) return noneEquippedLabel(activeTab);
         if (isSelectedAssetLoaded(activeTab, id)) {
@@ -1020,6 +1148,8 @@ public class CosmeticsGui implements GuiProvider {
                 return I18n.format("minetogether.gui.cosmetics.tail.none_equipped");
             case WINGS:
                 return I18n.format("minetogether.gui.cosmetics.wing.none_equipped");
+            case EMOTES:
+                return I18n.format("minetogether.gui.cosmetics.emote.none_equipped");
             case HAT:
             default:
                 return I18n.format("minetogether.gui.cosmetics.none_equipped");
@@ -1044,6 +1174,8 @@ public class CosmeticsGui implements GuiProvider {
                 return CosmeticDownloader.instance().getLoadedTail(id) != null;
             case WINGS:
                 return CosmeticDownloader.instance().getLoadedWing(id) != null;
+            case EMOTES:
+                return CosmeticDownloader.instance().getLoadedEmote(id) != null;
             default:
                 return false;
         }
