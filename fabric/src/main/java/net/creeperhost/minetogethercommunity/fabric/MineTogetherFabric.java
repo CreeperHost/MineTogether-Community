@@ -22,6 +22,7 @@ public class MineTogetherFabric implements ModInitializer {
     @Override
     public void onInitialize() {
         MineTogether.init();
+        FabricEmoteNetworking.init();
 
         if (FabricLoader.getInstance().getEnvironmentType() == EnvType.CLIENT) {
             clientInit();
@@ -31,6 +32,7 @@ public class MineTogetherFabric implements ModInitializer {
     }
 
     private void clientInit() {
+        FabricClientEmoteNetworking.init();
         Integration.runOptional("ftbquests", () -> FTBQuestsCompat::registerFabricEvents);
         ClientCommandRegistrationCallback.EVENT.register((dispatcher, registryAccess) -> MineTogetherClient.registerClientCommands(dispatcher));
         ScreenEvents.AFTER_INIT.register((client, screen, scaledWidth, scaledHeight) -> MineTogetherChat.onScreenPostInit(screen));

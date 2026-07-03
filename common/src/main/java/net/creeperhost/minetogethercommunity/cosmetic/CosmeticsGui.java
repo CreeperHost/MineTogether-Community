@@ -1388,6 +1388,7 @@ public class CosmeticsGui implements GuiProvider {
             float availableWidth = (float) Math.max(1.0D, rect.width() - horizontalPadding * 2.0D);
             float scale = Math.min(availableHeight / (entity.getBbHeight() + 1.0F), availableWidth / Math.max(entity.getBbWidth(), 2.25F));
             scale = Math.min(scale, RIGHT_PREVIEW_MAX_SCALE);
+            final float renderScale = scale;
             float xPos = (float) (rect.x() + (rect.width() / 2D));
             float yPos = (float) (renderBottom - bottomPadding);
             float offsetY = (float) (((yPos - (rect.y() + rect.height() / 2.0D)) / scale) - (entity.getBbHeight() / 2.0F));
@@ -1417,13 +1418,13 @@ public class CosmeticsGui implements GuiProvider {
             try {
                 CosmeticSelections.instance().fullBrightPreview = true;
                 if (activeTab[0] == CosmeticTypes.EMOTES && previewEmoteId[0] != null && !previewEmoteId[0].isEmpty()) {
-                    EmotePlayer.withPreviewPose(previewEmoteId[0], () -> renderBrightEntityInInventory(render, scale, offsetY, quaternionf, quaternionf1, entity,
+                    EmotePlayer.withPreviewPose(previewEmoteId[0], () -> renderBrightEntityInInventory(render, renderScale, offsetY, quaternionf, quaternionf1, entity,
                             (int) Math.floor(rect.x() + horizontalPadding),
                             (int) Math.floor(renderTop),
                             (int) Math.ceil(rect.x() + rect.width() - horizontalPadding),
                             (int) Math.ceil(renderBottom)));
                 } else {
-                    EmotePlayer.withoutPose(() -> renderBrightEntityInInventory(render, scale, offsetY, quaternionf, quaternionf1, entity,
+                    EmotePlayer.withoutPose(() -> renderBrightEntityInInventory(render, renderScale, offsetY, quaternionf, quaternionf1, entity,
                             (int) Math.floor(rect.x() + horizontalPadding),
                             (int) Math.floor(renderTop),
                             (int) Math.ceil(rect.x() + rect.width() - horizontalPadding),

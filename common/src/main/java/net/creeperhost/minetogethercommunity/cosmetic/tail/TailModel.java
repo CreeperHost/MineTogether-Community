@@ -176,22 +176,22 @@ public class TailModel {
 
             if (el.south() != null) emitFace(pose, consumer, packedLight, el.south(),
                     chainVerts(new float[][]{{x0, y0, z1}, {x1, y0, z1}, {x1, y1, z1}, {x0, y1, z1}}, staticOrigin, dynamicOrigin, dynamicAngles),
-                    rotate(0, 0, 1, dynamicAngles));
+                    rotate(0, 0, 1, dynamicAngles), fullBright);
             if (el.north() != null) emitFace(pose, consumer, packedLight, el.north(),
                     chainVerts(new float[][]{{x1, y0, z0}, {x0, y0, z0}, {x0, y1, z0}, {x1, y1, z0}}, staticOrigin, dynamicOrigin, dynamicAngles),
-                    rotate(0, 0, -1, dynamicAngles));
+                    rotate(0, 0, -1, dynamicAngles), fullBright);
             if (el.east() != null) emitFace(pose, consumer, packedLight, el.east(),
                     chainVerts(new float[][]{{x1, y0, z1}, {x1, y0, z0}, {x1, y1, z0}, {x1, y1, z1}}, staticOrigin, dynamicOrigin, dynamicAngles),
-                    rotate(1, 0, 0, dynamicAngles));
+                    rotate(1, 0, 0, dynamicAngles), fullBright);
             if (el.west() != null) emitFace(pose, consumer, packedLight, el.west(),
                     chainVerts(new float[][]{{x0, y0, z0}, {x0, y0, z1}, {x0, y1, z1}, {x0, y1, z0}}, staticOrigin, dynamicOrigin, dynamicAngles),
-                    rotate(-1, 0, 0, dynamicAngles));
+                    rotate(-1, 0, 0, dynamicAngles), fullBright);
             if (el.up() != null) emitFace(pose, consumer, packedLight, el.up(),
                     chainVerts(new float[][]{{x0, y1, z1}, {x1, y1, z1}, {x1, y1, z0}, {x0, y1, z0}}, staticOrigin, dynamicOrigin, dynamicAngles),
-                    rotate(0, 1, 0, dynamicAngles));
+                    rotate(0, 1, 0, dynamicAngles), fullBright);
             if (el.down() != null) emitFace(pose, consumer, packedLight, el.down(),
                     chainVerts(new float[][]{{x0, y0, z0}, {x1, y0, z0}, {x1, y0, z1}, {x0, y0, z1}}, staticOrigin, dynamicOrigin, dynamicAngles),
-                    rotate(0, -1, 0, dynamicAngles));
+                    rotate(0, -1, 0, dynamicAngles), fullBright);
         }
     }
 

@@ -1,7 +1,7 @@
 package net.creeperhost.minetogethercommunity.mixin.cosmetic;
 
 import net.creeperhost.minetogethercommunity.cosmetic.emote.EmotePlayer;
-import net.minecraft.client.model.PlayerModel;
+import net.minecraft.client.model.player.PlayerModel;
 import net.minecraft.client.player.AbstractClientPlayer;
 import net.minecraft.world.entity.LivingEntity;
 import org.spongepowered.asm.mixin.Mixin;
@@ -20,7 +20,7 @@ public class PlayerModelEmoteMixin<T extends LivingEntity> {
     private void minetogether$resetEmotePose(T entity, float limbSwing, float limbSwingAmount, float ageInTicks,
                                              float netHeadYaw, float headPitch, CallbackInfo ci) {
         if (!minetogether$hadEmotePose) return;
-        PlayerModel<?> model = (PlayerModel<?>) (Object) this;
+        PlayerModel model = (PlayerModel) (Object) this;
         minetogether$resetRotations(model);
         minetogether$hadEmotePose = false;
     }
@@ -32,7 +32,7 @@ public class PlayerModelEmoteMixin<T extends LivingEntity> {
         EmotePlayer.Pose pose = EmotePlayer.poseFor(player, ageInTicks);
         if (pose == null) return;
 
-        PlayerModel<?> model = (PlayerModel<?>) (Object) this;
+        PlayerModel model = (PlayerModel) (Object) this;
         minetogether$hadEmotePose = true;
         float weight = pose.weight();
         model.rightArm.xRot = lerp(model.rightArm.xRot, pose.rightArmPitch(), weight);
@@ -61,7 +61,7 @@ public class PlayerModelEmoteMixin<T extends LivingEntity> {
     }
 
     @Unique
-    private static void minetogether$resetRotations(PlayerModel<?> model) {
+    private static void minetogether$resetRotations(PlayerModel model) {
         model.head.xRot = 0.0F;
         model.head.yRot = 0.0F;
         model.head.zRot = 0.0F;
@@ -84,12 +84,12 @@ public class PlayerModelEmoteMixin<T extends LivingEntity> {
     }
 
     @Unique
-    private static void minetogether$syncWearLayers(PlayerModel<?> model) {
-        model.hat.copyFrom(model.head);
-        model.jacket.copyFrom(model.body);
-        model.rightSleeve.copyFrom(model.rightArm);
-        model.leftSleeve.copyFrom(model.leftArm);
-        model.rightPants.copyFrom(model.rightLeg);
-        model.leftPants.copyFrom(model.leftLeg);
+    private static void minetogether$syncWearLayers(PlayerModel model) {
+        model.hat.loadPose(model.head.storePose());
+        model.jacket.loadPose(model.body.storePose());
+        model.rightSleeve.loadPose(model.rightArm.storePose());
+        model.leftSleeve.loadPose(model.leftArm.storePose());
+        model.rightPants.loadPose(model.rightLeg.storePose());
+        model.leftPants.loadPose(model.leftLeg.storePose());
     }
 }
