@@ -1,14 +1,18 @@
 package net.creeperhost.minetogethercommunity.neoforge;
 
 import net.creeperhost.minetogethercommunity.MineTogether;
+import net.creeperhost.minetogethercommunity.cosmetic.emote.EmoteNetworking;
 import net.creeperhost.minetogethercommunity.platform.MineTogetherPlatformService;
 import net.minecraft.client.KeyMapping;
 import net.minecraft.network.Connection;
+import net.minecraft.server.level.ServerPlayer;
 import net.neoforged.api.distmarker.Dist;
 import net.neoforged.fml.ModList;
 import net.neoforged.fml.loading.FMLEnvironment;
 import net.neoforged.fml.loading.FMLLoader;
 import net.neoforged.fml.loading.FMLPaths;
+import net.neoforged.neoforge.client.network.ClientPacketDistributor;
+import net.neoforged.neoforge.network.PacketDistributor;
 import net.neoforged.neoforgespi.language.IModFileInfo;
 import org.jetbrains.annotations.Nullable;
 
@@ -85,5 +89,30 @@ public class MineTogetherPlatformImpl implements MineTogetherPlatformService {
     @Override
     public void prepareClientConnection(Connection connection) {
         // Not required on NeoForge.
+    }
+
+    @Override
+    public boolean canSendEmoteToServer() {
+        return isClient() && net.minecraft.client.Minecraft.getInstance().getConnection() != null;
+    }
+
+    @Override
+    public void sendEmoteStartToServer(EmoteNetworking.StartEmoteC2S packet) {
+        ClientPacketDistributor.sendToServer(packet);
+    }
+
+    @Override
+    public void sendEmoteStopToServer(EmoteNetworking.StopEmoteC2S packet) {
+        ClientPacketDistributor.sendToServer(packet);
+    }
+
+    @Override
+    public void sendEmoteStartToClient(ServerPlayer player, EmoteNetworking.StartEmoteS2C packet) {
+        PacketDistributor.sendToPlayer(player, packet);
+    }
+
+    @Override
+    public void sendEmoteStopToClient(ServerPlayer player, EmoteNetworking.StopEmoteS2C packet) {
+        PacketDistributor.sendToPlayer(player, packet);
     }
 }

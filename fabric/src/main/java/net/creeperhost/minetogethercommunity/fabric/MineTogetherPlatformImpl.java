@@ -1,6 +1,7 @@
 package net.creeperhost.minetogethercommunity.fabric;
 
 import net.creeperhost.minetogethercommunity.MineTogether;
+import net.creeperhost.minetogethercommunity.cosmetic.emote.EmoteNetworking;
 import net.creeperhost.minetogethercommunity.platform.MineTogetherPlatformService;
 import net.fabricmc.api.EnvType;
 import net.fabricmc.loader.api.FabricLoader;
@@ -8,6 +9,7 @@ import net.fabricmc.loader.api.ModContainer;
 import net.fabricmc.loader.api.metadata.ModOrigin;
 import net.minecraft.client.KeyMapping;
 import net.minecraft.network.Connection;
+import net.minecraft.server.level.ServerPlayer;
 import org.jetbrains.annotations.Nullable;
 
 import java.nio.file.Path;
@@ -80,5 +82,30 @@ public class MineTogetherPlatformImpl implements MineTogetherPlatformService {
 
     @Override
     public void prepareClientConnection(Connection connection) {
+    }
+
+    @Override
+    public boolean canSendEmoteToServer() {
+        return isClient() && FabricClientEmoteNetworking.canSendToServer();
+    }
+
+    @Override
+    public void sendEmoteStartToServer(EmoteNetworking.StartEmoteC2S packet) {
+        FabricClientEmoteNetworking.sendToServer(packet);
+    }
+
+    @Override
+    public void sendEmoteStopToServer(EmoteNetworking.StopEmoteC2S packet) {
+        FabricClientEmoteNetworking.sendToServer(packet);
+    }
+
+    @Override
+    public void sendEmoteStartToClient(ServerPlayer player, EmoteNetworking.StartEmoteS2C packet) {
+        FabricEmoteNetworking.sendToPlayer(player, packet);
+    }
+
+    @Override
+    public void sendEmoteStopToClient(ServerPlayer player, EmoteNetworking.StopEmoteS2C packet) {
+        FabricEmoteNetworking.sendToPlayer(player, packet);
     }
 }
