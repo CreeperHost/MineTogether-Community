@@ -36,6 +36,16 @@ public abstract class PlayerRendererMixin {
         if (translateY != 0.0F) {
             poseStack.translate(0.0F, translateY, 0.0F);
         }
+        float yaw = EmotePlayer.renderYaw(player, ageInTicks);
+        if (yaw != 0.0F) {
+            poseStack.mulPose(Axis.YP.rotation(yaw));
+        }
+        float roll = EmotePlayer.renderRoll(player, ageInTicks);
+        if (roll != 0.0F) {
+            poseStack.translate(0.0F, EMOTE_SHOULDER_PIVOT_Y, 0.0F);
+            poseStack.mulPose(Axis.ZP.rotation(roll));
+            poseStack.translate(0.0F, -EMOTE_SHOULDER_PIVOT_Y, 0.0F);
+        }
         float pitch = EmotePlayer.renderPitch(player, ageInTicks);
         if (pitch != 0.0F) {
             poseStack.translate(0.0F, EMOTE_SHOULDER_PIVOT_Y, 0.0F);
