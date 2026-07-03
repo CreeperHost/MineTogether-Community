@@ -795,7 +795,7 @@ public class CosmeticDownloader {
     }
 
     private EmoteAnimation parseEmoteAnimation(@Nullable byte[] animationData) {
-        if (animationData == null || animationData.length == 0) return EmoteAnimation.WAVE;
+        if (animationData == null || animationData.length == 0) return EmoteAnimation.DEFAULT;
         try {
             JsonObject root = JsonParser.parseReader(new java.io.InputStreamReader(
                     new java.io.ByteArrayInputStream(animationData), StandardCharsets.UTF_8
@@ -803,7 +803,7 @@ public class CosmeticDownloader {
             return EmoteAnimation.fromJson(root);
         } catch (Exception e) {
             LOGGER.warn("Failed to parse emote animation config; using wave fallback", e);
-            return EmoteAnimation.WAVE;
+            return EmoteAnimation.DEFAULT;
         }
     }
 
