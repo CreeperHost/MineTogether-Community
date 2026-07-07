@@ -129,16 +129,16 @@ tasks.withType(JavaCompile) {
 // the classpath/args in an afterEvaluate: by the time this runs, RFG's wiring is in place
 // and we only add to it. setupLateArgs preserves existing jvmArgs/args and appends.
 tasks.matching { it.name == "runClient" }.all { JavaExec task ->
-    task.doFirst {
-        task.classpath = task.classpath + configurations.devLogin
-        String launchTarget = task.mainClass.get()
-        if (launchTarget != "net.covers1624.devlogin.DevLogin") {
-            gradle.startParameter.systemPropertiesArgs.each { name, value ->
-                task.jvmArgs(value == null || value.isEmpty() ? "-D${name}" : "-D${name}=${value}")
-            }
+    task.classpath = task.classpath + configurations.devLogin
+    project.afterEvaluate {
+        String launchTarget = task.mainClass.getOrNull()
+        if (launchTarget != null && launchTarget != "net.covers1624.devlogin.DevLogin") {
             task.args("--launch_target", launchTarget)
             task.mainClass.set("net.covers1624.devlogin.DevLogin")
         }
+    }
+    gradle.startParameter.systemPropertiesArgs.each { name, value ->
+        task.jvmArgs(value == null || value.isEmpty() ? "-D${name}" : "-D${name}=${value}")
     }
 }
 

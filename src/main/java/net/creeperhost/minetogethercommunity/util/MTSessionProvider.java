@@ -23,7 +23,16 @@ public class MTSessionProvider implements SessionProvider {
             " Minecraft/1.7.10 Modloader/forge";
 
     private final Session session = Minecraft.getMinecraft().getSession();
-    private final UUID uuid = UUIDTypeAdapter.fromString(session.getPlayerID());
+    private final UUID uuid = safeParseUUID(session.getPlayerID());
+
+    private static UUID safeParseUUID(String raw) {
+        try {
+            return UUIDTypeAdapter.fromString(raw);
+        } catch (IllegalArgumentException e) {
+            LOGGER.warn("Could not parse player UUID '" + raw + "', using offline UUID");
+            return UUID.nameUUIDFromBytes(("OfflinePlayer:" + raw).getBytes());
+        }
+    }
 
     @Override
     public UUID getUUID() {
