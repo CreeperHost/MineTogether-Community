@@ -40,6 +40,26 @@ public class EmotePlayer {
         EmoteNetworking.tryBroadcastStart(emoteId);
     }
 
+    public static void stopLocal() {
+        Minecraft mc = Minecraft.getInstance();
+        if (mc.player == null) return;
+        if (ACTIVE.remove(mc.player.getUUID()) != null) {
+            EmoteNetworking.tryBroadcastStop();
+        }
+    }
+
+    public static @Nullable Emote localActiveEmote() {
+        Minecraft mc = Minecraft.getInstance();
+        if (mc.player == null) return null;
+        ActiveEmote active = ACTIVE.get(mc.player.getUUID());
+        return active == null ? null : active.emote();
+    }
+
+    public static boolean isLocalActive(String emoteId) {
+        Emote active = localActiveEmote();
+        return active != null && active.id().equals(emoteId);
+    }
+
     public static void playRemote(UUID playerId, String emoteId) {
         playRemote(playerId, emoteId, true);
     }
@@ -139,10 +159,12 @@ public class EmotePlayer {
 
         ActiveEmote active = ACTIVE.get(player.getUUID());
         if (active == null) return null;
-        if (!active.emote.allowMovement() && isMoving(player)) {
+        boolean moving = isMoving(player);
+        if (!active.emote.allowMovement() && moving) {
             ACTIVE.remove(player.getUUID());
             return null;
         }
+        if (active.emote.requiresMovement() && !moving) return null;
         EmoteAnimation animation = active.emote.animation();
         float elapsed = Math.max(0.0F, ageInTicks - active.startTick);
         boolean loopingToggle = active.emote.toggle();
