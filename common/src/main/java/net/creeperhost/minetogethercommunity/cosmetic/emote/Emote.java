@@ -10,6 +10,7 @@ public record Emote(
         EmoteType type,
         boolean toggle,
         boolean allowMovement,
+        boolean requiresMovement,
         float previewFrame,
         float previewHeight,
         EmoteAnimation animation

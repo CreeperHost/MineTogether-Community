@@ -473,7 +473,8 @@
     "key.minetogether.emotes": "Open Emotes",
     "minetogether:keybind.emotes": "Open Emotes",
     "minetogether:gui.emotes.title": "Emotes",
-    "minetogether:gui.emotes.empty": "Favorite emotes in Cosmetics"
+    "minetogether:gui.emotes.empty": "Favorite emotes in Cosmetics",
+    "minetogether:gui.emotes.traversal_active": "Active: %s"
 
 
 }

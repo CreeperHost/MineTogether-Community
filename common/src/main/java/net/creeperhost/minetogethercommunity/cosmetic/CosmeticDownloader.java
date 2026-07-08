@@ -745,11 +745,12 @@ public class CosmeticDownloader {
         EmoteAnimation animation = parseEmoteAnimation(animationFile != null ? Files.readAllBytes(itemDir.resolve(animationFile)) : null);
         boolean toggle = metadataBoolean(metadata, "toggle", false);
         boolean allowMovement = metadataBoolean(metadata, "allowMovement", false);
+        boolean requiresMovement = metadataBoolean(metadata, "requiresMovement", false);
         float previewFrame = metadataFloat(metadata, "previewFrame", 0.0F);
         float previewHeight = metadataFloat(metadata, "previewHeight", 0.28F);
 
         Emote emote = new Emote(id, item.displayName(), item.author(), item.mod(), item.locked(), item.howToUnlock(),
-                type, toggle, allowMovement, previewFrame, previewHeight, animation);
+                type, toggle, allowMovement, requiresMovement, previewFrame, previewHeight, animation);
         loadedEmotes.put(id, emote);
         loadingAssetIds.remove(assetKey("emote", id));
         LOGGER.info("Emote asset ready: '{}'", id);

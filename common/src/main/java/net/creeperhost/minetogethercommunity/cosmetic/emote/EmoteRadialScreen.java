@@ -55,6 +55,8 @@ public class EmoteRadialScreen extends Screen {
         int centerX = width / 2;
         int centerY = height / 2;
         int selected = selectedIndex(mouseX, mouseY);
+        Emote activeEmote = EmotePlayer.localActiveEmote();
+        String activeTraversalId = activeEmote != null && activeEmote.requiresMovement() ? activeEmote.id() : "";
 
         if (emotes.isEmpty()) {
             drawDisc(graphics, centerX, centerY, 54, 0xCC11171D, 32);
@@ -71,28 +73,33 @@ public class EmoteRadialScreen extends Screen {
             double start = -Math.PI / 2.0 + (Math.PI * 2.0 * i / count);
             double end = -Math.PI / 2.0 + (Math.PI * 2.0 * (i + 1) / count);
             boolean selectedSlice = i == selected;
-            int color = selectedSlice ? 0xE02E8FC5 : 0xC5192530;
-            int innerColor = selectedSlice ? 0xD936B7EF : 0xAF22313C;
-            int edge = selectedSlice ? 0xFF8DEEFF : 0xCC071017;
+            boolean activeTraversal = emotes.get(i).id().equals(activeTraversalId);
+            int color = activeTraversal ? 0xE06A5417 : selectedSlice ? 0xE02E8FC5 : 0xC5192530;
+            int innerColor = activeTraversal ? 0xD98B741F : selectedSlice ? 0xD936B7EF : 0xAF22313C;
+            int edge = activeTraversal ? 0xFFFFD34D : selectedSlice ? 0xFF8DEEFF : 0xCC071017;
             drawSector(graphics, centerX, centerY, INNER_RADIUS, OUTER_RADIUS, start, end, color);
             drawSector(graphics, centerX, centerY, INNER_RADIUS, OUTER_RADIUS - 18, start, end, innerColor);
             drawSectorEdge(graphics, centerX, centerY, INNER_RADIUS, OUTER_RADIUS, start, edge);
             drawSectorEdge(graphics, centerX, centerY, INNER_RADIUS, OUTER_RADIUS, end, edge);
+            if (activeTraversal) {
+                drawSector(graphics, centerX, centerY, OUTER_RADIUS - 13, OUTER_RADIUS - 6, start, end, 0xDDFFD34D);
+            }
 
             double mid = (start + end) / 2.0;
             int labelX = centerX + (int) Math.round(Math.cos(mid) * LABEL_RADIUS);
             int labelY = centerY + (int) Math.round(Math.sin(mid) * LABEL_RADIUS);
             String label = trimLabel(emotes.get(i).displayName());
             int labelWidth = font.width(label);
-            if (selectedSlice) {
+            if (selectedSlice || activeTraversal) {
+                int underline = activeTraversal ? 0xDDFFD34D : 0xAA8DEEFF;
                 graphics.fill(labelX - labelWidth / 2 - 5, labelY - 8, labelX + labelWidth / 2 + 5, labelY + 7, 0x66101820);
-                graphics.fill(labelX - labelWidth / 2 - 5, labelY + 6, labelX + labelWidth / 2 + 5, labelY + 7, 0xAA8DEEFF);
+                graphics.fill(labelX - labelWidth / 2 - 5, labelY + 6, labelX + labelWidth / 2 + 5, labelY + 7, underline);
             }
-            graphics.drawCenteredString(font, label, labelX, labelY - 4, selectedSlice ? 0xFFFFFFFF : 0xFFD7DDE5);
+            graphics.drawCenteredString(font, label, labelX, labelY - 4, activeTraversal ? 0xFFFFF0A8 : selectedSlice ? 0xFFFFFFFF : 0xFFD7DDE5);
         }
 
         drawDisc(graphics, centerX, centerY, INNER_RADIUS - 3, 0xF0101419, 32);
-        drawRing(graphics, centerX, centerY, INNER_RADIUS - 4, INNER_RADIUS + 2, selected >= 0 ? 0xCC8DEEFF : 0x99505A64);
+        drawRing(graphics, centerX, centerY, INNER_RADIUS - 4, INNER_RADIUS + 2, !activeTraversalId.isEmpty() ? 0xDDFFD34D : selected >= 0 ? 0xCC8DEEFF : 0x99505A64);
         graphics.drawCenteredString(font, title, centerX, centerY - 4, selected >= 0 ? 0xFFFFFFFF : 0xFFE6E6E6);
 
         if (selected >= 0) {
@@ -102,6 +109,13 @@ public class EmoteRadialScreen extends Screen {
             graphics.fill(centerX - textWidth / 2 - 10, y - 5, centerX + textWidth / 2 + 10, y + 12, 0xAA101820);
             graphics.fill(centerX - textWidth / 2 - 10, y + 11, centerX + textWidth / 2 + 10, y + 12, 0xCC6DE5FF);
             graphics.drawCenteredString(font, selectedText, centerX, y, 0xFFFFFF);
+        } else if (!activeTraversalId.isEmpty()) {
+            Component activeText = Component.translatable("minetogether:gui.emotes.traversal_active", activeEmote.displayName());
+            int textWidth = font.width(activeText);
+            int y = centerY + OUTER_RADIUS + 14;
+            graphics.fill(centerX - textWidth / 2 - 10, y - 5, centerX + textWidth / 2 + 10, y + 12, 0xAA181509);
+            graphics.fill(centerX - textWidth / 2 - 10, y + 11, centerX + textWidth / 2 + 10, y + 12, 0xDDFFD34D);
+            graphics.drawCenteredString(font, activeText, centerX, y, 0xFFFFE08A);
         }
     }
 
