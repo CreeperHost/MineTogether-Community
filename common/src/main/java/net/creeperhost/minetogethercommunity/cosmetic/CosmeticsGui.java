@@ -248,10 +248,18 @@ public class CosmeticsGui implements GuiProvider {
 
         final boolean[] trackingEnabled = {true};
 
-        new GuiText(previewPanel, () -> currentEquippedName(activeTab[0], pendingHatId[0], pendingCapeId[0], pendingTailId[0], pendingWingId[0]))
+        new GuiText(previewPanel, () -> currentEquippedName(activeTab[0], pendingHatId[0], pendingCapeId[0], pendingTailId[0], pendingWingId[0], previewEmoteId[0]))
                 .setShadow(false)
                 .setAlignment(Align.LEFT)
                 .constrain(TOP, relative(previewPanel.get(TOP), 12))
+                .constrain(HEIGHT, literal(8))
+                .constrain(LEFT, relative(previewPanel.get(LEFT), 8))
+                .constrain(RIGHT, relative(previewPanel.get(RIGHT), -34));
+
+        new GuiText(previewPanel, () -> currentAuthorLine(activeTab[0], pendingHatId[0], pendingCapeId[0], pendingTailId[0], pendingWingId[0], previewEmoteId[0]))
+                .setShadow(false)
+                .setAlignment(Align.LEFT)
+                .constrain(TOP, relative(previewPanel.get(TOP), 24))
                 .constrain(HEIGHT, literal(8))
                 .constrain(LEFT, relative(previewPanel.get(LEFT), 8))
                 .constrain(RIGHT, relative(previewPanel.get(RIGHT), -34));
@@ -266,7 +274,7 @@ public class CosmeticsGui implements GuiProvider {
         final float[] previewRotation = {-20.0F};
 
         new OffsetFollowRenderer(previewPanel, Minecraft.getInstance().player, activeTab, previewEmoteId, previewRotation, trackingEnabled)
-                .constrain(TOP, relative(previewPanel.get(TOP), 42))
+                .constrain(TOP, relative(previewPanel.get(TOP), 50))
                 .constrain(BOTTOM, relative(previewPanel.get(BOTTOM), -48))
                 .constrain(LEFT, relative(previewPanel.get(LEFT), 8))
                 .constrain(RIGHT, relative(previewPanel.get(RIGHT), -8));
@@ -432,28 +440,53 @@ public class CosmeticsGui implements GuiProvider {
         }
     }
 
-    private static Component currentEquippedName(CosmeticTypes type, String hatId, String capeId, String tailId, String wingId) {
+    private static Component currentEquippedName(CosmeticTypes type, String hatId, String capeId, String tailId, String wingId, String emoteId) {
         String id = switch (type) {
             case HAT -> hatId;
             case CAPE -> capeId;
             case TAIL -> tailId;
             case WINGS -> wingId;
-            case EMOTES -> "";
+            case EMOTES -> emoteId;
             default -> "";
         };
         if (type == CosmeticTypes.EMOTES) {
-            return Component.translatable("minetogether:gui.cosmetics.emote.hint").withStyle(ChatFormatting.GRAY);
+            CosmeticItem item = selectedCatalogItem(type, hatId, capeId, tailId, wingId, emoteId);
+            return item == null
+                    ? Component.translatable("minetogether:gui.cosmetics.emote.hint").withStyle(ChatFormatting.GRAY)
+                    : Component.literal(item.displayName());
         }
         if (id == null || id.isEmpty()) return Component.literal("Feeling Cute").withStyle(ChatFormatting.GRAY);
-        CosmeticItem item = switch (type) {
+        CosmeticItem item = selectedCatalogItem(type, hatId, capeId, tailId, wingId, emoteId);
+        return Component.literal(item != null ? item.displayName() : id);
+    }
+
+    private static Component currentAuthorLine(CosmeticTypes type, String hatId, String capeId, String tailId, String wingId, String emoteId) {
+        CosmeticItem item = selectedCatalogItem(type, hatId, capeId, tailId, wingId, emoteId);
+        if (item == null || item.author() == null || item.author().isBlank()) return Component.empty();
+        return Component.translatable("minetogether:gui.cosmetics.author", item.author()).withStyle(ChatFormatting.GRAY);
+    }
+
+    private static @Nullable CosmeticItem selectedCatalogItem(CosmeticTypes type, String hatId, String capeId, String tailId, String wingId, String emoteId) {
+        String id = switch (type) {
+            case HAT -> hatId;
+            case CAPE -> capeId;
+            case TAIL -> tailId;
+            case WINGS -> wingId;
+            case EMOTES -> emoteId;
+            default -> "";
+        };
+        if (id == null || id.isEmpty()) return null;
+        return switch (type) {
             case HAT -> HatRegistry.getCatalogEntry(id);
             case CAPE -> CapeRegistry.getCatalogEntry(id);
             case TAIL -> TailRegistry.getCatalogEntry(id);
             case WINGS -> WingRegistry.getCatalogEntry(id);
-            case EMOTES -> null;
+            case EMOTES -> CosmeticDownloader.instance().getEmoteCatalog().stream()
+                    .filter(item -> item.id().equals(id))
+                    .findFirst()
+                    .orElse(null);
             default -> null;
         };
-        return Component.literal(item != null ? item.displayName() : id);
     }
 
     private static void ensureAssetLoaded(CosmeticTypes type, String id) {
