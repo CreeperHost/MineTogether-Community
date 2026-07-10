@@ -19,5 +19,6 @@ public record Wing(
         int texHeight,
         List<TailElement> elements,
         TailModel model,
-        WingAnimation animation
+        WingAnimation animation,
+        WingPlacement placement
 ) {}

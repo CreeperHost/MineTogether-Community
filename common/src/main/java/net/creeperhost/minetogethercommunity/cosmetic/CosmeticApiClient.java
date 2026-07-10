@@ -35,6 +35,8 @@ public class CosmeticApiClient {
     private static final Duration CONNECT_TIMEOUT = Duration.ofSeconds(10);
     private static final Duration REQUEST_TIMEOUT = Duration.ofSeconds(15);
     private static final AtomicLong REQUEST_WORKER_ID = new AtomicLong();
+    private static final AtomicLong LOCAL_PROFILE_EPOCH = new AtomicLong();
+    private static final AtomicLong ACTIVE_LOCAL_PROFILE_EPOCH = new AtomicLong(-1L);
     private static final ExecutorService REQUEST_EXECUTOR = Executors.newFixedThreadPool(4, runnable -> {
         Thread thread = new Thread(runnable, "CosmeticApiWorker-" + REQUEST_WORKER_ID.incrementAndGet());
         thread.setDaemon(true);
@@ -57,6 +59,8 @@ public class CosmeticApiClient {
      * {@code POST /minetogether/cosmetics/profile}.
      */
     public static void fetchProfileAsync() {
+        long epoch = LOCAL_PROFILE_EPOCH.get();
+        if (!ACTIVE_LOCAL_PROFILE_EPOCH.compareAndSet(-1L, epoch)) return;
         REQUEST_EXECUTOR.execute(() -> {
             try {
                 // Wait for the own profile to have a full hash (chat system may still be connecting)
@@ -79,6 +83,8 @@ public class CosmeticApiClient {
                             PROFILE_POLL_ATTEMPTS);
                     return;
                 }
+
+                if (!isCurrentLocalProfileEpoch(epoch)) return;
 
                 String token = MineTogetherSession.getDefault().getTokenAsync()
                         .get(REQUEST_TIMEOUT.toSeconds(), TimeUnit.SECONDS).toString();
@@ -117,6 +123,8 @@ public class CosmeticApiClient {
                     return;
                 }
 
+                if (!isCurrentLocalProfileEpoch(epoch)) return;
+
                 CosmeticSelections cs = CosmeticSelections.instance();
                 cs.selectedHatId  = "";
                 cs.selectedCapeId = "";
@@ -154,8 +162,16 @@ public class CosmeticApiClient {
 
             } catch (Exception e) {
                 LOGGER.error("Failed to fetch cosmetic profile", e);
+            } finally {
+                ACTIVE_LOCAL_PROFILE_EPOCH.compareAndSet(epoch, -1L);
             }
         });
+    }
+
+    /** Invalidates any in-flight local profile response after the player leaves a world. */
+    public static void invalidateLocalProfileFetches() {
+        LOCAL_PROFILE_EPOCH.incrementAndGet();
+        ACTIVE_LOCAL_PROFILE_EPOCH.set(-1L);
     }
 
     /**
@@ -279,6 +295,10 @@ public class CosmeticApiClient {
 
     private static boolean isSelectionSlot(@Nullable String slot) {
         return "hat".equals(slot) || "cape".equals(slot) || "tail".equals(slot) || "wing".equals(slot);
+    }
+
+    private static boolean isCurrentLocalProfileEpoch(long epoch) {
+        return LOCAL_PROFILE_EPOCH.get() == epoch;
     }
 
     /**
