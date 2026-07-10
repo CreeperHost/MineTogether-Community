@@ -87,7 +87,7 @@ public class TechneLoader {
         });
 
         return new Hat(id, displayName, author, mod, locked, howToUnlock, texLoc, texW, texH,
-                HatModelType.TC2, cuboids, Collections.emptyList(), null, HatAnimation.NONE);
+                HatModelType.TC2, cuboids, Collections.emptyList(), null, HatAnimation.NONE, ModelPlacement.NONE);
     }
 
     private static float[] parseVec3(String s) {

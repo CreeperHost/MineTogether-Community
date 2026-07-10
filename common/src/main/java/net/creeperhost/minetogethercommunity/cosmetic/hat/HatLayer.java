@@ -2,6 +2,7 @@ package net.creeperhost.minetogethercommunity.cosmetic.hat;
 
 import com.mojang.blaze3d.vertex.PoseStack;
 import net.creeperhost.minetogethercommunity.cosmetic.CosmeticPreviewTime;
+import net.creeperhost.minetogethercommunity.cosmetic.ModelPlacement;
 import net.creeperhost.minetogethercommunity.cosmetic.renderstate.MineTogetherCosmeticRenderState;
 import net.minecraft.client.model.player.PlayerModel;
 import net.minecraft.client.renderer.SubmitNodeCollector;
@@ -34,8 +35,9 @@ public class HatLayer extends RenderLayer<AvatarRenderState, PlayerModel> {
         poseStack.pushPose();
         getParentModel().head.translateAndRotate(poseStack);
         if (hat.isJsonModel() && hat.jsonModel() != null) {
-            poseStack.scale(1.01F, 1.01F, 1.01F);
-            poseStack.translate(-8.0F / 16.0F, -16.0F / 16.0F, -8.0F / 16.0F);
+            ModelPlacement placement = hat.placement();
+            poseStack.scale(placement.scale(), placement.scale(), placement.scale());
+            poseStack.translate(placement.xPixels() / 16.0F, placement.yPixels() / 16.0F, placement.zPixels() / 16.0F);
             submitNodeCollector.submitCustomGeometry(
                     poseStack,
                     RenderTypes.entityCutout(hat.texture()),

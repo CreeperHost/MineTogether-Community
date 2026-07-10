@@ -19,6 +19,7 @@ import net.creeperhost.minetogethercommunity.cosmetic.tail.TailModel;
 import net.creeperhost.minetogethercommunity.cosmetic.tail.TailModelParser;
 import net.creeperhost.minetogethercommunity.cosmetic.wing.Wing;
 import net.creeperhost.minetogethercommunity.cosmetic.wing.WingAnimation;
+import net.creeperhost.minetogethercommunity.cosmetic.wing.WingPlacement;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.renderer.texture.DynamicTexture;
 import net.minecraft.resources.Identifier;
@@ -38,6 +39,8 @@ import java.nio.file.Path;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.Comparator;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Set;
@@ -217,10 +220,15 @@ public class CosmeticDownloader {
      */
     public synchronized void reloadLocalAssetsForDev() {
         if (!MineTogetherPlatform.isDevelopmentEnvironment()) return;
+        if (!Minecraft.getInstance().isSameThread()) {
+            Minecraft.getInstance().execute(this::reloadLocalAssetsForDev);
+            return;
+        }
 
         assetGeneration.incrementAndGet();
         loadingAssetIds.clear();
         failedAssetIds.clear();
+        releaseLoadedTextures();
         loadedHats.clear();
         loadedCapes.clear();
         loadedTails.clear();
@@ -243,6 +251,16 @@ public class CosmeticDownloader {
         } catch (Exception e) {
             LOGGER.error("Failed to reload local cosmetic assets", e);
         }
+    }
+
+    /** Releases dynamic textures before a development reload replaces their asset records. */
+    private void releaseLoadedTextures() {
+        Set<Identifier> textures = new HashSet<>();
+        loadedHats.values().forEach(hat -> textures.add(hat.texture()));
+        loadedCapes.values().forEach(cape -> textures.add(cape.texture()));
+        loadedTails.values().forEach(tail -> textures.add(tail.texture()));
+        loadedWings.values().forEach(wing -> textures.add(wing.texture()));
+        textures.forEach(Minecraft.getInstance().getTextureManager()::release);
     }
 
     // ── Catalog accessors ──────────────────────────────────────────────────────
@@ -543,6 +561,7 @@ public class CosmeticDownloader {
 
         Path itemDir = cacheBase.resolve("hats").resolve(id);
         List<String> files = fetchAndCacheFiles(CDN_BASE_URL + "/hat/" + id, itemDir);
+        validateAsset("hat", id, itemDir, files);
         JsonObject metadata = readMetadata(itemDir);
         HatModelType type = HatModelType.fromMetadata(metadataString(metadata, "type", HatModelType.TC2.metadataValue()));
 
@@ -601,6 +620,7 @@ public class CosmeticDownloader {
         int texW = modelRoot.has("texture_size") ? modelRoot.getAsJsonArray("texture_size").get(0).getAsInt() : 64;
         int texH = modelRoot.has("texture_size") ? modelRoot.getAsJsonArray("texture_size").get(1).getAsInt() : 32;
         HatAnimation animation = parseHatAnimation(animationData);
+        ModelPlacement placement = ModelPlacement.fromMetadata(readMetadata(itemDir), new ModelPlacement(-8.0F, -16.0F, -8.0F, 1.01F));
         Identifier location = textureLocation("hat", id);
         LOGGER.info("JSON hat '{}' parsed: {} elements, texSize={}x{}", id, elements.size(), texW, texH);
 
@@ -614,7 +634,7 @@ public class CosmeticDownloader {
                 TailModel model = new TailModel(elements, texW, texH);
                 Hat hat = new Hat(id, item.displayName(), item.author(), item.mod(),
                         item.locked(), item.howToUnlock(), location, texW, texH,
-                        HatModelType.JSON, Collections.emptyList(), elements, model, animation);
+                        HatModelType.JSON, Collections.emptyList(), elements, model, animation, placement);
                 loadedHats.put(id, hat);
                 loadingAssetIds.remove(assetKey("hat", id));
                 LOGGER.info("JSON hat asset ready: '{}'", id);
@@ -636,6 +656,7 @@ public class CosmeticDownloader {
 
         Path itemDir = cacheBase.resolve("capes").resolve(id);
         List<String> files = fetchAndCacheFiles(CDN_BASE_URL + "/cape/" + id, itemDir);
+        validateAsset("cape", id, itemDir, files);
 
         String pngFile = files.stream()
                 .filter(f -> f.toLowerCase().endsWith(".png"))
@@ -675,6 +696,7 @@ public class CosmeticDownloader {
 
         Path itemDir = cacheBase.resolve("tails").resolve(id);
         List<String> files = fetchAndCacheFiles(CDN_BASE_URL + "/tail/" + id, itemDir);
+        validateAsset("tail", id, itemDir, files);
 
         String jsonFile = files.stream()
                 .filter(f -> f.toLowerCase(Locale.ROOT).endsWith(".json"))
@@ -704,6 +726,7 @@ public class CosmeticDownloader {
         int texW = modelRoot.has("texture_size") ? modelRoot.getAsJsonArray("texture_size").get(0).getAsInt() : 64;
         int texH = modelRoot.has("texture_size") ? modelRoot.getAsJsonArray("texture_size").get(1).getAsInt() : 32;
         TailAnimation animation = parseTailAnimation(animationData);
+        ModelPlacement placement = ModelPlacement.fromMetadata(readMetadata(itemDir), new ModelPlacement(-8.0F, 2.0F, 2.0F, 1.0F));
         LOGGER.info("Tail '{}' parsed: {} elements, texSize={}x{}", id, elements.size(), texW, texH);
 
         Identifier location = textureLocation("tail", id);
@@ -717,7 +740,7 @@ public class CosmeticDownloader {
 
                 var model = new net.creeperhost.minetogethercommunity.cosmetic.tail.TailModel(elements, texW, texH);
                 Tail tail = new Tail(id, item.displayName(), item.author(), item.mod(),
-                        item.locked(), item.howToUnlock(), location, texW, texH, elements, model, animation);
+                        item.locked(), item.howToUnlock(), location, texW, texH, elements, model, animation, placement);
                 loadedTails.put(id, tail);
                 loadingAssetIds.remove(assetKey("tail", id));
                 LOGGER.info("Tail asset ready: '{}'", id);
@@ -736,6 +759,7 @@ public class CosmeticDownloader {
 
         Path itemDir = cacheBase.resolve("wings").resolve(id);
         List<String> files = fetchAndCacheFiles(CDN_BASE_URL + "/wing/" + id, itemDir);
+        validateAsset("wing", id, itemDir, files);
 
         String jsonFile = files.stream()
                 .filter(f -> f.toLowerCase().endsWith(".json"))
@@ -763,6 +787,7 @@ public class CosmeticDownloader {
         int texW = modelRoot.has("texture_size") ? modelRoot.getAsJsonArray("texture_size").get(0).getAsInt() : 64;
         int texH = modelRoot.has("texture_size") ? modelRoot.getAsJsonArray("texture_size").get(1).getAsInt() : 32;
         WingAnimation animation = parseWingAnimation(animationData);
+        WingPlacement placement = WingPlacement.fromMetadata(readMetadata(itemDir));
         LOGGER.info("Wing '{}' parsed: {} elements, texSize={}x{}", id, elements.size(), texW, texH);
 
         Identifier location = textureLocation("wing", id);
@@ -776,7 +801,7 @@ public class CosmeticDownloader {
 
                 TailModel model = new TailModel(elements, texW, texH);
                 Wing wing = new Wing(id, item.displayName(), item.author(), item.mod(),
-                        item.locked(), item.howToUnlock(), location, texW, texH, elements, model, animation);
+                        item.locked(), item.howToUnlock(), location, texW, texH, elements, model, animation, placement);
                 loadedWings.put(id, wing);
                 loadingAssetIds.remove(assetKey("wing", id));
                 LOGGER.info("Wing asset ready: '{}'", id);
@@ -795,6 +820,7 @@ public class CosmeticDownloader {
 
         Path itemDir = cacheBase.resolve("emotes").resolve(id);
         List<String> files = fetchAndCacheFiles(CDN_BASE_URL + "/emote/" + id, itemDir);
+        validateAsset("emote", id, itemDir, files);
         JsonObject metadata = readMetadata(itemDir);
         EmoteType type = EmoteType.fromMetadata(metadataString(metadata, "type", EmoteType.SIMPLE.metadataValue()));
         if (!type.isAvailable()) {
@@ -939,7 +965,126 @@ public class CosmeticDownloader {
                 throw new IOException("Cached metadata listed missing file '" + filename + "' in " + itemDir);
             }
         }
+        if (fromCdn) {
+            pruneUnreferencedFiles(itemDir, fileNames);
+        }
         return fileNames;
+    }
+
+    /** Removes obsolete CDN cache files after a refreshed manifest has been applied. */
+    private void pruneUnreferencedFiles(Path itemDir, List<String> declaredFiles) throws IOException {
+        Set<Path> retained = new HashSet<>();
+        retained.add(itemDir.resolve("metadata.json").normalize());
+        for (String file : declaredFiles) {
+            retained.add(itemDir.resolve(file).normalize());
+        }
+
+        List<Path> cachedPaths;
+        try (var paths = Files.walk(itemDir)) {
+            cachedPaths = paths.sorted(Comparator.reverseOrder()).toList();
+        }
+        for (Path path : cachedPaths) {
+            if (Files.isRegularFile(path) && !retained.contains(path)) {
+                Files.deleteIfExists(path);
+                LOGGER.debug("  [prune] {}", itemDir.relativize(path));
+            } else if (Files.isDirectory(path) && !path.equals(itemDir)) {
+                try (var children = Files.list(path)) {
+                    if (children.findAny().isEmpty()) Files.deleteIfExists(path);
+                }
+            }
+        }
+    }
+
+    /**
+     * Verifies the loaded asset's declared files before any renderer or texture registration
+     * touches it. This keeps malformed CDN and local cosmetics from failing later on the render
+     * thread with less useful errors.
+     */
+    private void validateAsset(String slot, String id, Path itemDir, List<String> files) throws IOException {
+        for (String filename : files) {
+            Path file = itemDir.resolve(filename).normalize();
+            if (!file.startsWith(itemDir) || !Files.isRegularFile(file)) {
+                throw new IOException("Missing declared file '" + filename + "' for " + slot + " asset '" + id + "'");
+            }
+        }
+
+        switch (slot) {
+            case "hat" -> validateHatAsset(id, itemDir, files);
+            case "cape" -> validatePng(requiredFile(files, itemDir, ".png", "cape", id), slot, id);
+            case "tail", "wing" -> {
+                validateBlockModel(requiredFile(files, itemDir, ".json", slot, id, "metadata.json", "animation.json"), slot, id);
+                validatePng(requiredFile(files, itemDir, ".png", slot, id), slot, id);
+            }
+            case "emote" -> {
+                Path animation = optionalFile(files, itemDir, "animation.json");
+                if (animation != null) validateJsonObject(animation, "animation", id);
+            }
+            default -> throw new IOException("Unsupported cosmetic slot '" + slot + "'");
+        }
+    }
+
+    private void validateHatAsset(String id, Path itemDir, List<String> files) throws IOException {
+        HatModelType type = HatModelType.fromMetadata(metadataString(readMetadata(itemDir), "type", HatModelType.TC2.metadataValue()));
+        if (type == HatModelType.TC2) {
+            requiredFile(files, itemDir, ".tc2", "hat", id);
+            return;
+        }
+
+        validateBlockModel(requiredFile(files, itemDir, ".json", "hat", id, "metadata.json", "animation.json"), "hat", id);
+        validatePng(requiredFile(files, itemDir, ".png", "hat", id), "hat", id);
+    }
+
+    private static Path requiredFile(List<String> files, Path itemDir, String extension, String slot, String id, String... excludedNames)
+            throws IOException {
+        Path file = optionalFile(files, itemDir, extension, excludedNames);
+        if (file == null) {
+            throw new IOException("No " + extension + " file declared for " + slot + " asset '" + id + "'");
+        }
+        return file;
+    }
+
+    private static @Nullable Path optionalFile(List<String> files, Path itemDir, String extension, String... excludedNames) {
+        return files.stream()
+                .filter(file -> file.toLowerCase(Locale.ROOT).endsWith(extension))
+                .filter(file -> {
+                    for (String excluded : excludedNames) {
+                        if (excluded.equalsIgnoreCase(file)) return false;
+                    }
+                    return true;
+                })
+                .findFirst()
+                .map(itemDir::resolve)
+                .orElse(null);
+    }
+
+    private static void validateBlockModel(Path modelFile, String slot, String id) throws IOException {
+        JsonObject model = validateJsonObject(modelFile, slot + " model", id);
+        try {
+            if (!model.has("elements") || model.getAsJsonArray("elements").isEmpty()) {
+                throw new IOException("Model for " + slot + " asset '" + id + "' has no elements");
+            }
+            TailModelParser.parse(model);
+        } catch (RuntimeException e) {
+            throw new IOException("Invalid model JSON for " + slot + " asset '" + id + "'", e);
+        }
+    }
+
+    private static JsonObject validateJsonObject(Path file, String kind, String id) throws IOException {
+        try (var reader = Files.newBufferedReader(file, StandardCharsets.UTF_8)) {
+            return JsonParser.parseReader(reader).getAsJsonObject();
+        } catch (Exception e) {
+            throw new IOException("Invalid " + kind + " JSON for asset '" + id + "'", e);
+        }
+    }
+
+    private static void validatePng(Path textureFile, String slot, String id) throws IOException {
+        try (var stream = Files.newInputStream(textureFile); NativeImage image = NativeImage.read(stream)) {
+            if (image.getWidth() <= 0 || image.getHeight() <= 0) {
+                throw new IOException("Texture for " + slot + " asset '" + id + "' has invalid dimensions");
+            }
+        } catch (IOException e) {
+            throw new IOException("Invalid PNG texture for " + slot + " asset '" + id + "'", e);
+        }
     }
 
     private void cleanupEmptyAssetDirectory(String slot, String id) {

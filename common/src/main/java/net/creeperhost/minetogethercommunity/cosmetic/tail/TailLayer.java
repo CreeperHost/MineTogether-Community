@@ -2,6 +2,7 @@ package net.creeperhost.minetogethercommunity.cosmetic.tail;
 
 import com.mojang.blaze3d.vertex.PoseStack;
 import net.creeperhost.minetogethercommunity.cosmetic.CosmeticPreviewTime;
+import net.creeperhost.minetogethercommunity.cosmetic.ModelPlacement;
 import net.creeperhost.minetogethercommunity.cosmetic.renderstate.MineTogetherCosmeticRenderState;
 import net.minecraft.client.model.player.PlayerModel;
 import net.minecraft.client.renderer.SubmitNodeCollector;
@@ -31,7 +32,12 @@ public class TailLayer extends RenderLayer<AvatarRenderState, PlayerModel> {
         poseStack.pushPose();
 
         getParentModel().body.translateAndRotate(poseStack);
-        poseStack.translate(-8.0F / 16.0F, 2.0F / 16.0F, 2.0F / 16.0F);
+        // All values in model-pixel units (same scale as entity model coords).
+        // x: centre tail at block-model x=8 → -8; y: map block-model y=8 to body y=12 → 12-8=4;
+        // z: start tail at body back face z=2 → +2.
+        ModelPlacement placement = tail.placement();
+        poseStack.translate(placement.xPixels() / 16.0F, placement.yPixels() / 16.0F, placement.zPixels() / 16.0F);
+        poseStack.scale(placement.scale(), placement.scale(), placement.scale());
 
         float animationAge = CosmeticPreviewTime.ageInTicks(state.ageInTicks);
         TailPose tailPose = tail.animation().pose(state, animationAge);
