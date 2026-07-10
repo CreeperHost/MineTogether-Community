@@ -114,7 +114,7 @@ public class CosmeticApiClient {
                     String cosmeticId = sel.has("cosmeticId") && !sel.get("cosmeticId").isJsonNull()
                             ? sel.get("cosmeticId").getAsString() : null;
 
-                    if (slot == null || cosmeticId == null || cosmeticId.isEmpty() || cosmeticId.equals("none")) continue;
+                    if (!isValidSelection(slot, cosmeticId)) continue;
 
                     switch (slot) {
                         case "hat"  -> cs.selectedHatId  = cosmeticId;
@@ -162,7 +162,7 @@ public class CosmeticApiClient {
                 .toString()
                 .toUpperCase(Locale.ROOT);
 
-        fetchProfileForTargetAsync(fullHash, uuid);
+        fetchProfileForTargetAsync(fullHash, uuid, PlayerCosmeticCache.currentRevision(fullHash));
     }
 
     /**
@@ -170,10 +170,11 @@ public class CosmeticApiClient {
      * {@link PlayerCosmeticCache}'s hash index. Used when profile events do not expose a Minecraft UUID.
      */
     public static void fetchProfileForHashAsync(String fullHash) {
-        fetchProfileForTargetAsync(fullHash.toUpperCase(Locale.ROOT), null);
+        String normalizedHash = fullHash.toUpperCase(Locale.ROOT);
+        fetchProfileForTargetAsync(normalizedHash, null, PlayerCosmeticCache.beginHashRefresh(normalizedHash));
     }
 
-    private static void fetchProfileForTargetAsync(String fullHash, @Nullable UUID uuid) {
+    private static void fetchProfileForTargetAsync(String fullHash, @Nullable UUID uuid, long revision) {
         Thread t = new Thread(() -> {
             try {
                 String token = MineTogetherSession.getDefault().getTokenAsync().get().toString();
@@ -212,7 +213,7 @@ public class CosmeticApiClient {
                                 String slot = sel.has("slot") ? sel.get("slot").getAsString() : null;
                                 String cosmeticId = sel.has("cosmeticId") && !sel.get("cosmeticId").isJsonNull()
                                         ? sel.get("cosmeticId").getAsString() : null;
-                                if (slot == null || cosmeticId == null || cosmeticId.isEmpty() || cosmeticId.equals("none")) continue;
+                                if (!isValidSelection(slot, cosmeticId)) continue;
                                 switch (slot) {
                                     case "hat"  -> cs.selectedHatId  = cosmeticId;
                                     case "cape" -> cs.selectedCapeId = cosmeticId;
@@ -242,9 +243,9 @@ public class CosmeticApiClient {
                     CosmeticDownloader.instance().ensureAssetLoaded("wing", cs.selectedWingId);
 
                 if (uuid != null) {
-                    PlayerCosmeticCache.put(uuid, cs);
+                    PlayerCosmeticCache.put(uuid, fullHash, cs, revision);
                 } else {
-                    PlayerCosmeticCache.putHash(fullHash, cs);
+                    PlayerCosmeticCache.putHash(fullHash, cs, revision);
                 }
 
             } catch (Exception e) {
@@ -263,6 +264,14 @@ public class CosmeticApiClient {
         return uuid != null ? uuid.toString() : fullHash;
     }
 
+    private static boolean isValidSelection(@Nullable String slot, @Nullable String cosmeticId) {
+        return isSelectionSlot(slot) && cosmeticId != null && CosmeticDownloader.isValidAssetId(cosmeticId);
+    }
+
+    private static boolean isSelectionSlot(@Nullable String slot) {
+        return "hat".equals(slot) || "cape".equals(slot) || "tail".equals(slot) || "wing".equals(slot);
+    }
+
     /**
      * Asynchronously updates the server-side cosmetic selection for a single slot.
      * Fires and forgets on a daemon thread — failures are logged but not surfaced to the UI.
@@ -271,6 +280,15 @@ public class CosmeticApiClient {
      * @param cosmeticId The cosmetic ID to select, or {@code null} / empty to clear the slot.
      */
     public static void selectAsync(String slot, @Nullable String cosmeticId) {
+        if (!isSelectionSlot(slot)) {
+            LOGGER.warn("Refusing cosmetic selection for unsupported slot '{}'", slot);
+            return;
+        }
+        if (cosmeticId != null && !cosmeticId.isEmpty() && !cosmeticId.equals("none")
+                && !CosmeticDownloader.isValidAssetId(cosmeticId)) {
+            LOGGER.warn("Refusing cosmetic selection with invalid id '{}'", cosmeticId);
+            return;
+        }
         Thread t = new Thread(() -> {
             try {
                 String token = MineTogetherSession.getDefault().getTokenAsync().get().toString();

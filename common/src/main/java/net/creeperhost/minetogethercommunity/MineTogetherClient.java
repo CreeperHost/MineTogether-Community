@@ -19,6 +19,7 @@ import net.creeperhost.minetogethercommunity.cosmetic.CosmeticApiClient;
 import net.creeperhost.minetogethercommunity.cosmetic.CosmeticDownloader;
 import net.creeperhost.minetogethercommunity.cosmetic.CosmeticSelections;
 import net.creeperhost.minetogethercommunity.cosmetic.PlayerCosmeticCache;
+import net.creeperhost.minetogethercommunity.cosmetic.emote.EmotePlayer;
 import net.creeperhost.minetogethercommunity.gui.SettingGui;
 import net.creeperhost.minetogethercommunity.orderform.OrderGui;
 import net.creeperhost.minetogethercommunity.util.MTSessionProvider;
@@ -89,6 +90,7 @@ public class MineTogetherClient {
             cs.selectedWingId = "";
             // Also drop all cached remote-player profiles so they're re-fetched on next join
             PlayerCosmeticCache.clearAll();
+            EmotePlayer.clearAll();
         });
 
         // Fetch remote player cosmetics once their client-side player entity exists.

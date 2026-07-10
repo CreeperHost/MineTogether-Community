@@ -89,7 +89,7 @@ public class EmoteNetworking {
     }
 
     private static boolean validEmoteId(String emoteId) {
-        return emoteId != null && !emoteId.isEmpty() && emoteId.length() <= MAX_EMOTE_ID_LENGTH;
+        return CosmeticDownloader.isValidAssetId(emoteId);
     }
 
     private static <T extends CustomPacketPayload> CustomPacketPayload.Type<T> type(String path) {
