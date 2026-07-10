@@ -42,6 +42,8 @@ import java.util.Locale;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.concurrent.atomic.AtomicLong;
+import java.util.regex.Pattern;
 
 /**
  * Manages cosmetic asset lifecycle in two distinct phases:
@@ -65,6 +67,8 @@ public class CosmeticDownloader {
     private static final String CATALOG_BASE_URL = "https://api.creeper.host";
     private static final String CDN_BASE_URL = "https://cosmetic.cdn.minetogether.io";
     private static final int PAGE_LIMIT = 100;
+    private static final Set<String> ASSET_SLOTS = Set.of("hat", "cape", "tail", "wing", "emote");
+    private static final Pattern COSMETIC_ID_PATTERN = Pattern.compile("[a-z0-9][a-z0-9._-]{0,127}", Pattern.CASE_INSENSITIVE);
 
     // â”€â”€ Singleton â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
@@ -112,6 +116,7 @@ public class CosmeticDownloader {
     /** Asset keys for which a download is currently in flight. Prevents duplicate requests. */
     private final Set<String> loadingAssetIds = Collections.newSetFromMap(new ConcurrentHashMap<>());
     private final Set<String> failedAssetIds = Collections.newSetFromMap(new ConcurrentHashMap<>());
+    private final AtomicLong assetGeneration = new AtomicLong();
 
     // Catalog fetch state
     private volatile boolean catalogLoading = false;
@@ -150,7 +155,10 @@ public class CosmeticDownloader {
      * @param id   The cosmetic ID from the catalog
      */
     public void ensureAssetLoaded(String slot, String id) {
-        if (id == null || id.isEmpty()) return;
+        if (!isSupportedAssetSlot(slot) || !isValidAssetId(id)) {
+            LOGGER.warn("Refusing invalid cosmetic asset request: slot='{}', id='{}'", slot, id);
+            return;
+        }
         String assetKey = assetKey(slot, id);
         if (failedAssetIds.contains(assetKey)) return;
         // Skip if already fully loaded
@@ -162,20 +170,22 @@ public class CosmeticDownloader {
         // Claim the download slot — only one thread proceeds per id
         if (!loadingAssetIds.add(assetKey)) return;
 
+        long generation = assetGeneration.get();
         Thread t = new Thread(() -> {
             try {
                 if ("hat".equals(slot)) {
-                    downloadAndRegisterHat(id);
+                    downloadAndRegisterHat(id, generation);
                 } else if ("cape".equals(slot)) {
-                    downloadAndRegisterCape(id);
+                    downloadAndRegisterCape(id, generation);
                 } else if ("tail".equals(slot)) {
-                    downloadAndRegisterTail(id);
+                    downloadAndRegisterTail(id, generation);
                 } else if ("wing".equals(slot)) {
-                    downloadAndRegisterWing(id);
+                    downloadAndRegisterWing(id, generation);
                 } else if ("emote".equals(slot)) {
-                    downloadAndRegisterEmote(id);
+                    downloadAndRegisterEmote(id, generation);
                 }
             } catch (Exception e) {
+                if (!isCurrentAssetGeneration(generation)) return;
                 LOGGER.error("Failed to download {} asset '{}'", slot, id, e);
                 if (isPermanentAssetFailure(e)) {
                     failedAssetIds.add(assetKey);
@@ -196,6 +206,7 @@ public class CosmeticDownloader {
     public synchronized void reloadLocalAssetsForDev() {
         if (!MineTogetherPlatform.isDevelopmentEnvironment()) return;
 
+        assetGeneration.incrementAndGet();
         loadingAssetIds.clear();
         failedAssetIds.clear();
         loadedHats.clear();
@@ -205,12 +216,14 @@ public class CosmeticDownloader {
         loadedEmotes.clear();
 
         removeLocalCatalogEntries(hatCatalogList, hatCatalogById);
+        removeLocalCatalogEntries(capeCatalogList, capeCatalogById);
         removeLocalCatalogEntries(tailCatalogList, tailCatalogById);
         removeLocalCatalogEntries(wingCatalogList, wingCatalogById);
         removeLocalCatalogEntries(emoteCatalogList, emoteCatalogById);
 
         try {
             loadLocalHatCatalog();
+            loadLocalCapeCatalog();
             loadLocalTailCatalog();
             loadLocalWingCatalog();
             loadLocalEmoteCatalog();
@@ -283,7 +296,20 @@ public class CosmeticDownloader {
         return false;
     }
 
-    // â”€â”€ Internal: catalog fetch â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+    /** Returns whether an asset slot is supported by the downloader. */
+    public static boolean isSupportedAssetSlot(String slot) {
+        return slot != null && ASSET_SLOTS.contains(slot);
+    }
+
+    /**
+     * Cosmetic IDs are used in CDN URLs and local cache paths, so they must remain a flat
+     * filename-like identifier rather than an arbitrary path.
+     */
+    public static boolean isValidAssetId(@Nullable String id) {
+        return id != null && COSMETIC_ID_PATTERN.matcher(id).matches();
+    }
+
+    // ── Internal: catalog fetch ────────────────────────────────────────────────
 
     private void fetchCatalog() {
         try {
@@ -304,6 +330,7 @@ public class CosmeticDownloader {
             }
 
             loadLocalHatCatalog();
+            loadLocalCapeCatalog();
             loadLocalTailCatalog();
             loadLocalWingCatalog();
             loadLocalEmoteCatalog();
@@ -343,6 +370,10 @@ public class CosmeticDownloader {
             for (JsonElement el : items) {
                 var obj     = el.getAsJsonObject();
                 String id   = obj.get("id").getAsString();
+                if (!isValidAssetId(id)) {
+                    LOGGER.warn("Ignoring catalog cosmetic with invalid id '{}'", id);
+                    continue;
+                }
                 String name = obj.get("name").getAsString();
                 String author = obj.has("author") && !obj.get("author").isJsonNull()
                         ? obj.get("author").getAsString() : "";
@@ -386,6 +417,10 @@ public class CosmeticDownloader {
         loadLocalCatalog("tails", tailCatalogList, tailCatalogById);
     }
 
+    private void loadLocalCapeCatalog() throws IOException {
+        loadLocalCatalog("capes", capeCatalogList, capeCatalogById);
+    }
+
     private void loadLocalWingCatalog() throws IOException {
         loadLocalCatalog("wings", wingCatalogList, wingCatalogById);
     }
@@ -402,6 +437,10 @@ public class CosmeticDownloader {
                 try (var reader = Files.newBufferedReader(metadata, StandardCharsets.UTF_8)) {
                     JsonObject root = JsonParser.parseReader(reader).getAsJsonObject();
                     String id = root.has("id") ? root.get("id").getAsString() : dir.getFileName().toString();
+                    if (!isValidAssetId(id)) {
+                        LOGGER.warn("Ignoring local emote with invalid id '{}'", id);
+                        return;
+                    }
                     if (emoteCatalogById.containsKey(id)) return;
 
                     EmoteType type = EmoteType.fromMetadata(metadataString(root, "type", EmoteType.SIMPLE.metadataValue()));
@@ -441,6 +480,10 @@ public class CosmeticDownloader {
                 try (var reader = Files.newBufferedReader(metadata, StandardCharsets.UTF_8)) {
                     JsonObject root = JsonParser.parseReader(reader).getAsJsonObject();
                     String id = root.has("id") ? root.get("id").getAsString() : dir.getFileName().toString();
+                    if (!isValidAssetId(id)) {
+                        LOGGER.warn("Ignoring local {} cosmetic with invalid id '{}'", slotDir, id);
+                        return;
+                    }
                     if (catalogById.containsKey(id)) return;
 
                     String name = root.has("name") ? root.get("name").getAsString() : id;
@@ -475,7 +518,7 @@ public class CosmeticDownloader {
      * Downloads the {@code .tc2} asset for a hat, parses it via {@link TechneLoader}, and
      * registers it on the Minecraft main thread (after TechneLoader's own texture registration).
      */
-    private void downloadAndRegisterHat(String id) throws Exception {
+    private void downloadAndRegisterHat(String id, long generation) throws Exception {
         CosmeticItem item = catalogItemOrFallback(hatCatalogById, id);
         if (!hatCatalogById.containsKey(id)) {
             LOGGER.debug("Hat asset '{}' requested before catalog entry was available; using fallback metadata", id);
@@ -488,7 +531,7 @@ public class CosmeticDownloader {
 
         switch (type) {
             case JSON -> {
-                downloadAndRegisterJsonHat(id, item, itemDir, files);
+                downloadAndRegisterJsonHat(id, item, itemDir, files, generation);
                 return;
             }
             case TC2 -> {
@@ -507,13 +550,14 @@ public class CosmeticDownloader {
         // Schedule the registry addition AFTER TechneLoader's own Minecraft.execute() so the
         // texture is guaranteed to be registered before any render layer can see this hat.
         Minecraft.getInstance().execute(() -> {
+            if (!isCurrentAssetGeneration(generation)) return;
             loadedHats.put(id, hat);
             loadingAssetIds.remove(assetKey("hat", id));
             LOGGER.info("Hat asset ready: '{}'", id);
         });
     }
 
-    private void downloadAndRegisterJsonHat(String id, CosmeticItem item, Path itemDir, List<String> files) throws Exception {
+    private void downloadAndRegisterJsonHat(String id, CosmeticItem item, Path itemDir, List<String> files, long generation) throws Exception {
         String jsonFile = files.stream()
                 .filter(f -> f.toLowerCase(Locale.ROOT).endsWith(".json"))
                 .filter(f -> !"metadata.json".equalsIgnoreCase(f))
@@ -544,6 +588,7 @@ public class CosmeticDownloader {
         LOGGER.info("JSON hat '{}' parsed: {} elements, texSize={}x{}", id, elements.size(), texW, texH);
 
         Minecraft.getInstance().execute(() -> {
+            if (!isCurrentAssetGeneration(generation)) return;
             try {
                 NativeImage img = NativeImage.read(new java.io.ByteArrayInputStream(pngData));
                 DynamicTexture tex = new DynamicTexture(location::toString, img);
@@ -566,7 +611,7 @@ public class CosmeticDownloader {
     /**
      * Downloads the {@code .png} asset for a cape and registers it on the Minecraft main thread.
      */
-    private void downloadAndRegisterCape(String id) throws Exception {
+    private void downloadAndRegisterCape(String id, long generation) throws Exception {
         CosmeticItem item = catalogItemOrFallback(capeCatalogById, id);
         if (!capeCatalogById.containsKey(id)) {
             LOGGER.debug("Cape asset '{}' requested before catalog entry was available; using fallback metadata", id);
@@ -584,6 +629,7 @@ public class CosmeticDownloader {
         Identifier location = textureLocation("cape", id);
 
         Minecraft.getInstance().execute(() -> {
+            if (!isCurrentAssetGeneration(generation)) return;
             try {
                 NativeImage img = NativeImage.read(new java.io.ByteArrayInputStream(data));
                 DynamicTexture tex = new DynamicTexture(location::toString, img);
@@ -604,7 +650,7 @@ public class CosmeticDownloader {
      * Downloads the {@code model.json} and texture {@code .png} for a tail, parses the block-model
      * JSON, and registers the texture + model on the Minecraft main thread.
      */
-    private void downloadAndRegisterTail(String id) throws Exception {
+    private void downloadAndRegisterTail(String id, long generation) throws Exception {
         CosmeticItem item = catalogItemOrFallback(tailCatalogById, id);
         if (!tailCatalogById.containsKey(id)) {
             LOGGER.debug("Tail asset '{}' requested before catalog entry was available; using fallback metadata", id);
@@ -646,6 +692,7 @@ public class CosmeticDownloader {
         Identifier location = textureLocation("tail", id);
 
         Minecraft.getInstance().execute(() -> {
+            if (!isCurrentAssetGeneration(generation)) return;
             try {
                 NativeImage img = NativeImage.read(new java.io.ByteArrayInputStream(pngData));
                 DynamicTexture tex = new DynamicTexture(location::toString, img);
@@ -664,7 +711,7 @@ public class CosmeticDownloader {
         });
     }
 
-    private void downloadAndRegisterWing(String id) throws Exception {
+    private void downloadAndRegisterWing(String id, long generation) throws Exception {
         CosmeticItem item = catalogItemOrFallback(wingCatalogById, id);
         if (!wingCatalogById.containsKey(id)) {
             LOGGER.debug("Wing asset '{}' requested before catalog entry was available; using fallback metadata", id);
@@ -704,6 +751,7 @@ public class CosmeticDownloader {
         Identifier location = textureLocation("wing", id);
 
         Minecraft.getInstance().execute(() -> {
+            if (!isCurrentAssetGeneration(generation)) return;
             try {
                 NativeImage img = NativeImage.read(new java.io.ByteArrayInputStream(pngData));
                 DynamicTexture tex = new DynamicTexture(location::toString, img);
@@ -722,7 +770,7 @@ public class CosmeticDownloader {
         });
     }
 
-    private void downloadAndRegisterEmote(String id) throws Exception {
+    private void downloadAndRegisterEmote(String id, long generation) throws Exception {
         CosmeticItem item = catalogItemOrFallback(emoteCatalogById, id);
         if (!emoteCatalogById.containsKey(id)) {
             LOGGER.debug("Emote asset '{}' requested before catalog entry was available; using fallback metadata", id);
@@ -733,8 +781,11 @@ public class CosmeticDownloader {
         JsonObject metadata = readMetadata(itemDir);
         EmoteType type = EmoteType.fromMetadata(metadataString(metadata, "type", EmoteType.SIMPLE.metadataValue()));
         if (!type.isAvailable()) {
-            loadingAssetIds.remove(assetKey("emote", id));
-            LOGGER.info("Skipping emote '{}' because runtime '{}' is not available", id, type.metadataValue());
+            Minecraft.getInstance().execute(() -> {
+                if (!isCurrentAssetGeneration(generation)) return;
+                loadingAssetIds.remove(assetKey("emote", id));
+                LOGGER.info("Skipping emote '{}' because runtime '{}' is not available", id, type.metadataValue());
+            });
             return;
         }
 
@@ -751,9 +802,12 @@ public class CosmeticDownloader {
 
         Emote emote = new Emote(id, item.displayName(), item.author(), item.mod(), item.locked(), item.howToUnlock(),
                 type, toggle, allowMovement, requiresMovement, previewFrame, previewHeight, animation);
-        loadedEmotes.put(id, emote);
-        loadingAssetIds.remove(assetKey("emote", id));
-        LOGGER.info("Emote asset ready: '{}'", id);
+        Minecraft.getInstance().execute(() -> {
+            if (!isCurrentAssetGeneration(generation)) return;
+            loadedEmotes.put(id, emote);
+            loadingAssetIds.remove(assetKey("emote", id));
+            LOGGER.info("Emote asset ready: '{}'", id);
+        });
     }
 
     private WingAnimation parseWingAnimation(@Nullable byte[] animationData) {
@@ -811,8 +865,8 @@ public class CosmeticDownloader {
     // ── Internal: CDN helpers ──────────────────────────────────────────────────
 
     /**
-     * Fetches {@code metadata.json} from the CDN, then downloads any listed files that are
-     * not already cached on disk.
+     * Fetches {@code metadata.json} from the CDN and refreshes every listed file. When the CDN
+     * is unavailable, a complete local cache remains usable, including development cosmetics.
      *
      * @return the list of filenames declared in the metadata
      */
@@ -823,14 +877,19 @@ public class CosmeticDownloader {
         Path localMetadata = itemDir.resolve("metadata.json");
         byte[] metaBytes;
         String metadataSource;
-        if (Files.isRegularFile(localMetadata)) {
-            metaBytes = Files.readAllBytes(localMetadata);
-            metadataSource = localMetadata.toString();
-        } else {
-            String metaUrl = cdnBase + "/metadata.json";
+        boolean fromCdn = false;
+        String metaUrl = cdnBase + "/metadata.json";
+        try {
             metaBytes = fetchBytes(metaUrl);
             Files.write(localMetadata, metaBytes);
             metadataSource = metaUrl;
+            fromCdn = true;
+        } catch (IOException e) {
+            if (!Files.isRegularFile(localMetadata)) throw e;
+
+            metaBytes = Files.readAllBytes(localMetadata);
+            metadataSource = localMetadata.toString();
+            LOGGER.debug("Using cached cosmetic metadata after CDN fetch failed: {}", metaUrl);
         }
 
         var meta = JsonParser.parseReader(new InputStreamReader(
@@ -846,14 +905,21 @@ public class CosmeticDownloader {
             String filename = el.getAsString();
             fileNames.add(filename);
 
-            Path dest = itemDir.resolve(filename);
-            if (Files.exists(dest)) {
+            Path dest = itemDir.resolve(filename).normalize();
+            if (!dest.startsWith(itemDir)) {
+                throw new IOException("Metadata file path escapes cosmetic directory: " + filename);
+            }
+
+            if (!fromCdn && Files.exists(dest)) {
                 LOGGER.debug("  [cached] {}", filename);
-            } else {
+            } else if (fromCdn) {
                 String fileUrl = cdnBase + "/" + filename;
-                LOGGER.debug("  [download] {}", fileUrl);
+                LOGGER.debug("  [refresh] {}", fileUrl);
                 byte[] fileData = fetchBytes(fileUrl);
+                Files.createDirectories(dest.getParent());
                 Files.write(dest, fileData);
+            } else {
+                throw new IOException("Cached metadata listed missing file '" + filename + "' in " + itemDir);
             }
         }
         return fileNames;
@@ -888,6 +954,10 @@ public class CosmeticDownloader {
 
     private static String assetKey(String slot, String id) {
         return slot + ":" + id;
+    }
+
+    private boolean isCurrentAssetGeneration(long generation) {
+        return assetGeneration.get() == generation;
     }
 
     private static boolean isPermanentAssetFailure(Exception e) {
