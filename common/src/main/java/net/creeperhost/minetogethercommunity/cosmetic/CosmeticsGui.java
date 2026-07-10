@@ -416,9 +416,8 @@ public class CosmeticsGui implements GuiProvider {
                 List<CosmeticItem> filtered = activeItems.stream()
                         .filter(item -> q.isEmpty() || item.displayName().toLowerCase(Locale.ROOT).contains(q))
                         .toList();
-                filtered.forEach(item -> ensureAssetLoaded(activeTab[0], item.id()));
                 catalogGrid.getList().clear();
-                addRows(catalogGrid.getList(), filtered, activeTab[0] != CosmeticTypes.EMOTES);
+                addRows(catalogGrid.getList(), filtered, activeTab[0], activeTab[0] != CosmeticTypes.EMOTES);
                 catalogGrid.markDirty();
             }
         });
@@ -426,14 +425,15 @@ public class CosmeticsGui implements GuiProvider {
 
     // ── List entry inner classes ───────────────────────────────────────────────
 
-    private static void addRows(List<CosmeticRow> rows, List<CosmeticItem> items, boolean includeNone) {
+    private static void addRows(List<CosmeticRow> rows, List<CosmeticItem> items, CosmeticTypes type, boolean includeNone) {
         int start = 0;
         if (includeNone) {
-            rows.add(new CosmeticRow(null, items.isEmpty() ? null : items.get(0), items.size() > 1 ? items.get(1) : null));
+            rows.add(new CosmeticRow(type, null, items.isEmpty() ? null : items.get(0), items.size() > 1 ? items.get(1) : null));
             start = 2;
         }
         for (int i = start; i < items.size(); i += GRID_COLUMNS) {
             rows.add(new CosmeticRow(
+                    type,
                     items.get(i),
                     i + 1 < items.size() ? items.get(i + 1) : null,
                     i + 2 < items.size() ? items.get(i + 2) : null));
@@ -502,7 +502,7 @@ public class CosmeticsGui implements GuiProvider {
         }
     }
 
-    private record CosmeticRow(CosmeticItem first, CosmeticItem second, CosmeticItem third) {
+    private record CosmeticRow(CosmeticTypes type, CosmeticItem first, CosmeticItem second, CosmeticItem third) {
         CosmeticItem item(int index) {
             return switch (index) {
                 case 0 -> first;
@@ -649,7 +649,7 @@ public class CosmeticsGui implements GuiProvider {
 
         @Override
         public boolean mouseClicked(double mouseX, double mouseY, int button) {
-            if (!isMouseOver()) return false;
+            if (!isCurrentRow() || !isMouseOver()) return false;
             for (int i = 0; i < GRID_COLUMNS; i++) {
                 CosmeticItem item = row.item(i);
                 if (mouseX >= tileX(i) && mouseX <= tileX(i) + tileWidth() && mouseY >= yMin() && mouseY <= yMax()) {
@@ -675,6 +675,7 @@ public class CosmeticsGui implements GuiProvider {
 
         @Override
         public void renderBehind(GuiRender render, double mouseX, double mouseY, float partialTicks) {
+            if (!isCurrentRow()) return;
             for (int i = 0; i < GRID_COLUMNS; i++) {
                 CosmeticItem item = row.item(i);
                 if (i > 0 && item == null) continue;
@@ -684,7 +685,7 @@ public class CosmeticsGui implements GuiProvider {
                 boolean hover = mouseX >= x && mouseX <= x + w && mouseY >= yMin() && mouseY <= yMax();
                 render.rect(x, yMin(), w, ySize(), item == null ? 0xFF202020 : hover ? 0xFF1F2A30 : 0xFF172026);
                 render.rect(x + 4, yMin() + 22, w - 8, ySize() - 28, item == null ? 0xFF151515 : 0xFF102030);
-                if (activeTab[0] == CosmeticTypes.EMOTES) {
+                if (row.type() == CosmeticTypes.EMOTES) {
                     renderEmotePreview(render, item, x + 4, yMin() + 22, w - 8, ySize() - 28);
                 } else {
                     renderCardPreview(render, item, x + 4, yMin() + 22, w - 8, ySize() - 28);
@@ -701,6 +702,7 @@ public class CosmeticsGui implements GuiProvider {
 
         @Override
         public void renderInFront(GuiRender render, double mouseX, double mouseY, float partialTicks) {
+            if (!isCurrentRow()) return;
             for (int i = 0; i < GRID_COLUMNS; i++) {
                 CosmeticItem item = row.item(i);
                 if (i > 0 && item == null) continue;
@@ -710,7 +712,7 @@ public class CosmeticsGui implements GuiProvider {
                 if (item != null && !item.locked() && isSelected(item)) {
                     render.drawString(Component.literal("v").withStyle(ChatFormatting.GREEN).getVisualOrderText(), x + tileWidth() - 14, yMax() - 14, 0xFF00FF55);
                 }
-                if (item != null && !item.locked() && activeTab[0] == CosmeticTypes.EMOTES) {
+                if (item != null && !item.locked() && row.type() == CosmeticTypes.EMOTES) {
                     boolean favorite = EmoteFavorites.isFavorite(item.id());
                     double actionY = yMax() - 18;
                     render.rect(x + 6, actionY, 18, 14, 0xFF1F4A2A);
@@ -730,7 +732,7 @@ public class CosmeticsGui implements GuiProvider {
         @Override
         public boolean renderOverlay(GuiRender render, double mouseX, double mouseY, float partialTicks, boolean consumed) {
             if (super.renderOverlay(render, mouseX, mouseY, partialTicks, consumed)) return true;
-            if (consumed) return false;
+            if (!isCurrentRow() || consumed) return false;
 
             Component tooltip = hoveredActionTooltip(mouseX, mouseY);
             if (tooltip != null) {
@@ -755,7 +757,9 @@ public class CosmeticsGui implements GuiProvider {
         }
 
         private void renderCardPreview(GuiRender render, CosmeticItem item, double x, double y, double width, double height) {
-            if (item == null || item.locked() || !isLoaded(item)) return;
+            if (item == null || item.locked()) return;
+            ensureAssetLoaded(row.type(), item.id());
+            if (!isLoaded(item)) return;
 
             LivingEntity entity = Minecraft.getInstance().player;
             if (entity == null) return;
@@ -836,7 +840,7 @@ public class CosmeticsGui implements GuiProvider {
         }
 
         private boolean isLoaded(CosmeticItem item) {
-            return switch (activeTab[0]) {
+            return switch (row.type()) {
                 case HAT -> HatRegistry.getLoaded(item.id()) != null;
                 case CAPE -> CapeRegistry.getLoaded(item.id()) != null;
                 case TAIL -> TailRegistry.getLoaded(item.id()) != null;
@@ -848,6 +852,7 @@ public class CosmeticsGui implements GuiProvider {
 
         private void renderEmotePreview(GuiRender render, CosmeticItem item, double x, double y, double width, double height) {
             if (item == null || item.locked()) return;
+            ensureAssetLoaded(CosmeticTypes.EMOTES, item.id());
             var emote = EmoteRegistry.getLoaded(item.id());
             boolean loaded = emote != null;
             boolean favorite = EmoteFavorites.isFavorite(item.id());
@@ -920,7 +925,7 @@ public class CosmeticsGui implements GuiProvider {
         private void select(CosmeticItem item) {
             if (item != null && item.locked()) return;
             String id = item == null ? "" : item.id();
-            switch (activeTab[0]) {
+            switch (row.type()) {
                 case HAT -> {
                     pendingHatId[0] = id;
                     CosmeticSelections.instance().selectedHatId = id;
@@ -962,7 +967,7 @@ public class CosmeticsGui implements GuiProvider {
         }
 
         private boolean isSelected(CosmeticItem item) {
-            String selected = switch (activeTab[0]) {
+            String selected = switch (row.type()) {
                 case HAT -> pendingHatId[0];
                 case CAPE -> pendingCapeId[0];
                 case TAIL -> pendingTailId[0];
@@ -970,7 +975,7 @@ public class CosmeticsGui implements GuiProvider {
                 case EMOTES -> "";
                 default -> "";
             };
-            if (activeTab[0] == CosmeticTypes.EMOTES) return false;
+            if (row.type() == CosmeticTypes.EMOTES) return false;
             if (item == null) return selected == null || selected.isEmpty();
             return item.id().equals(selected);
         }
@@ -988,7 +993,7 @@ public class CosmeticsGui implements GuiProvider {
 
         @Nullable
         private Component hoveredActionTooltip(double mouseX, double mouseY) {
-            if (activeTab[0] != CosmeticTypes.EMOTES) return null;
+            if (row.type() != CosmeticTypes.EMOTES) return null;
             for (int i = 0; i < GRID_COLUMNS; i++) {
                 CosmeticItem item = row.item(i);
                 if (item == null || item.locked()) continue;
@@ -1004,6 +1009,10 @@ public class CosmeticsGui implements GuiProvider {
                 }
             }
             return null;
+        }
+
+        private boolean isCurrentRow() {
+            return activeTab[0] == row.type();
         }
 
         private void drawPlayIcon(GuiRender render, double x, double y, int color) {
