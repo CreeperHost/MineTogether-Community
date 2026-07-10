@@ -1,5 +1,6 @@
 package net.creeperhost.minetogethercommunity.cosmetic.tail;
 
+import net.creeperhost.minetogethercommunity.cosmetic.ModelPlacement;
 import net.minecraft.resources.Identifier;
 import org.jetbrains.annotations.Nullable;
 
@@ -17,5 +18,6 @@ public record Tail(
         int texHeight,
         List<TailElement> elements,
         TailModel model,
-        TailAnimation animation
+        TailAnimation animation,
+        ModelPlacement placement
 ) {}

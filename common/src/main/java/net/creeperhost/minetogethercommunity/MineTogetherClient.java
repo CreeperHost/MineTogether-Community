@@ -90,6 +90,7 @@ public class MineTogetherClient {
             cs.selectedWingId = "";
             // Also drop all cached remote-player profiles so they're re-fetched on next join
             PlayerCosmeticCache.clearAll();
+            CosmeticApiClient.invalidateLocalProfileFetches();
             EmotePlayer.clearAll();
         });
 

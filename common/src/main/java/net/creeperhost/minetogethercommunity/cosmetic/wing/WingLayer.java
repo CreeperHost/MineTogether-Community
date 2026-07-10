@@ -3,6 +3,7 @@ package net.creeperhost.minetogethercommunity.cosmetic.wing;
 import com.mojang.blaze3d.vertex.PoseStack;
 import com.mojang.math.Axis;
 import net.creeperhost.minetogethercommunity.cosmetic.CosmeticPreviewTime;
+import net.creeperhost.minetogethercommunity.cosmetic.ModelPlacement;
 import net.creeperhost.minetogethercommunity.cosmetic.renderstate.MineTogetherCosmeticRenderState;
 import net.creeperhost.minetogethercommunity.cosmetic.tail.TailPose;
 import net.minecraft.client.model.player.PlayerModel;
@@ -41,20 +42,22 @@ public class WingLayer extends RenderLayer<AvatarRenderState, PlayerModel> {
 
         poseStack.pushPose();
         getParentModel().body.translateAndRotate(poseStack);
-        poseStack.translate(0.0F, -7.0F / 16.0F, 4.2F / 16.0F);
-        poseStack.scale(0.58F, 0.58F, 0.58F);
+        WingPlacement placement = wing.placement();
+        ModelPlacement transform = placement.transform();
+        poseStack.translate(transform.xPixels() / 16.0F, transform.yPixels() / 16.0F, transform.zPixels() / 16.0F);
+        poseStack.scale(transform.scale(), transform.scale(), transform.scale());
 
-        renderWingSide(poseStack, submitNodeCollector, renderLight, fullBright, wing, false, animation.baseSpreadDegrees() + flap * animation.flapScale());
-        renderWingSide(poseStack, submitNodeCollector, renderLight, fullBright, wing, true, animation.baseSpreadDegrees() + flap * animation.flapScale());
+        renderWingSide(poseStack, submitNodeCollector, renderLight, fullBright, wing, placement, false, animation.baseSpreadDegrees() + flap * animation.flapScale());
+        renderWingSide(poseStack, submitNodeCollector, renderLight, fullBright, wing, placement, true, animation.baseSpreadDegrees() + flap * animation.flapScale());
 
         poseStack.popPose();
     }
 
-    private void renderWingSide(PoseStack poseStack, SubmitNodeCollector submitNodeCollector, int renderLight, boolean fullBright, Wing wing, boolean mirrored, float flapAngle) {
+    private void renderWingSide(PoseStack poseStack, SubmitNodeCollector submitNodeCollector, int renderLight, boolean fullBright, Wing wing, WingPlacement placement, boolean mirrored, float flapAngle) {
         poseStack.pushPose();
-        poseStack.translate(mirrored ? -2.4F / 16.0F : 2.4F / 16.0F, 0.0F, 0.0F);
+        poseStack.translate((mirrored ? -placement.hingeXPixels() : placement.hingeXPixels()) / 16.0F, 0.0F, 0.0F);
         poseStack.mulPose(Axis.YP.rotationDegrees(mirrored ? flapAngle : -flapAngle));
-        poseStack.mulPose(Axis.ZP.rotationDegrees(mirrored ? -27.0F : 27.0F));
+        poseStack.mulPose(Axis.ZP.rotationDegrees(mirrored ? -placement.restTiltDegrees() : placement.restTiltDegrees()));
         if (mirrored) {
             poseStack.scale(-1.0F, 1.0F, 1.0F);
         }
