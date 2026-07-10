@@ -5,6 +5,7 @@ import net.creeperhost.minetogethercommunity.chat.MineTogetherChat;
 import net.creeperhost.minetogethercommunity.compat.Integration;
 import net.creeperhost.minetogethercommunity.compat.ftbquests.FTBQuestsCompat;
 import net.creeperhost.minetogethercommunity.connect.DedicatedServerConnect;
+import net.creeperhost.minetogethercommunity.cosmetic.emote.EmoteNetworking;
 import net.creeperhost.minetogethercommunity.neoforge.datagen.DataGenEventHandler;
 import net.minecraft.server.level.ServerPlayer;
 import net.neoforged.bus.api.IEventBus;
@@ -35,6 +36,7 @@ public class MineTogetherNeoForge {
             NeoForge.EVENT_BUS.addListener(this::serverStarted);
             NeoForge.EVENT_BUS.addListener(this::serverStopping);
             NeoForge.EVENT_BUS.addListener(this::playerLoggedIn);
+            NeoForge.EVENT_BUS.addListener(this::playerLoggedOut);
         }
     }
 
@@ -53,6 +55,11 @@ public class MineTogetherNeoForge {
     private void playerLoggedIn(PlayerEvent.PlayerLoggedInEvent event) {
         if (event.getEntity() instanceof ServerPlayer) {
             DedicatedServerConnect.playerJoined((ServerPlayer) event.getEntity());
+            EmoteNetworking.syncPersistentEmotes((ServerPlayer) event.getEntity());
         }
+    }
+
+    private void playerLoggedOut(PlayerEvent.PlayerLoggedOutEvent event) {
+        EmoteNetworking.playerQuit(event.getEntity().getUUID());
     }
 }

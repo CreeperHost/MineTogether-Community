@@ -17,7 +17,7 @@ public final class FabricEmoteNetworking {
         PayloadTypeRegistry.clientboundPlay().register(EmoteNetworking.START_S2C_TYPE, EmoteNetworking.START_S2C_CODEC);
         PayloadTypeRegistry.clientboundPlay().register(EmoteNetworking.STOP_S2C_TYPE, EmoteNetworking.STOP_S2C_CODEC);
         ServerPlayNetworking.registerGlobalReceiver(EmoteNetworking.START_C2S_TYPE, (payload, context) ->
-                context.server().execute(() -> EmoteNetworking.handleStartFromClient(context.player(), payload.emoteId())));
+                context.server().execute(() -> EmoteNetworking.handleStartFromClient(context.player(), payload.emoteId(), payload.persistent())));
         ServerPlayNetworking.registerGlobalReceiver(EmoteNetworking.STOP_C2S_TYPE, (payload, context) ->
                 context.server().execute(() -> EmoteNetworking.handleStopFromClient(context.player())));
     }

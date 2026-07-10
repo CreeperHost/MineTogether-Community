@@ -6,6 +6,7 @@ import net.creeperhost.minetogethercommunity.chat.MineTogetherChat;
 import net.creeperhost.minetogethercommunity.compat.Integration;
 import net.creeperhost.minetogethercommunity.compat.ftbquests.FTBQuestsCompat;
 import net.creeperhost.minetogethercommunity.connect.DedicatedServerConnect;
+import net.creeperhost.minetogethercommunity.cosmetic.emote.EmoteNetworking;
 import net.fabricmc.api.EnvType;
 import net.fabricmc.api.ModInitializer;
 import net.fabricmc.fabric.api.client.command.v2.ClientCommandRegistrationCallback;
@@ -41,6 +42,11 @@ public class MineTogetherFabric implements ModInitializer {
     private void serverInit() {
         ServerLifecycleEvents.SERVER_STARTED.register(DedicatedServerConnect::serverStarted);
         ServerLifecycleEvents.SERVER_STOPPING.register(DedicatedServerConnect::serverStopping);
-        ServerPlayConnectionEvents.JOIN.register((handler, sender, server) -> DedicatedServerConnect.playerJoined(handler.player));
+        ServerPlayConnectionEvents.JOIN.register((handler, sender, server) -> {
+            DedicatedServerConnect.playerJoined(handler.player);
+            EmoteNetworking.syncPersistentEmotes(handler.player);
+        });
+        ServerPlayConnectionEvents.DISCONNECT.register((handler, server) ->
+                EmoteNetworking.playerQuit(handler.player.getUUID()));
     }
 }
