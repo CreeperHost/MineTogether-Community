@@ -35,6 +35,7 @@ import java.net.http.HttpResponse;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
@@ -70,6 +71,8 @@ public class CosmeticDownloader {
     private static final String CDN_BASE_URL = "https://cosmetic.cdn.minetogether.io";
     private static final int PAGE_LIMIT = 100;
     private static final int ASSET_DOWNLOAD_WORKERS = 3;
+    private static final Duration CONNECT_TIMEOUT = Duration.ofSeconds(10);
+    private static final Duration REQUEST_TIMEOUT = Duration.ofSeconds(15);
     private static final Set<String> ASSET_SLOTS = Set.of("hat", "cape", "tail", "wing", "emote");
     private static final Pattern COSMETIC_ID_PATTERN = Pattern.compile("[a-z0-9][a-z0-9._-]{0,127}", Pattern.CASE_INSENSITIVE);
 
@@ -132,6 +135,7 @@ public class CosmeticDownloader {
     private CosmeticDownloader(Path cacheBase) {
         this.cacheBase = cacheBase;
         this.httpClient = HttpClient.newBuilder()
+                .connectTimeout(CONNECT_TIMEOUT)
                 .followRedirects(HttpClient.Redirect.NORMAL)
                 .build();
         this.assetDownloadExecutor = Executors.newFixedThreadPool(ASSET_DOWNLOAD_WORKERS, runnable -> {
@@ -997,7 +1001,7 @@ public class CosmeticDownloader {
     }
 
     private byte[] fetchBytes(String url) throws IOException, InterruptedException {
-        HttpRequest req = HttpRequest.newBuilder(URI.create(url)).GET().build();
+        HttpRequest req = HttpRequest.newBuilder(URI.create(url)).timeout(REQUEST_TIMEOUT).GET().build();
         HttpResponse<byte[]> resp = httpClient.send(req, HttpResponse.BodyHandlers.ofByteArray());
         if (resp.statusCode() != 200)
             throw new IOException("HTTP " + resp.statusCode() + " for " + url);

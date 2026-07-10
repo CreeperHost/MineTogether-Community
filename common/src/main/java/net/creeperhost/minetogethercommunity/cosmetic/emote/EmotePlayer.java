@@ -9,6 +9,9 @@ import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.Executors;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.TimeUnit;
 
 public class EmotePlayer {
 
@@ -18,7 +21,13 @@ public class EmotePlayer {
     private static final ThreadLocal<PreviewEmote> PREVIEW = new ThreadLocal<>();
     private static final ThreadLocal<Boolean> SUPPRESS_POSE = ThreadLocal.withInitial(() -> false);
     private static final int LOAD_RETRY_ATTEMPTS = 20;
+    private static final long LOAD_RETRY_DELAY_MS = 50L;
     private static final double CANCEL_MOVE_THRESHOLD_SQR = 0.0001D;
+    private static final ScheduledExecutorService RETRY_EXECUTOR = Executors.newSingleThreadScheduledExecutor(runnable -> {
+        Thread thread = new Thread(runnable, "EmoteAssetRetry");
+        thread.setDaemon(true);
+        return thread;
+    });
 
     public static void playLocal(String emoteId) {
         playLocal(emoteId, true);
@@ -40,7 +49,7 @@ public class EmotePlayer {
             return;
         }
         ACTIVE.put(mc.player.getUUID(), new ActiveEmote(emote, mc.player.tickCount));
-        EmoteNetworking.tryBroadcastStart(emoteId);
+        EmoteNetworking.tryBroadcastStart(emoteId, emote.toggle());
     }
 
     public static void stopLocal() {
@@ -88,32 +97,7 @@ public class EmotePlayer {
             PENDING_REMOTE_RETRIES.add(retry);
         }
 
-        Thread retryThread = new Thread(() -> {
-            boolean queuedOnMainThread = false;
-            try {
-                for (int attempt = 0; attempt < LOAD_RETRY_ATTEMPTS; attempt++) {
-                    try {
-                        Thread.sleep(50L);
-                    } catch (InterruptedException ignored) {
-                        Thread.currentThread().interrupt();
-                        return;
-                    }
-                    if (EmoteRegistry.getLoaded(emoteId) != null) {
-                        queuedOnMainThread = true;
-                        Minecraft.getInstance().execute(() -> {
-                            if (PENDING_REMOTE_RETRIES.remove(retry)) {
-                                playRemote(playerId, emoteId, false);
-                            }
-                        });
-                        return;
-                    }
-                }
-            } finally {
-                if (!queuedOnMainThread) PENDING_REMOTE_RETRIES.remove(retry);
-            }
-        }, "RemoteEmotePlayRetry-" + emoteId);
-        retryThread.setDaemon(true);
-        retryThread.start();
+        scheduleRemoteRetry(retry, 0);
     }
 
     private static void retryPlayLocal(String emoteId) {
@@ -123,32 +107,41 @@ public class EmotePlayer {
             PENDING_LOCAL_RETRIES.add(emoteId);
         }
 
-        Thread retryThread = new Thread(() -> {
-            boolean queuedOnMainThread = false;
-            try {
-                for (int attempt = 0; attempt < LOAD_RETRY_ATTEMPTS; attempt++) {
-                    try {
-                        Thread.sleep(50L);
-                    } catch (InterruptedException ignored) {
-                        Thread.currentThread().interrupt();
-                        return;
+        scheduleLocalRetry(emoteId, 0);
+    }
+
+    private static void scheduleRemoteRetry(RemoteRetry retry, int attempt) {
+        RETRY_EXECUTOR.schedule(() -> {
+            if (!PENDING_REMOTE_RETRIES.contains(retry)) return;
+            if (EmoteRegistry.getLoaded(retry.emoteId()) != null) {
+                Minecraft.getInstance().execute(() -> {
+                    if (PENDING_REMOTE_RETRIES.remove(retry)) {
+                        playRemote(retry.playerId(), retry.emoteId(), false);
                     }
-                    if (EmoteRegistry.getLoaded(emoteId) != null) {
-                        queuedOnMainThread = true;
-                        Minecraft.getInstance().execute(() -> {
-                            if (PENDING_LOCAL_RETRIES.remove(emoteId)) {
-                                playLocal(emoteId, false);
-                            }
-                        });
-                        return;
-                    }
-                }
-            } finally {
-                if (!queuedOnMainThread) PENDING_LOCAL_RETRIES.remove(emoteId);
+                });
+            } else if (attempt + 1 < LOAD_RETRY_ATTEMPTS) {
+                scheduleRemoteRetry(retry, attempt + 1);
+            } else {
+                PENDING_REMOTE_RETRIES.remove(retry);
             }
-        }, "EmotePlayRetry-" + emoteId);
-        retryThread.setDaemon(true);
-        retryThread.start();
+        }, LOAD_RETRY_DELAY_MS, TimeUnit.MILLISECONDS);
+    }
+
+    private static void scheduleLocalRetry(String emoteId, int attempt) {
+        RETRY_EXECUTOR.schedule(() -> {
+            if (!PENDING_LOCAL_RETRIES.contains(emoteId)) return;
+            if (EmoteRegistry.getLoaded(emoteId) != null) {
+                Minecraft.getInstance().execute(() -> {
+                    if (PENDING_LOCAL_RETRIES.remove(emoteId)) {
+                        playLocal(emoteId, false);
+                    }
+                });
+            } else if (attempt + 1 < LOAD_RETRY_ATTEMPTS) {
+                scheduleLocalRetry(emoteId, attempt + 1);
+            } else {
+                PENDING_LOCAL_RETRIES.remove(emoteId);
+            }
+        }, LOAD_RETRY_DELAY_MS, TimeUnit.MILLISECONDS);
     }
 
     public static void stop(UUID playerId) {

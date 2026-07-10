@@ -13,7 +13,7 @@ public final class NeoForgeEmoteNetworking {
         registrar.playToServer(EmoteNetworking.START_C2S_TYPE, EmoteNetworking.START_C2S_CODEC, (payload, context) ->
                 context.enqueueWork(() -> {
                     if (context.player() instanceof ServerPlayer serverPlayer) {
-                        EmoteNetworking.handleStartFromClient(serverPlayer, payload.emoteId());
+                        EmoteNetworking.handleStartFromClient(serverPlayer, payload.emoteId(), payload.persistent());
                     }
                 }));
         registrar.playToServer(EmoteNetworking.STOP_C2S_TYPE, EmoteNetworking.STOP_C2S_CODEC, (payload, context) ->
