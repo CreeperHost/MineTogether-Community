@@ -759,7 +759,10 @@ public class CosmeticsGui implements GuiProvider {
         private void renderCardPreview(GuiRender render, CosmeticItem item, double x, double y, double width, double height) {
             if (item == null || item.locked()) return;
             ensureAssetLoaded(row.type(), item.id());
-            if (!isLoaded(item)) return;
+            if (!isLoaded(item)) {
+                if (isAssetLoading(item)) renderLoadingSpinner(render, x, y);
+                return;
+            }
 
             LivingEntity entity = Minecraft.getInstance().player;
             if (entity == null) return;
@@ -850,6 +853,23 @@ public class CosmeticsGui implements GuiProvider {
             };
         }
 
+        private boolean isAssetLoading(CosmeticItem item) {
+            String slot = switch (row.type()) {
+                case HAT -> "hat";
+                case CAPE -> "cape";
+                case TAIL -> "tail";
+                case WINGS -> "wing";
+                case EMOTES -> "emote";
+                default -> "";
+            };
+            return CosmeticDownloader.instance().isAssetLoading(slot, item.id());
+        }
+
+        private void renderLoadingSpinner(GuiRender render, double x, double y) {
+            int frame = (int) ((System.currentTimeMillis() / 150) % SPINNER.length);
+            render.drawString(Component.literal(SPINNER[frame] + " Loading").withStyle(ChatFormatting.YELLOW).getVisualOrderText(), x + 6, y + 9, 0xFFFFDD55);
+        }
+
         private void renderEmotePreview(GuiRender render, CosmeticItem item, double x, double y, double width, double height) {
             if (item == null || item.locked()) return;
             ensureAssetLoaded(CosmeticTypes.EMOTES, item.id());
@@ -857,7 +877,7 @@ public class CosmeticsGui implements GuiProvider {
             boolean loaded = emote != null;
             boolean favorite = EmoteFavorites.isFavorite(item.id());
             if (!loaded) {
-                render.drawString(Component.literal("Loading").withStyle(ChatFormatting.YELLOW).getVisualOrderText(), x + 6, y + 9, 0xFFFFDD55);
+                renderLoadingSpinner(render, x, y);
                 render.drawString(Component.literal(favorite ? "Radial" : "Add").getVisualOrderText(), x + 6, y + 23, favorite ? 0xFFFFD94A : 0xFFAAAAAA);
                 return;
             }

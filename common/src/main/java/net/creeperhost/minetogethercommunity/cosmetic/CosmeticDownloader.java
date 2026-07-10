@@ -42,6 +42,8 @@ import java.util.Locale;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.regex.Pattern;
 
@@ -67,6 +69,7 @@ public class CosmeticDownloader {
     private static final String CATALOG_BASE_URL = "https://api.creeper.host";
     private static final String CDN_BASE_URL = "https://cosmetic.cdn.minetogether.io";
     private static final int PAGE_LIMIT = 100;
+    private static final int ASSET_DOWNLOAD_WORKERS = 3;
     private static final Set<String> ASSET_SLOTS = Set.of("hat", "cape", "tail", "wing", "emote");
     private static final Pattern COSMETIC_ID_PATTERN = Pattern.compile("[a-z0-9][a-z0-9._-]{0,127}", Pattern.CASE_INSENSITIVE);
 
@@ -117,6 +120,8 @@ public class CosmeticDownloader {
     private final Set<String> loadingAssetIds = Collections.newSetFromMap(new ConcurrentHashMap<>());
     private final Set<String> failedAssetIds = Collections.newSetFromMap(new ConcurrentHashMap<>());
     private final AtomicLong assetGeneration = new AtomicLong();
+    private final AtomicLong assetWorkerId = new AtomicLong();
+    private final ExecutorService assetDownloadExecutor;
 
     // Catalog fetch state
     private volatile boolean catalogLoading = false;
@@ -129,6 +134,11 @@ public class CosmeticDownloader {
         this.httpClient = HttpClient.newBuilder()
                 .followRedirects(HttpClient.Redirect.NORMAL)
                 .build();
+        this.assetDownloadExecutor = Executors.newFixedThreadPool(ASSET_DOWNLOAD_WORKERS, runnable -> {
+            Thread thread = new Thread(runnable, "CosmeticAssetWorker-" + assetWorkerId.incrementAndGet());
+            thread.setDaemon(true);
+            return thread;
+        });
     }
 
     // ── Public API ─────────────────────────────────────────────────────────────
@@ -171,7 +181,7 @@ public class CosmeticDownloader {
         if (!loadingAssetIds.add(assetKey)) return;
 
         long generation = assetGeneration.get();
-        Thread t = new Thread(() -> {
+        assetDownloadExecutor.execute(() -> {
             try {
                 if ("hat".equals(slot)) {
                     downloadAndRegisterHat(id, generation);
@@ -193,9 +203,7 @@ public class CosmeticDownloader {
                 cleanupEmptyAssetDirectory(slot, id);
                 loadingAssetIds.remove(assetKey);
             }
-        }, "CosmeticAssetLoad-" + id);
-        t.setDaemon(true);
-        t.start();
+        });
     }
 
     /**
@@ -294,6 +302,11 @@ public class CosmeticDownloader {
             if (key.endsWith(":" + id)) return true;
         }
         return false;
+    }
+
+    /** @return {@code true} while this exact cosmetic asset is queued or downloading. */
+    public boolean isAssetLoading(String slot, String id) {
+        return isSupportedAssetSlot(slot) && isValidAssetId(id) && loadingAssetIds.contains(assetKey(slot, id));
     }
 
     /** Returns whether an asset slot is supported by the downloader. */
