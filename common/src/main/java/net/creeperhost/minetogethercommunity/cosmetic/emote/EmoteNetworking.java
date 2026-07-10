@@ -1,6 +1,7 @@
 package net.creeperhost.minetogethercommunity.cosmetic.emote;
 
 import dev.architectury.networking.NetworkManager;
+import dev.architectury.event.events.common.PlayerEvent;
 import dev.architectury.networking.simple.BaseC2SMessage;
 import dev.architectury.networking.simple.BaseS2CMessage;
 import dev.architectury.networking.simple.MessageType;
@@ -15,11 +16,14 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
 import java.util.UUID;
+import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 
 public class EmoteNetworking {
 
     private static final Logger LOGGER = LogManager.getLogger();
     private static final SimpleNetworkManager NETWORK = SimpleNetworkManager.create(MineTogether.MOD_ID);
+    private static final Map<UUID, String> ACTIVE_PERSISTENT_EMOTES = new ConcurrentHashMap<>();
 
     private static MessageType START_C2S;
     private static MessageType START_S2C;
@@ -34,13 +38,15 @@ public class EmoteNetworking {
         START_S2C = NETWORK.registerS2C("emote_start_s2c", StartEmoteS2C::new);
         STOP_C2S = NETWORK.registerC2S("emote_stop_c2s", StopEmoteC2S::new);
         STOP_S2C = NETWORK.registerS2C("emote_stop_s2c", StopEmoteS2C::new);
+        PlayerEvent.PLAYER_JOIN.register(EmoteNetworking::syncPersistentEmotes);
+        PlayerEvent.PLAYER_QUIT.register(player -> ACTIVE_PERSISTENT_EMOTES.remove(player.getUUID()));
         LOGGER.debug("Emote networking initialized");
     }
 
-    public static void tryBroadcastStart(String emoteId) {
+    public static void tryBroadcastStart(String emoteId, boolean persistent) {
         if (emoteId == null || emoteId.isEmpty()) return;
         if (START_C2S == null || !NetworkManager.canServerReceive(START_C2S.getId())) return;
-        new StartEmoteC2S(emoteId).sendToServer();
+        new StartEmoteC2S(emoteId, persistent).sendToServer();
     }
 
     public static void tryBroadcastStop() {
@@ -52,15 +58,27 @@ public class EmoteNetworking {
         return CosmeticDownloader.isValidAssetId(emoteId);
     }
 
+    private static void syncPersistentEmotes(ServerPlayer target) {
+        if (START_S2C == null || !NetworkManager.canPlayerReceive(target, START_S2C.getId())) return;
+        for (Map.Entry<UUID, String> active : ACTIVE_PERSISTENT_EMOTES.entrySet()) {
+            if (!active.getKey().equals(target.getUUID())) {
+                new StartEmoteS2C(active.getKey(), active.getValue()).sendTo(target);
+            }
+        }
+    }
+
     private static class StartEmoteC2S extends BaseC2SMessage {
         private final String emoteId;
+        private final boolean persistent;
 
-        private StartEmoteC2S(String emoteId) {
+        private StartEmoteC2S(String emoteId, boolean persistent) {
             this.emoteId = emoteId;
+            this.persistent = persistent;
         }
 
         private StartEmoteC2S(RegistryFriendlyByteBuf buf) {
             this.emoteId = buf.readUtf(128);
+            this.persistent = buf.readBoolean();
         }
 
         @Override
@@ -71,6 +89,7 @@ public class EmoteNetworking {
         @Override
         public void write(RegistryFriendlyByteBuf buf) {
             buf.writeUtf(emoteId, 128);
+            buf.writeBoolean(persistent);
         }
 
         @Override
@@ -79,6 +98,11 @@ public class EmoteNetworking {
             Player sender = context.getPlayer();
             if (!(sender instanceof ServerPlayer serverPlayer)) return;
             UUID playerId = serverPlayer.getUUID();
+            if (persistent) {
+                ACTIVE_PERSISTENT_EMOTES.put(playerId, emoteId);
+            } else {
+                ACTIVE_PERSISTENT_EMOTES.remove(playerId);
+            }
             StartEmoteS2C packet = new StartEmoteS2C(playerId, emoteId);
             for (ServerPlayer target : serverPlayer.server.getPlayerList().getPlayers()) {
                 if (target == serverPlayer) continue;
@@ -144,6 +168,7 @@ public class EmoteNetworking {
             Player sender = context.getPlayer();
             if (!(sender instanceof ServerPlayer serverPlayer)) return;
             UUID playerId = serverPlayer.getUUID();
+            ACTIVE_PERSISTENT_EMOTES.remove(playerId);
             StopEmoteS2C packet = new StopEmoteS2C(playerId);
             for (ServerPlayer target : serverPlayer.server.getPlayerList().getPlayers()) {
                 if (target == serverPlayer) continue;
