@@ -17,8 +17,13 @@ import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.nio.charset.StandardCharsets;
+import java.time.Duration;
 import java.util.Locale;
 import java.util.UUID;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicLong;
 
 /**
  * Thin client for the MineTogether cosmetics profile API.
@@ -27,6 +32,18 @@ public class CosmeticApiClient {
 
     private static final Logger LOGGER = LogManager.getLogger();
     private static final String API_BASE = "https://api.creeper.host";
+    private static final Duration CONNECT_TIMEOUT = Duration.ofSeconds(10);
+    private static final Duration REQUEST_TIMEOUT = Duration.ofSeconds(15);
+    private static final AtomicLong REQUEST_WORKER_ID = new AtomicLong();
+    private static final ExecutorService REQUEST_EXECUTOR = Executors.newFixedThreadPool(4, runnable -> {
+        Thread thread = new Thread(runnable, "CosmeticApiWorker-" + REQUEST_WORKER_ID.incrementAndGet());
+        thread.setDaemon(true);
+        return thread;
+    });
+    private static final HttpClient HTTP_CLIENT = HttpClient.newBuilder()
+            .connectTimeout(CONNECT_TIMEOUT)
+            .followRedirects(HttpClient.Redirect.NORMAL)
+            .build();
 
     /** Max attempts to wait for the MT profile to have a full hash before giving up. */
     private static final int PROFILE_POLL_ATTEMPTS = 20;
@@ -40,7 +57,7 @@ public class CosmeticApiClient {
      * {@code POST /minetogether/cosmetics/profile}.
      */
     public static void fetchProfileAsync() {
-        Thread t = new Thread(() -> {
+        REQUEST_EXECUTOR.execute(() -> {
             try {
                 // Wait for the own profile to have a full hash (chat system may still be connecting)
                 String fullHash = null;
@@ -63,22 +80,20 @@ public class CosmeticApiClient {
                     return;
                 }
 
-                String token = MineTogetherSession.getDefault().getTokenAsync().get().toString();
+                String token = MineTogetherSession.getDefault().getTokenAsync()
+                        .get(REQUEST_TIMEOUT.toSeconds(), TimeUnit.SECONDS).toString();
                 JsonObject bodyObj = new JsonObject();
                 bodyObj.addProperty("target", fullHash);
                 String body = bodyObj.toString();
 
-                HttpClient client = HttpClient.newBuilder()
-                        .followRedirects(HttpClient.Redirect.NORMAL)
-                        .build();
-
                 HttpRequest request = HttpRequest.newBuilder(URI.create(API_BASE + "/minetogether/cosmetics/profile"))
+                        .timeout(REQUEST_TIMEOUT)
                         .POST(HttpRequest.BodyPublishers.ofString(body, StandardCharsets.UTF_8))
                         .header("Content-Type", "application/json")
                         .header("Authorization", "Bearer " + token)
                         .build();
 
-                HttpResponse<byte[]> response = client.send(request, HttpResponse.BodyHandlers.ofByteArray());
+                HttpResponse<byte[]> response = HTTP_CLIENT.send(request, HttpResponse.BodyHandlers.ofByteArray());
 
                 if (response.statusCode() != 200) {
                     LOGGER.warn("Cosmetic profile returned HTTP {}: {}", response.statusCode(),
@@ -140,9 +155,7 @@ public class CosmeticApiClient {
             } catch (Exception e) {
                 LOGGER.error("Failed to fetch cosmetic profile", e);
             }
-        }, "CosmeticProfileFetch");
-        t.setDaemon(true);
-        t.start();
+        });
     }
 
     /**
@@ -175,24 +188,22 @@ public class CosmeticApiClient {
     }
 
     private static void fetchProfileForTargetAsync(String fullHash, @Nullable UUID uuid, long revision) {
-        Thread t = new Thread(() -> {
+        REQUEST_EXECUTOR.execute(() -> {
             try {
-                String token = MineTogetherSession.getDefault().getTokenAsync().get().toString();
+                String token = MineTogetherSession.getDefault().getTokenAsync()
+                        .get(REQUEST_TIMEOUT.toSeconds(), TimeUnit.SECONDS).toString();
                 JsonObject bodyObj = new JsonObject();
                 bodyObj.addProperty("target", fullHash);
                 String body = bodyObj.toString();
 
-                HttpClient client = HttpClient.newBuilder()
-                        .followRedirects(HttpClient.Redirect.NORMAL)
-                        .build();
-
                 HttpRequest request = HttpRequest.newBuilder(URI.create(API_BASE + "/minetogether/cosmetics/profile"))
+                        .timeout(REQUEST_TIMEOUT)
                         .POST(HttpRequest.BodyPublishers.ofString(body, StandardCharsets.UTF_8))
                         .header("Content-Type", "application/json")
                         .header("Authorization", "Bearer " + token)
                         .build();
 
-                HttpResponse<byte[]> response = client.send(request, HttpResponse.BodyHandlers.ofByteArray());
+                HttpResponse<byte[]> response = HTTP_CLIENT.send(request, HttpResponse.BodyHandlers.ofByteArray());
 
                 // Always produce an entry even if the player has no cosmetics, so render layers
                 // know the fetch is done and won't try again until the player re-enters range.
@@ -255,9 +266,7 @@ public class CosmeticApiClient {
                     PlayerCosmeticCache.cancelFetching(uuid);
                 }
             }
-        }, "CosmeticProfileFetch-" + profileLogName(uuid, fullHash));
-        t.setDaemon(true);
-        t.start();
+        });
     }
 
     private static String profileLogName(@Nullable UUID uuid, String fullHash) {
@@ -289,9 +298,10 @@ public class CosmeticApiClient {
             LOGGER.warn("Refusing cosmetic selection with invalid id '{}'", cosmeticId);
             return;
         }
-        Thread t = new Thread(() -> {
+        REQUEST_EXECUTOR.execute(() -> {
             try {
-                String token = MineTogetherSession.getDefault().getTokenAsync().get().toString();
+                String token = MineTogetherSession.getDefault().getTokenAsync()
+                        .get(REQUEST_TIMEOUT.toSeconds(), TimeUnit.SECONDS).toString();
 
                 boolean clear = cosmeticId == null || cosmeticId.isEmpty() || cosmeticId.equals("none");
 
@@ -306,11 +316,8 @@ public class CosmeticApiClient {
                 bodyObj.add("selections", selectionsArr);
                 String body = bodyObj.toString();
 
-                HttpClient client = HttpClient.newBuilder()
-                        .followRedirects(HttpClient.Redirect.NORMAL)
-                        .build();
-
                 HttpRequest.Builder requestBuilder = HttpRequest.newBuilder(URI.create(API_BASE + "/minetogether/cosmetics/select"))
+                        .timeout(REQUEST_TIMEOUT)
                         .header("Content-Type", "application/json")
                         .header("Authorization", "Bearer " + token);
 
@@ -320,7 +327,7 @@ public class CosmeticApiClient {
                     requestBuilder.POST(HttpRequest.BodyPublishers.ofString(body, StandardCharsets.UTF_8));
                 }
 
-                HttpResponse<String> response = client.send(requestBuilder.build(), HttpResponse.BodyHandlers.ofString());
+                HttpResponse<String> response = HTTP_CLIENT.send(requestBuilder.build(), HttpResponse.BodyHandlers.ofString());
 
                 if (response.statusCode() == 200) {
                     LOGGER.info("Cosmetic selection updated: slot={}, id={}", slot, cosmeticId);
@@ -330,8 +337,6 @@ public class CosmeticApiClient {
             } catch (Exception e) {
                 LOGGER.error("Failed to update cosmetic selection (slot={}, id={})", slot, cosmeticId, e);
             }
-        }, "CosmeticSelect-" + slot);
-        t.setDaemon(true);
-        t.start();
+        });
     }
 }
