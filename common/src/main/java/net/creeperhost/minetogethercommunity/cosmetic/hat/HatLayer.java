@@ -4,6 +4,7 @@ import com.mojang.blaze3d.vertex.PoseStack;
 import com.mojang.math.Axis;
 import net.creeperhost.minetogethercommunity.cosmetic.CosmeticPreviewTime;
 import net.creeperhost.minetogethercommunity.cosmetic.CosmeticSelections;
+import net.creeperhost.minetogethercommunity.cosmetic.ModelPlacement;
 import net.creeperhost.minetogethercommunity.cosmetic.PlayerCosmeticCache;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.model.PlayerModel;
@@ -45,8 +46,9 @@ public class HatLayer<T extends AbstractClientPlayer> extends RenderLayer<T, Pla
         poseStack.pushPose();
         getParentModel().head.translateAndRotate(poseStack);
         if (hat.isJsonModel() && hat.jsonModel() != null) {
-            poseStack.scale(1.01F, 1.01F, 1.01F);
-            poseStack.translate(-8.0F / 16.0F, -16.0F / 16.0F, -8.0F / 16.0F);
+            ModelPlacement placement = hat.placement();
+            poseStack.scale(placement.scale(), placement.scale(), placement.scale());
+            poseStack.translate(placement.xPixels() / 16.0F, placement.yPixels() / 16.0F, placement.zPixels() / 16.0F);
             hat.jsonModel().render(poseStack, bufferSource.getBuffer(RenderType.entityCutoutNoCull(hat.texture())), renderLight, hat.animation().pose(animationAge));
         } else {
             poseStack.scale(1.01f, 1.01f, 1.01f);

@@ -1,5 +1,6 @@
 package net.creeperhost.minetogethercommunity.cosmetic.hat;
 
+import net.creeperhost.minetogethercommunity.cosmetic.ModelPlacement;
 import net.creeperhost.minetogethercommunity.cosmetic.tail.TailElement;
 import net.creeperhost.minetogethercommunity.cosmetic.tail.TailModel;
 import net.minecraft.resources.ResourceLocation;
@@ -21,7 +22,8 @@ public record Hat(
         List<HatCuboid> cuboids,
         List<TailElement> jsonElements,
         @Nullable TailModel jsonModel,
-        HatAnimation animation
+        HatAnimation animation,
+        ModelPlacement placement
 ) {
     public boolean isJsonModel() {
         return type == HatModelType.JSON;
