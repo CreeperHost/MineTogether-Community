@@ -23,6 +23,7 @@ public class PlayerCosmeticCache {
     /** UUID - resolved cosmetic selections. */
     private static final ConcurrentHashMap<UUID, CosmeticSelections> CACHE = new ConcurrentHashMap<>();
     private static final ConcurrentHashMap<String, CosmeticSelections> HASH_CACHE = new ConcurrentHashMap<>();
+    private static final ConcurrentHashMap<String, Long> PROFILE_REVISIONS = new ConcurrentHashMap<>();
 
     /**
      * UUIDs whose profiles are currently being fetched.
@@ -44,15 +45,37 @@ public class PlayerCosmeticCache {
      * Stores resolved selections for the given player and removes the "currently fetching" mark.
      * Called by {@link CosmeticApiClient#fetchProfileForPlayerAsync(UUID)} when the fetch completes.
      */
-    public static void put(UUID uuid, CosmeticSelections cs) {
+    public static void put(UUID uuid, String fullHash, CosmeticSelections cs, long revision) {
+        String normalizedHash = normalizeHash(fullHash);
+        if (!isCurrentRevision(normalizedHash, revision)) {
+            FETCHING.remove(uuid);
+            return;
+        }
         CACHE.put(uuid, cs);
-        HASH_CACHE.put(fullHashFromUuid(uuid), cs);
+        HASH_CACHE.put(normalizedHash, cs);
         FETCHING.remove(uuid);
     }
 
     /** Stores resolved selections by MineTogether full hash when a profile event has no Minecraft UUID. */
-    public static void putHash(String fullHash, CosmeticSelections cs) {
-        HASH_CACHE.put(normalizeHash(fullHash), cs);
+    public static void putHash(String fullHash, CosmeticSelections cs, long revision) {
+        String normalizedHash = normalizeHash(fullHash);
+        if (!isCurrentRevision(normalizedHash, revision)) return;
+        HASH_CACHE.put(normalizedHash, cs);
+
+        // PROFILE_EXPIRE events identify a remote player by MineTogether hash. Keep the UUID
+        // index in sync too, otherwise get(UUID) would continue returning its stale entry.
+        CACHE.replaceAll((uuid, ignored) -> fullHashFromUuid(uuid).equals(normalizedHash) ? cs : ignored);
+    }
+
+    /** Starts a profile-expiry refresh and invalidates any older in-flight response for that hash. */
+    public static long beginHashRefresh(String fullHash) {
+        String normalizedHash = normalizeHash(fullHash);
+        return PROFILE_REVISIONS.merge(normalizedHash, 1L, Long::sum);
+    }
+
+    /** Captures the current refresh revision for a regular UUID-driven profile request. */
+    public static long currentRevision(String fullHash) {
+        return PROFILE_REVISIONS.getOrDefault(normalizeHash(fullHash), 0L);
     }
 
     /**
@@ -78,7 +101,12 @@ public class PlayerCosmeticCache {
     public static void clearAll() {
         CACHE.clear();
         HASH_CACHE.clear();
+        PROFILE_REVISIONS.clear();
         FETCHING.clear();
+    }
+
+    private static boolean isCurrentRevision(String normalizedHash, long revision) {
+        return PROFILE_REVISIONS.getOrDefault(normalizedHash, 0L) == revision;
     }
 
     private static String fullHashFromUuid(UUID uuid) {

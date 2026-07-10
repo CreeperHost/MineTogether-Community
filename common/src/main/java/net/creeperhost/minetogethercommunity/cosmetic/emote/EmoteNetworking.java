@@ -20,7 +20,6 @@ public class EmoteNetworking {
 
     private static final Logger LOGGER = LogManager.getLogger();
     private static final SimpleNetworkManager NETWORK = SimpleNetworkManager.create(MineTogether.MOD_ID);
-    private static final int MAX_EMOTE_ID_LENGTH = 128;
 
     private static MessageType START_C2S;
     private static MessageType START_S2C;
@@ -50,7 +49,7 @@ public class EmoteNetworking {
     }
 
     private static boolean validEmoteId(String emoteId) {
-        return emoteId != null && !emoteId.isEmpty() && emoteId.length() <= MAX_EMOTE_ID_LENGTH;
+        return CosmeticDownloader.isValidAssetId(emoteId);
     }
 
     private static class StartEmoteC2S extends BaseC2SMessage {
@@ -61,7 +60,7 @@ public class EmoteNetworking {
         }
 
         private StartEmoteC2S(FriendlyByteBuf buf) {
-            this.emoteId = buf.readUtf(MAX_EMOTE_ID_LENGTH);
+            this.emoteId = buf.readUtf(128);
         }
 
         @Override
@@ -71,7 +70,7 @@ public class EmoteNetworking {
 
         @Override
         public void write(FriendlyByteBuf buf) {
-            buf.writeUtf(emoteId, MAX_EMOTE_ID_LENGTH);
+            buf.writeUtf(emoteId, 128);
         }
 
         @Override
@@ -100,7 +99,7 @@ public class EmoteNetworking {
 
         private StartEmoteS2C(FriendlyByteBuf buf) {
             this.playerId = buf.readUUID();
-            this.emoteId = buf.readUtf(MAX_EMOTE_ID_LENGTH);
+            this.emoteId = buf.readUtf(128);
         }
 
         @Override
@@ -111,7 +110,7 @@ public class EmoteNetworking {
         @Override
         public void write(FriendlyByteBuf buf) {
             buf.writeUUID(playerId);
-            buf.writeUtf(emoteId, MAX_EMOTE_ID_LENGTH);
+            buf.writeUtf(emoteId, 128);
         }
 
         @Override
