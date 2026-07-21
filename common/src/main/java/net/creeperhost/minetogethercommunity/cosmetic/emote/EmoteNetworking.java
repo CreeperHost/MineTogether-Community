@@ -3,6 +3,7 @@ package net.creeperhost.minetogethercommunity.cosmetic.emote;
 import net.creeperhost.minetogethercommunity.MineTogether;
 import net.creeperhost.minetogethercommunity.MineTogetherPlatform;
 import net.creeperhost.minetogethercommunity.cosmetic.CosmeticDownloader;
+import net.creeperhost.minetogethercommunity.cosmetic.CosmeticIdValidator;
 import net.minecraft.client.Minecraft;
 import net.minecraft.network.RegistryFriendlyByteBuf;
 import net.minecraft.network.codec.StreamCodec;
@@ -98,7 +99,7 @@ public class EmoteNetworking {
     }
 
     private static boolean validEmoteId(String emoteId) {
-        return CosmeticDownloader.isValidAssetId(emoteId);
+        return CosmeticIdValidator.isValid(emoteId);
     }
 
     public static void syncPersistentEmotes(ServerPlayer target) {
