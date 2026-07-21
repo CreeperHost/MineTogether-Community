@@ -47,6 +47,7 @@ public class Keybindings {
     }
 
     private static void clientTick(Minecraft mc) {
+        EmotePlayer.clientTick(mc);
         stopEmoteOnWorldInteraction(mc);
         if (OPEN_FRIEND_CHAT.consumeClick()) {
             mc.setScreen(new FriendChatGui.Screen(null));
