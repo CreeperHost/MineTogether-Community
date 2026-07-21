@@ -3,7 +3,6 @@ package net.creeperhost.minetogethercommunity.mixin.chat.ingame;
 import net.creeperhost.minetogethercommunity.Constants;
 import net.creeperhost.minetogethercommunity.chat.ChatTarget;
 import net.creeperhost.minetogethercommunity.chat.MineTogetherChat;
-import net.creeperhost.minetogethercommunity.config.LocalConfig;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.Font;
 import net.minecraft.client.gui.GuiGraphicsExtractor;
@@ -32,7 +31,10 @@ abstract class ChatComponentMixin {
     )
     private void onExtractRenderState(GuiGraphicsExtractor graphics, Font font, int ticks, int mouseX, int mouseY, ChatComponent.DisplayMode displayMode, boolean changeCursorOnInsertions, CallbackInfo ci) {
         // Don't render our additional background blackout if chat is not enabled, or chat is not focused.
-        if (!displayMode.foreground || !LocalConfig.instance().chatEnabled || Minecraft.getInstance().gui.hud.isHidden() || !((ChatComponent) (Object) this).isChatFocused()) return;
+        if (!displayMode.foreground || !MineTogetherChat.isChatEnabled() || Minecraft.getInstance().gui.hud.isHidden() || !((ChatComponent) (Object) this).isChatFocused()) return;
+
+        //This does not *perfectly* match vanilla, but its very close, and a lot less dumb.
+        //It also just happens to fix the vanilla scroll bar
 
         ChatComponent chatComponent = (ChatComponent) (Object) this;
 

@@ -176,6 +176,9 @@ public class MTChatComponent extends ChatComponent {
 
     @Override
     public void addRecentChat(String string) {
+        if (!MineTogetherChat.isChatEnabled()) {
+            return;
+        }
         if (channel == null) {
             LOGGER.error("Can't send message, chat is not bound!");
             return;
