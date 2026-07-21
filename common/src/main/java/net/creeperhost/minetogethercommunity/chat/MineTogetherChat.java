@@ -1,6 +1,7 @@
 package net.creeperhost.minetogethercommunity.chat;
 
 import dev.architectury.hooks.client.screen.ScreenHooks;
+import dev.architectury.event.events.client.ClientTickEvent;
 import dev.architectury.platform.Platform;
 import net.creeperhost.minetogether.lib.chat.ChatState;
 import net.creeperhost.minetogether.lib.chat.MutedUserList;
@@ -54,6 +55,7 @@ public class MineTogetherChat {
     public static MTChatComponent publicChat;
     public static MTChatComponent groupChat;
     private static boolean hasHitLoadingScreen = false;
+    private static boolean minecraftChatAllowed = true;
 
     public static void init() {
         CHAT_STATE.logChatToConsole = Config.instance().logChatToConsole | Config.instance().debugMode;
@@ -64,6 +66,7 @@ public class MineTogetherChat {
             System.setProperty("net.covers1624.pircbot.logging.very_verbose", "true");
         }
 
+        ClientTickEvent.CLIENT_POST.register(MineTogetherChat::refreshMinecraftChatAvailability);
         ChatStatistics.pollStats();
     }
 
@@ -72,7 +75,8 @@ public class MineTogetherChat {
         vanillaChat = gui.chat;
         publicChat = new MTChatComponent(ChatTarget.PUBLIC, mc);
         groupChat = new MTChatComponent(ChatTarget.GROUP, mc);
-        if (LocalConfig.instance().chatEnabled) {
+        refreshMinecraftChatAvailability(mc);
+        if (isChatEnabled()) {
             CHAT_STATE.ircClient.start();
         }
         CHAT_STATE.ircClient.addChannelListener(new IrcClient.ChannelListener() {
@@ -191,11 +195,11 @@ public class MineTogetherChat {
         settings.setTooltip(Tooltip.create(Component.translatable("minetogether:gui.button.settings.info")));
         ScreenHooks.addRenderableWidget(screen, settings);
 
-        IconButton friendChat = new IconButton(screen.width - (buttonPos += 21), 5, 7, Constants.WIDGETS_SHEET, e -> Minecraft.getInstance().setScreen(new FriendChatGui.Screen(screen)));
-        friendChat.setTooltip(Tooltip.create(Component.translatable("minetogether:gui.button.friends.info")));
-        ScreenHooks.addRenderableWidget(screen, friendChat);
+        if (isChatEnabled()) {
+            IconButton friendChat = new IconButton(screen.width - (buttonPos += 21), 5, 7, Constants.WIDGETS_SHEET, e -> Minecraft.getInstance().setScreen(new FriendChatGui.Screen(screen)));
+            friendChat.setTooltip(Tooltip.create(Component.translatable("minetogether:gui.button.friends.info")));
+            ScreenHooks.addRenderableWidget(screen, friendChat);
 
-        if (LocalConfig.instance().chatEnabled) {
             IconButton publicChat = new IconButton(screen.width - (buttonPos += 21), 5, 1, Constants.WIDGETS_SHEET, e -> Minecraft.getInstance().setScreen(new PublicChatGui.Screen(screen)));
             publicChat.setTooltip(Tooltip.create(Component.translatable("minetogether:gui.button.global_chat.info")));
             ScreenHooks.addRenderableWidget(screen, publicChat);
@@ -218,7 +222,9 @@ public class MineTogetherChat {
     }
 
     public static void enableChat() {
-        CHAT_STATE.ircClient.start();
+        if (isChatEnabled()) {
+            CHAT_STATE.ircClient.start();
+        }
     }
 
     public static void setTarget(ChatTarget target) {
@@ -227,7 +233,30 @@ public class MineTogetherChat {
     }
 
     public static ChatTarget getTarget() {
-        return LocalConfig.instance().chatEnabled ? LocalConfig.instance().selectedTab : ChatTarget.VANILLA;
+        return isChatEnabled() ? LocalConfig.instance().selectedTab : ChatTarget.VANILLA;
+    }
+
+    /** Whether MineTogether chat is both enabled by the player and permitted by Minecraft. */
+    public static boolean isChatEnabled() {
+        return LocalConfig.instance().chatEnabled && isMinecraftChatAllowed(Minecraft.getInstance());
+    }
+
+    private static boolean isMinecraftChatAllowed(Minecraft mc) {
+        Minecraft.ChatStatus status = mc.getChatStatus();
+        return status != Minecraft.ChatStatus.DISABLED_BY_PROFILE
+                && status != Minecraft.ChatStatus.DISABLED_BY_LAUNCHER;
+    }
+
+    private static void refreshMinecraftChatAvailability(Minecraft mc) {
+        boolean allowed = isMinecraftChatAllowed(mc);
+        if (minecraftChatAllowed == allowed) return;
+
+        minecraftChatAllowed = allowed;
+        if (!allowed) {
+            CHAT_STATE.ircClient.stop();
+        } else if (LocalConfig.instance().chatEnabled) {
+            CHAT_STATE.ircClient.start();
+        }
     }
 
     public static String displayName(@Nullable Profile profile) {

@@ -239,7 +239,7 @@ public class FriendChatGui implements GuiProvider {
                 .setMaxLength(256)
                 .setOnEditComplete(() -> {
                     String message = textField.getValue().trim();
-                    if (!message.isEmpty()) {
+                    if (!message.isEmpty() && MineTogetherChat.isChatEnabled()) {
                         textField.setValue("");
                         if (chatMonitor.getChannel() != null) {
                             chatMonitor.getChannel().sendMessage(message);
