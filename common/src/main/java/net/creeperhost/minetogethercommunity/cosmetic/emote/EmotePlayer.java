@@ -48,7 +48,7 @@ public class EmotePlayer {
             EmoteNetworking.tryBroadcastStop();
             return;
         }
-        ACTIVE.put(mc.player.getUUID(), new ActiveEmote(emote, mc.player.tickCount));
+        ACTIVE.put(mc.player.getUUID(), new ActiveEmote(emote, mc.player.tickCount, false));
         EmoteNetworking.tryBroadcastStart(emoteId, emote.toggle());
     }
 
@@ -86,7 +86,7 @@ public class EmotePlayer {
             return;
         }
         if (emote == null || !emote.type().isAvailable()) return;
-        ACTIVE.put(playerId, new ActiveEmote(emote, tickCount()));
+        ACTIVE.put(playerId, new ActiveEmote(emote, tickCount(), false));
     }
 
     private static void retryPlayRemote(UUID playerId, String emoteId) {
@@ -147,6 +147,23 @@ public class EmotePlayer {
     public static void stop(UUID playerId) {
         PENDING_REMOTE_RETRIES.removeIf(retry -> retry.playerId().equals(playerId));
         ACTIVE.remove(playerId);
+    }
+
+    /** Updates traversal-emote state for the local player once per client tick. */
+    public static void clientTick(Minecraft mc) {
+        if (mc.player == null) return;
+
+        UUID playerId = mc.player.getUUID();
+        ActiveEmote active = ACTIVE.get(playerId);
+        if (active == null || !active.emote.requiresMovement()) return;
+
+        if (isMoving(mc.player)) {
+            if (!active.movementObserved()) {
+                ACTIVE.replace(playerId, active, active.withMovementObserved());
+            }
+        } else if (active.movementObserved()) {
+            stopLocal();
+        }
     }
 
     /** Clears active and pending emotes when the client leaves a world. */
@@ -281,9 +298,17 @@ public class EmotePlayer {
     }
 
     private static boolean isMoving(AbstractClientPlayer player) {
-        double x = player.getDeltaMovement().x;
-        double z = player.getDeltaMovement().z;
-        return x * x + z * z > CANCEL_MOVE_THRESHOLD_SQR;
+        double velocityX = player.getDeltaMovement().x;
+        double velocityZ = player.getDeltaMovement().z;
+        if (velocityX * velocityX + velocityZ * velocityZ > CANCEL_MOVE_THRESHOLD_SQR) {
+            return true;
+        }
+
+        // Remote players are moved by client-side position interpolation, which does
+        // not reliably update deltaMovement. Compare the synced position as well.
+        double positionX = player.getX() - player.xo;
+        double positionZ = player.getZ() - player.zo;
+        return positionX * positionX + positionZ * positionZ > CANCEL_MOVE_THRESHOLD_SQR;
     }
 
     public static float renderTranslateY(AbstractClientPlayer player, float ageInTicks) {
@@ -306,7 +331,10 @@ public class EmotePlayer {
         return pose == null ? 0.0F : pose.renderRoll();
     }
 
-    private record ActiveEmote(Emote emote, int startTick) {
+    private record ActiveEmote(Emote emote, int startTick, boolean movementObserved) {
+        private ActiveEmote withMovementObserved() {
+            return new ActiveEmote(emote, startTick, true);
+        }
     }
 
     private record RemoteRetry(UUID playerId, String emoteId) {

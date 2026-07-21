@@ -6,8 +6,11 @@ import dev.architectury.networking.simple.BaseC2SMessage;
 import dev.architectury.networking.simple.BaseS2CMessage;
 import dev.architectury.networking.simple.MessageType;
 import dev.architectury.networking.simple.SimpleNetworkManager;
+import dev.architectury.platform.Platform;
+import dev.architectury.utils.Env;
 import net.creeperhost.minetogethercommunity.MineTogether;
 import net.creeperhost.minetogethercommunity.cosmetic.CosmeticDownloader;
+import net.creeperhost.minetogethercommunity.cosmetic.CosmeticIdValidator;
 import net.minecraft.client.Minecraft;
 import net.minecraft.network.RegistryFriendlyByteBuf;
 import net.minecraft.server.level.ServerPlayer;
@@ -38,6 +41,12 @@ public class EmoteNetworking {
         START_S2C = NETWORK.registerS2C("emote_start_s2c", StartEmoteS2C::new);
         STOP_C2S = NETWORK.registerC2S("emote_stop_c2s", StopEmoteC2S::new);
         STOP_S2C = NETWORK.registerS2C("emote_stop_s2c", StopEmoteS2C::new);
+        if (Platform.getEnvironment() == Env.SERVER) {
+            // SimpleNetworkManager only registers an S2C receiver on the client. The
+            // dedicated server must also advertise these payload IDs during login.
+            NetworkManager.registerS2CPayloadType(START_S2C.getId());
+            NetworkManager.registerS2CPayloadType(STOP_S2C.getId());
+        }
         PlayerEvent.PLAYER_JOIN.register(EmoteNetworking::syncPersistentEmotes);
         PlayerEvent.PLAYER_QUIT.register(player -> ACTIVE_PERSISTENT_EMOTES.remove(player.getUUID()));
         LOGGER.debug("Emote networking initialized");
@@ -55,7 +64,7 @@ public class EmoteNetworking {
     }
 
     private static boolean validEmoteId(String emoteId) {
-        return CosmeticDownloader.isValidAssetId(emoteId);
+        return CosmeticIdValidator.isValid(emoteId);
     }
 
     private static void syncPersistentEmotes(ServerPlayer target) {
@@ -104,11 +113,14 @@ public class EmoteNetworking {
                 ACTIVE_PERSISTENT_EMOTES.remove(playerId);
             }
             StartEmoteS2C packet = new StartEmoteS2C(playerId, emoteId);
+            int recipients = 0;
             for (ServerPlayer target : serverPlayer.server.getPlayerList().getPlayers()) {
                 if (target == serverPlayer) continue;
                 if (!NetworkManager.canPlayerReceive(target, START_S2C.getId())) continue;
                 packet.sendTo(target);
+                recipients++;
             }
+            LOGGER.debug("Relayed emote '{}' from {} to {} client(s)", emoteId, serverPlayer.getGameProfile().getName(), recipients);
         }
     }
 
@@ -170,11 +182,14 @@ public class EmoteNetworking {
             UUID playerId = serverPlayer.getUUID();
             ACTIVE_PERSISTENT_EMOTES.remove(playerId);
             StopEmoteS2C packet = new StopEmoteS2C(playerId);
+            int recipients = 0;
             for (ServerPlayer target : serverPlayer.server.getPlayerList().getPlayers()) {
                 if (target == serverPlayer) continue;
                 if (!NetworkManager.canPlayerReceive(target, STOP_S2C.getId())) continue;
                 packet.sendTo(target);
+                recipients++;
             }
+            LOGGER.debug("Relayed emote stop from {} to {} client(s)", serverPlayer.getGameProfile().getName(), recipients);
         }
     }
 
