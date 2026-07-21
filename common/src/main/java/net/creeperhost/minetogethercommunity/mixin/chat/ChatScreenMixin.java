@@ -88,7 +88,7 @@ abstract class ChatScreenMixin extends Screen {
     )
     private void onInit(CallbackInfo ci) {
         Minecraft mc = Minecraft.getInstance();
-        if (!LocalConfig.instance().chatEnabled || mc.options.hideGui) return;
+        if (!MineTogetherChat.isChatEnabled() || mc.options.hideGui) return;
         input.setValue(initial);
 
         ChatComponent chat = mc.gui.getChat();
@@ -193,7 +193,7 @@ abstract class ChatScreenMixin extends Screen {
 
     private void updateButtons() {
         Minecraft mc = Minecraft.getInstance();
-        if (!LocalConfig.instance().chatEnabled || mc.options.hideGui) {
+        if (!MineTogetherChat.isChatEnabled() || mc.options.hideGui) {
             return;
         }
         ChatComponent chat = mc.gui.getChat();
@@ -240,14 +240,14 @@ abstract class ChatScreenMixin extends Screen {
         Style style = ChatStyleHelper.styleAtChatPosition(Minecraft.getInstance(), getFont(), mouseX, mouseY, displayMode, Minecraft.getInstance().hasShiftDown());
         if (style != null) {
             ClickEvent clickEvent = style.getClickEvent();
-            if (clickEvent instanceof FriendChatNotifier.OpenFriendEvent openFriendEvent) {
+            if (MineTogetherChat.isChatEnabled() && clickEvent instanceof FriendChatNotifier.OpenFriendEvent openFriendEvent) {
                 FriendChatGui.setSelected(openFriendEvent.profile);
                 Minecraft.getInstance().setScreen(new FriendChatGui.Screen(null));
                 cir.setReturnValue(true);
             }
         }
 
-        if (!LocalConfig.instance().chatEnabled || Minecraft.getInstance().options.hideGui) return;
+        if (!MineTogetherChat.isChatEnabled() || Minecraft.getInstance().options.hideGui) return;
 
         //Link clicks get blocked by our tryClickMTChat function, so we need to do it ourselves here.
         if (MineTogetherChat.getTarget() == ChatTarget.PUBLIC && button == 0) {
@@ -265,7 +265,7 @@ abstract class ChatScreenMixin extends Screen {
     @Override
     public boolean mouseReleased(MouseButtonEvent event) {
         Minecraft mc = Minecraft.getInstance();
-        if (!LocalConfig.instance().chatEnabled || mc.options.hideGui) {
+        if (!MineTogetherChat.isChatEnabled() || mc.options.hideGui) {
             return super.mouseReleased(event);
         }
 

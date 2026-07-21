@@ -140,7 +140,7 @@ public class PublicChatGui implements GuiProvider {
                 .setCanLoseFocus(false)
                 .setOnEditComplete(() -> {
                     String message = textField.getValue().trim();
-                    if (!message.isEmpty()) {
+                    if (!message.isEmpty() && MineTogetherChat.isChatEnabled()) {
                         textField.setValue("");
                         if (chatMonitor.getChannel() != null) {
                             chatMonitor.getChannel().sendMessage(message);

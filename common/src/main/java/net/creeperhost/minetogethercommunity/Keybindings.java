@@ -3,6 +3,7 @@ package net.creeperhost.minetogethercommunity;
 import com.mojang.blaze3d.platform.InputConstants;
 import net.creeperhost.minetogethercommunity.chat.gui.FriendChatGui;
 import net.creeperhost.minetogethercommunity.chat.gui.PublicChatGui;
+import net.creeperhost.minetogethercommunity.chat.MineTogetherChat;
 import net.creeperhost.minetogethercommunity.cosmetic.CosmeticDownloader;
 import net.creeperhost.minetogethercommunity.cosmetic.CosmeticsGui;
 import net.creeperhost.minetogethercommunity.cosmetic.emote.EmoteFavorites;
@@ -49,9 +50,9 @@ public class Keybindings {
     private static void clientTick(Minecraft mc) {
         EmotePlayer.clientTick(mc);
         stopEmoteOnWorldInteraction(mc);
-        if (OPEN_FRIEND_CHAT.consumeClick()) {
+        if (OPEN_FRIEND_CHAT.consumeClick() && MineTogetherChat.isChatEnabled()) {
             mc.setScreen(new FriendChatGui.Screen(null));
-        } else if (OPEN_GLOBAL_CHAT.consumeClick()) {
+        } else if (OPEN_GLOBAL_CHAT.consumeClick() && MineTogetherChat.isChatEnabled()) {
             mc.setScreen(new PublicChatGui.Screen(null));
         } else if (OPEN_SETTINGS.consumeClick()) {
             mc.setScreen(new SettingGui.Screen(null));
