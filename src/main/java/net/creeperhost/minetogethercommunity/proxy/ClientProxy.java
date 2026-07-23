@@ -17,6 +17,7 @@ import net.creeperhost.minetogethercommunity.cosmetic.CosmeticApiClient;
 import net.creeperhost.minetogethercommunity.cosmetic.CosmeticDownloader;
 import net.creeperhost.minetogethercommunity.cosmetic.CosmeticSelections;
 import net.creeperhost.minetogethercommunity.cosmetic.PlayerCosmeticCache;
+import net.creeperhost.minetogethercommunity.cosmetic.emote.EmotePlayer;
 import net.creeperhost.minetogethercommunity.cosmetic.emote.EmoteNetworking;
 import net.creeperhost.minetogethercommunity.cosmetic.render.LegacyCosmeticRenderer;
 import net.creeperhost.minetogethercommunity.util.MTSessionProvider;
@@ -86,6 +87,7 @@ public class ClientProxy extends CommonProxy {
         ActivityTelemetry.onWorldExit();
         CosmeticSelections.instance().clear();
         PlayerCosmeticCache.clearAll();
+        EmotePlayer.clearAll();
     }
 
     private static void registerClientCommand(net.minecraft.command.ICommand command) {

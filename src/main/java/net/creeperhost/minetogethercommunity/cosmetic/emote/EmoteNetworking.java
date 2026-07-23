@@ -59,7 +59,7 @@ public final class EmoteNetworking {
     }
 
     private static boolean validEmoteId(String emoteId) {
-        return emoteId != null && !emoteId.isEmpty() && emoteId.length() <= MAX_EMOTE_ID_LENGTH;
+        return CosmeticDownloader.isValidAssetId(emoteId);
     }
 
     public static class StartEmoteC2S implements IMessage {
