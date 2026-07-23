@@ -20,10 +20,18 @@ public class Wing {
     private final List<TailElement> elements;
     private final TailModel model;
     private final WingAnimation animation;
+    private final WingPlacement placement;
 
     public Wing(String id, String displayName, String author, String mod, boolean locked, String howToUnlock,
                 ResourceLocation texture, int texWidth, int texHeight, List<TailElement> elements, TailModel model,
                 WingAnimation animation) {
+        this(id, displayName, author, mod, locked, howToUnlock, texture, texWidth, texHeight, elements, model,
+                animation, WingPlacement.DEFAULT);
+    }
+
+    public Wing(String id, String displayName, String author, String mod, boolean locked, String howToUnlock,
+                ResourceLocation texture, int texWidth, int texHeight, List<TailElement> elements, TailModel model,
+                WingAnimation animation, WingPlacement placement) {
         this.id = id;
         this.displayName = displayName;
         this.author = author;
@@ -36,6 +44,7 @@ public class Wing {
         this.elements = elements;
         this.model = model;
         this.animation = animation == null ? WingAnimation.NONE : animation;
+        this.placement = placement == null ? WingPlacement.DEFAULT : placement;
     }
 
     public String id() { return id; }
@@ -50,4 +59,5 @@ public class Wing {
     public List<TailElement> elements() { return elements; }
     public TailModel model() { return model; }
     public WingAnimation animation() { return animation; }
+    public WingPlacement placement() { return placement; }
 }

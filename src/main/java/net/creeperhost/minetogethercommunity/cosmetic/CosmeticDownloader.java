@@ -21,6 +21,7 @@ import net.creeperhost.minetogethercommunity.cosmetic.tail.TailModel;
 import net.creeperhost.minetogethercommunity.cosmetic.tail.TailModelParser;
 import net.creeperhost.minetogethercommunity.cosmetic.wing.Wing;
 import net.creeperhost.minetogethercommunity.cosmetic.wing.WingAnimation;
+import net.creeperhost.minetogethercommunity.cosmetic.wing.WingPlacement;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.renderer.texture.DynamicTexture;
 import net.minecraft.util.ResourceLocation;
@@ -461,12 +462,14 @@ public class CosmeticDownloader {
         int texW = textureSize(root, 0, 64);
         int texH = textureSize(root, 1, 32);
         HatAnimation animation = parseHatAnimation(animationFile == null ? null : Files.readAllBytes(new File(itemDir, animationFile).toPath()));
+        ModelPlacement placement = ModelPlacement.fromMetadata(readMetadata(itemDir),
+                new ModelPlacement(-8.0F, -16.0F, -8.0F, 1.01F));
         final BufferedImage image = ImageIO.read(new File(itemDir, pngFile));
         if (image == null) throw new IOException("Invalid JSON hat texture for '" + id + "'");
         final ResourceLocation location = textureLocation("hat", id);
         final Hat hat = new Hat(id, item.displayName(), item.author(), item.mod(), item.locked(), item.howToUnlock(),
                 location, texW, texH, HatModelType.JSON, Collections.<net.creeperhost.minetogethercommunity.cosmetic.hat.HatCuboid>emptyList(),
-                elements, new TailModel(elements, texW, texH), animation);
+                elements, new TailModel(elements, texW, texH), animation, placement);
         net.creeperhost.minetogethercommunity.util.ClientTaskRunner.run(new Runnable() {
             @Override
             public void run() {
@@ -519,11 +522,13 @@ public class CosmeticDownloader {
         int texW = textureSize(root, 0, 64);
         int texH = textureSize(root, 1, 32);
         TailAnimation animation = parseTailAnimation(animationFile == null ? null : Files.readAllBytes(new File(itemDir, animationFile).toPath()));
+        ModelPlacement placement = ModelPlacement.fromMetadata(readMetadata(itemDir),
+                new ModelPlacement(-8.0F, 2.0F, 2.0F, 1.0F));
         final BufferedImage image = ImageIO.read(new File(itemDir, pngFile));
         if (image == null) throw new IOException("Invalid tail texture for '" + id + "'");
         final ResourceLocation location = textureLocation("tail", id);
         final Tail tail = new Tail(id, item.displayName(), item.author(), item.mod(), item.locked(), item.howToUnlock(),
-                location, texW, texH, elements, new TailModel(elements, texW, texH), animation);
+                location, texW, texH, elements, new TailModel(elements, texW, texH), animation, placement);
         net.creeperhost.minetogethercommunity.util.ClientTaskRunner.run(new Runnable() {
             @Override
             public void run() {
@@ -550,11 +555,12 @@ public class CosmeticDownloader {
         int texW = textureSize(root, 0, 64);
         int texH = textureSize(root, 1, 32);
         WingAnimation animation = animationFile == null ? WingAnimation.NONE : WingAnimation.fromJson(parseJson(new File(itemDir, animationFile)));
+        WingPlacement placement = WingPlacement.fromMetadata(readMetadata(itemDir));
         final BufferedImage image = ImageIO.read(new File(itemDir, pngFile));
         if (image == null) throw new IOException("Invalid wing texture for '" + id + "'");
         final ResourceLocation location = textureLocation("wing", id);
         final Wing wing = new Wing(id, item.displayName(), item.author(), item.mod(), item.locked(), item.howToUnlock(),
-                location, texW, texH, elements, new TailModel(elements, texW, texH), animation);
+                location, texW, texH, elements, new TailModel(elements, texW, texH), animation, placement);
         net.creeperhost.minetogethercommunity.util.ClientTaskRunner.run(new Runnable() {
             @Override
             public void run() {

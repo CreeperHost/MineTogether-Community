@@ -3,6 +3,7 @@ package net.creeperhost.minetogethercommunity.cosmetic.hat;
 import net.minecraft.util.ResourceLocation;
 import net.creeperhost.minetogethercommunity.cosmetic.tail.TailElement;
 import net.creeperhost.minetogethercommunity.cosmetic.tail.TailModel;
+import net.creeperhost.minetogethercommunity.cosmetic.ModelPlacement;
 
 import java.util.Collections;
 import java.util.List;
@@ -23,6 +24,7 @@ public class Hat {
     private final List<TailElement> jsonElements;
     private final TailModel jsonModel;
     private final HatAnimation animation;
+    private final ModelPlacement placement;
 
     public Hat(String id, String displayName, String author, String mod, boolean locked, String howToUnlock,
                ResourceLocation texture, int texWidth, int texHeight, HatModelType type, List<HatCuboid> cuboids) {
@@ -40,6 +42,13 @@ public class Hat {
     public Hat(String id, String displayName, String author, String mod, boolean locked, String howToUnlock,
                ResourceLocation texture, int texWidth, int texHeight, HatModelType type, List<HatCuboid> cuboids,
                List<TailElement> jsonElements, TailModel jsonModel, HatAnimation animation) {
+        this(id, displayName, author, mod, locked, howToUnlock, texture, texWidth, texHeight, type, cuboids,
+                jsonElements, jsonModel, animation, new ModelPlacement(-8.0F, -16.0F, -8.0F, 1.01F));
+    }
+
+    public Hat(String id, String displayName, String author, String mod, boolean locked, String howToUnlock,
+               ResourceLocation texture, int texWidth, int texHeight, HatModelType type, List<HatCuboid> cuboids,
+               List<TailElement> jsonElements, TailModel jsonModel, HatAnimation animation, ModelPlacement placement) {
         this.id = id;
         this.displayName = displayName;
         this.author = author;
@@ -54,6 +63,7 @@ public class Hat {
         this.jsonElements = jsonElements == null ? Collections.<TailElement>emptyList() : jsonElements;
         this.jsonModel = jsonModel;
         this.animation = animation == null ? HatAnimation.NONE : animation;
+        this.placement = placement == null ? ModelPlacement.NONE : placement;
     }
 
     public String id() { return id; }
@@ -70,6 +80,7 @@ public class Hat {
     public List<TailElement> jsonElements() { return jsonElements; }
     public TailModel jsonModel() { return jsonModel; }
     public HatAnimation animation() { return animation; }
+    public ModelPlacement placement() { return placement; }
 
     public boolean isJsonModel() {
         return type == HatModelType.JSON;
