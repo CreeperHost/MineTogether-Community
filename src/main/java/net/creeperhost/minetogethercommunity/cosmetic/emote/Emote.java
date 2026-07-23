@@ -11,12 +11,13 @@ public class Emote {
     private final EmoteType type;
     private final boolean toggle;
     private final boolean allowMovement;
+    private final boolean requiresMovement;
     private final float previewFrame;
     private final float previewHeight;
     private final EmoteAnimation animation;
 
     public Emote(String id, String displayName, String author, String mod, boolean locked, String howToUnlock,
-                 EmoteType type, boolean toggle, boolean allowMovement, float previewFrame, float previewHeight,
+                 EmoteType type, boolean toggle, boolean allowMovement, boolean requiresMovement, float previewFrame, float previewHeight,
                  EmoteAnimation animation) {
         this.id = id;
         this.displayName = displayName;
@@ -27,6 +28,7 @@ public class Emote {
         this.type = type == null ? EmoteType.SIMPLE : type;
         this.toggle = toggle;
         this.allowMovement = allowMovement;
+        this.requiresMovement = requiresMovement;
         this.previewFrame = previewFrame;
         this.previewHeight = previewHeight;
         this.animation = animation == null ? EmoteAnimation.WAVE : animation;
@@ -41,6 +43,7 @@ public class Emote {
     public EmoteType type() { return type; }
     public boolean toggle() { return toggle; }
     public boolean allowMovement() { return allowMovement; }
+    public boolean requiresMovement() { return requiresMovement; }
     public float previewFrame() { return previewFrame; }
     public float previewHeight() { return previewHeight; }
     public EmoteAnimation animation() { return animation; }
