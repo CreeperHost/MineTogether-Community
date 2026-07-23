@@ -416,6 +416,20 @@ public class CosmeticDownloader {
                 String howToUnlock = obj.has("howToUnlock") && !obj.get("howToUnlock").isJsonNull()
                         ? obj.get("howToUnlock").getAsString() : null;
 
+                if ("emote".equals(slot)) {
+                    String metadataType = obj.has("type") && !obj.get("type").isJsonNull()
+                            ? obj.get("type").getAsString() : EmoteType.SIMPLE.metadataValue();
+                    EmoteType type = EmoteType.fromMetadata(metadataType);
+                    if (!type.isKnown()) {
+                        LOGGER.info("Ignoring catalog emote '{}' with unsupported type '{}'", id, metadataType);
+                        continue;
+                    }
+                    if (!type.isAvailable()) {
+                        LOGGER.info("Ignoring catalog emote '{}' because runtime '{}' is not available", id, metadataType);
+                        continue;
+                    }
+                }
+
                 CosmeticItem item = new CosmeticItem(id, name, author, "", locked, howToUnlock);
                 if ("hat".equals(slot)) {
                     hatCatalogList.add(item);
@@ -478,9 +492,14 @@ public class CosmeticDownloader {
                     }
                     if (emoteCatalogById.containsKey(id)) return;
 
-                    EmoteType type = EmoteType.fromMetadata(metadataString(root, "type", EmoteType.SIMPLE.metadataValue()));
+                    String metadataType = metadataString(root, "type", EmoteType.SIMPLE.metadataValue());
+                    EmoteType type = EmoteType.fromMetadata(metadataType);
+                    if (!type.isKnown()) {
+                        LOGGER.info("Skipping local emote '{}' with unsupported type '{}'", id, metadataType);
+                        return;
+                    }
                     if (!type.isAvailable()) {
-                        LOGGER.info("Skipping local emote '{}' because runtime '{}' is not available", id, type.metadataValue());
+                        LOGGER.info("Skipping local emote '{}' because runtime '{}' is not available", id, metadataType);
                         return;
                     }
 
@@ -822,12 +841,21 @@ public class CosmeticDownloader {
         List<String> files = fetchAndCacheFiles(CDN_BASE_URL + "/emote/" + id, itemDir);
         validateAsset("emote", id, itemDir, files);
         JsonObject metadata = readMetadata(itemDir);
-        EmoteType type = EmoteType.fromMetadata(metadataString(metadata, "type", EmoteType.SIMPLE.metadataValue()));
-        if (!type.isAvailable()) {
+        String metadataType = metadataString(metadata, "type", EmoteType.SIMPLE.metadataValue());
+        EmoteType type = EmoteType.fromMetadata(metadataType);
+        if (!type.isKnown() || !type.isAvailable()) {
             Minecraft.getInstance().execute(() -> {
                 if (!isCurrentAssetGeneration(generation)) return;
-                loadingAssetIds.remove(assetKey("emote", id));
-                LOGGER.info("Skipping emote '{}' because runtime '{}' is not available", id, type.metadataValue());
+                String key = assetKey("emote", id);
+                loadingAssetIds.remove(key);
+                failedAssetIds.add(key);
+                emoteCatalogById.remove(id);
+                emoteCatalogList.removeIf(entry -> entry.id().equals(id));
+                if (!type.isKnown()) {
+                    LOGGER.info("Ignoring emote '{}' with unsupported type '{}'", id, metadataType);
+                } else {
+                    LOGGER.info("Ignoring emote '{}' because runtime '{}' is not available", id, metadataType);
+                }
             });
             return;
         }
