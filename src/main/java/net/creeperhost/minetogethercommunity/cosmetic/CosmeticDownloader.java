@@ -47,6 +47,10 @@ import java.util.Locale;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.ThreadFactory;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.regex.Pattern;
 
 public class CosmeticDownloader {
@@ -55,6 +59,7 @@ public class CosmeticDownloader {
     private static final String CATALOG_BASE_URL = "https://api.creeper.host";
     private static final String CDN_BASE_URL = "https://cosmetic.cdn.minetogether.io";
     private static final int PAGE_LIMIT = 100;
+    private static final int ASSET_DOWNLOAD_WORKERS = 3;
     private static final Pattern COSMETIC_ID_PATTERN = Pattern.compile("[a-z0-9][a-z0-9._-]{0,127}", Pattern.CASE_INSENSITIVE);
 
     private static volatile CosmeticDownloader instance;
@@ -77,6 +82,8 @@ public class CosmeticDownloader {
     private final ConcurrentHashMap<String, Emote> loadedEmotes = new ConcurrentHashMap<String, Emote>();
     private final Set<String> loadingAssetIds = Collections.newSetFromMap(new ConcurrentHashMap<String, Boolean>());
     private final Set<String> failedAssetIds = Collections.newSetFromMap(new ConcurrentHashMap<String, Boolean>());
+    private final AtomicInteger assetWorkerId = new AtomicInteger();
+    private final ExecutorService assetDownloadExecutor;
     private volatile boolean catalogLoading;
     private volatile boolean catalogLoaded;
 
@@ -93,6 +100,14 @@ public class CosmeticDownloader {
 
     private CosmeticDownloader(File cacheBase) {
         this.cacheBase = cacheBase;
+        this.assetDownloadExecutor = Executors.newFixedThreadPool(ASSET_DOWNLOAD_WORKERS, new ThreadFactory() {
+            @Override
+            public Thread newThread(Runnable runnable) {
+                Thread thread = new Thread(runnable, "CosmeticAssetWorker-" + assetWorkerId.incrementAndGet());
+                thread.setDaemon(true);
+                return thread;
+            }
+        });
     }
 
     public void startCatalogFetch() {
@@ -149,7 +164,7 @@ public class CosmeticDownloader {
         if ("emote".equals(slot) && loadedEmotes.containsKey(id)) return;
         if (!loadingAssetIds.add(assetKey)) return;
 
-        Thread thread = new Thread(new Runnable() {
+        assetDownloadExecutor.execute(new Runnable() {
             @Override
             public void run() {
                 try {
@@ -175,9 +190,7 @@ public class CosmeticDownloader {
                     loadingAssetIds.remove(assetKey);
                 }
             }
-        }, "CosmeticAssetLoad-" + slot + "-" + id);
-        thread.setDaemon(true);
-        thread.start();
+        });
     }
 
     public static boolean isSupportedAssetSlot(String slot) {
