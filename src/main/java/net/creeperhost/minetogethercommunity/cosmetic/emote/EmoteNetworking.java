@@ -7,6 +7,9 @@ import net.minecraft.client.Minecraft;
 import net.minecraft.entity.player.EntityPlayerMP;
 import net.minecraft.server.MinecraftServer;
 import cpw.mods.fml.common.FMLCommonHandler;
+import net.minecraftforge.common.MinecraftForge;
+import cpw.mods.fml.common.eventhandler.SubscribeEvent;
+import cpw.mods.fml.common.gameevent.PlayerEvent;
 import cpw.mods.fml.common.network.ByteBufUtils;
 import cpw.mods.fml.common.network.NetworkRegistry;
 import cpw.mods.fml.common.network.simpleimpl.IMessage;
@@ -19,6 +22,8 @@ import org.apache.logging.log4j.Logger;
 
 import java.util.List;
 import java.util.UUID;
+import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 
 public final class EmoteNetworking {
 
@@ -26,6 +31,7 @@ public final class EmoteNetworking {
     private static final SimpleNetworkWrapper CHANNEL = NetworkRegistry.INSTANCE.newSimpleChannel("mtcommunity");
     private static final int MAX_EMOTE_ID_LENGTH = 128;
     private static boolean initialized;
+    private static final Map<UUID, String> ACTIVE_PERSISTENT_EMOTES = new ConcurrentHashMap<UUID, String>();
 
     private EmoteNetworking() {
     }
@@ -37,13 +43,14 @@ public final class EmoteNetworking {
         CHANNEL.registerMessage(client ? StartClientHandler.class : NoopStartClientHandler.class, StartEmoteS2C.class, 1, Side.CLIENT);
         CHANNEL.registerMessage(StopServerHandler.class, StopEmoteC2S.class, 2, Side.SERVER);
         CHANNEL.registerMessage(client ? StopClientHandler.class : NoopStopClientHandler.class, StopEmoteS2C.class, 3, Side.CLIENT);
+        MinecraftForge.EVENT_BUS.register(new PlayerLifecycleHandler());
         LOGGER.debug("Emote networking initialized");
     }
 
-    public static void tryBroadcastStart(String emoteId) {
+    public static void tryBroadcastStart(String emoteId, boolean persistent) {
         if (emoteId == null || emoteId.isEmpty() || !initialized) return;
         try {
-            CHANNEL.sendToServer(new StartEmoteC2S(emoteId));
+            CHANNEL.sendToServer(new StartEmoteC2S(emoteId, persistent));
         } catch (RuntimeException e) {
             LOGGER.debug("Could not broadcast emote start '{}'", emoteId, e);
         }
@@ -64,22 +71,26 @@ public final class EmoteNetworking {
 
     public static class StartEmoteC2S implements IMessage {
         private String emoteId;
+        private boolean persistent;
 
         public StartEmoteC2S() {
         }
 
-        private StartEmoteC2S(String emoteId) {
+        private StartEmoteC2S(String emoteId, boolean persistent) {
             this.emoteId = emoteId;
+            this.persistent = persistent;
         }
 
         @Override
         public void fromBytes(ByteBuf buf) {
             this.emoteId = ByteBufUtils.readUTF8String(buf);
+            this.persistent = buf.readBoolean();
         }
 
         @Override
         public void toBytes(ByteBuf buf) {
             ByteBufUtils.writeUTF8String(buf, emoteId == null ? "" : emoteId);
+            buf.writeBoolean(persistent);
         }
     }
 
@@ -150,6 +161,8 @@ public final class EmoteNetworking {
             final MinecraftServer server = FMLCommonHandler.instance().getMinecraftServerInstance();
             if (server == null) return null;
             if (!validEmoteId(message.emoteId)) return null;
+            if (message.persistent) ACTIVE_PERSISTENT_EMOTES.put(sender.getUniqueID(), message.emoteId);
+            else ACTIVE_PERSISTENT_EMOTES.remove(sender.getUniqueID());
             StartEmoteS2C packet = new StartEmoteS2C(sender.getUniqueID(), message.emoteId);
             List<EntityPlayerMP> players = server.getConfigurationManager().playerEntityList;
             for (EntityPlayerMP target : players) {
@@ -166,6 +179,7 @@ public final class EmoteNetworking {
             final EntityPlayerMP sender = ctx.getServerHandler().playerEntity;
             final MinecraftServer server = FMLCommonHandler.instance().getMinecraftServerInstance();
             if (server == null) return null;
+            ACTIVE_PERSISTENT_EMOTES.remove(sender.getUniqueID());
             StopEmoteS2C packet = new StopEmoteS2C(sender.getUniqueID());
             List<EntityPlayerMP> players = server.getConfigurationManager().playerEntityList;
             for (EntityPlayerMP target : players) {
@@ -173,6 +187,24 @@ public final class EmoteNetworking {
                 CHANNEL.sendTo(packet, target);
             }
             return null;
+        }
+    }
+
+    public static class PlayerLifecycleHandler {
+        @SubscribeEvent
+        public void onPlayerLogin(PlayerEvent.PlayerLoggedInEvent event) {
+            if (!(event.player instanceof EntityPlayerMP)) return;
+            EntityPlayerMP target = (EntityPlayerMP) event.player;
+            for (Map.Entry<UUID, String> active : ACTIVE_PERSISTENT_EMOTES.entrySet()) {
+                if (!active.getKey().equals(target.getUniqueID())) {
+                    CHANNEL.sendTo(new StartEmoteS2C(active.getKey(), active.getValue()), target);
+                }
+            }
+        }
+
+        @SubscribeEvent
+        public void onPlayerLogout(PlayerEvent.PlayerLoggedOutEvent event) {
+            ACTIVE_PERSISTENT_EMOTES.remove(event.player.getUniqueID());
         }
     }
 
