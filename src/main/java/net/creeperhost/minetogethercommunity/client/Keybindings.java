@@ -2,6 +2,7 @@ package net.creeperhost.minetogethercommunity.client;
 
 import net.creeperhost.minetogethercommunity.gui.SettingGui;
 import net.creeperhost.minetogethercommunity.cosmetic.CosmeticDownloader;
+import net.creeperhost.minetogethercommunity.cosmetic.CosmeticsGui;
 import net.creeperhost.minetogethercommunity.cosmetic.emote.EmoteFavorites;
 import net.creeperhost.minetogethercommunity.cosmetic.emote.EmotePlayer;
 import net.creeperhost.minetogethercommunity.cosmetic.emote.EmoteRadialScreen;
@@ -20,6 +21,7 @@ public class Keybindings {
     public static final KeyBinding OPEN_FRIEND_CHAT = new KeyBinding("key.minetogethercommunity.friends", Keyboard.KEY_NONE, "key.categories.minetogethercommunity");
     public static final KeyBinding OPEN_GLOBAL_CHAT = new KeyBinding("key.minetogethercommunity.chat", Keyboard.KEY_NONE, "key.categories.minetogethercommunity");
     public static final KeyBinding OPEN_SETTINGS = new KeyBinding("key.minetogethercommunity.settings", Keyboard.KEY_NONE, "key.categories.minetogethercommunity");
+    public static final KeyBinding OPEN_COSMETICS = new KeyBinding("key.minetogethercommunity.cosmetics", Keyboard.KEY_C, CATEGORY);
     public static final KeyBinding OPEN_EMOTES = new KeyBinding("key.minetogethercommunity.emotes", Keyboard.KEY_NONE, CATEGORY);
     public static final KeyBinding[] PLAY_FAVORITE_EMOTES = createFavoriteEmoteMappings();
 
@@ -27,6 +29,7 @@ public class Keybindings {
         ClientRegistry.registerKeyBinding(OPEN_FRIEND_CHAT);
         ClientRegistry.registerKeyBinding(OPEN_GLOBAL_CHAT);
         ClientRegistry.registerKeyBinding(OPEN_SETTINGS);
+        ClientRegistry.registerKeyBinding(OPEN_COSMETICS);
         ClientRegistry.registerKeyBinding(OPEN_EMOTES);
         for (KeyBinding mapping : PLAY_FAVORITE_EMOTES) {
             ClientRegistry.registerKeyBinding(mapping);
@@ -43,6 +46,9 @@ public class Keybindings {
         }
         if (OPEN_SETTINGS.isPressed()) {
             mc.displayGuiScreen(new SettingGui.Screen(mc.currentScreen));
+        }
+        if (OPEN_COSMETICS.isPressed()) {
+            mc.displayGuiScreen(new CosmeticsGui.Screen(mc.currentScreen));
         }
         if (OPEN_EMOTES.isPressed()) {
             mc.displayGuiScreen(new EmoteRadialScreen());
