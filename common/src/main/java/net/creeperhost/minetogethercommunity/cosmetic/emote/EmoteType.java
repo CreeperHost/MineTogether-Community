@@ -6,6 +6,7 @@ import java.util.Locale;
 
 public enum EmoteType {
     SIMPLE("simple", null),
+    JSON("json", null),
     GECKOLIB("geckolib", "geckolib"),
     UNKNOWN("unknown", null);
 
