@@ -111,7 +111,7 @@ public class ClientEvents {
         ServerAuthTest.processPackets();
         FriendChatNotifier.tick();
         InGameChatBridge.tick();
-        if (Minecraft.getMinecraft().currentScreen instanceof GuiChat && LocalConfig.instance().chatEnabled) {
+        if (Minecraft.getMinecraft().currentScreen instanceof GuiChat && MineTogetherChat.isChatEnabled()) {
             clampFocusedChatHeight(Minecraft.getMinecraft());
         }
         if (!(Minecraft.getMinecraft().currentScreen instanceof GuiChat) || MineTogetherChat.getTarget() == ChatTarget.VANILLA) {
@@ -158,7 +158,7 @@ public class ClientEvents {
     public void onRenderChatOverlay(RenderGameOverlayEvent.Chat event) {
         Minecraft mc = Minecraft.getMinecraft();
         if (!(mc.currentScreen instanceof GuiChat)
-                || !LocalConfig.instance().chatEnabled
+                || !MineTogetherChat.isChatEnabled()
                 || mc.gameSettings.hideGUI
                 || mc.ingameGUI == null) {
             return;
@@ -182,7 +182,7 @@ public class ClientEvents {
         GuiScreen gui = event.getGui();
         int button = Mouse.getEventButton();
         if (!(gui instanceof GuiChat)
-                || !LocalConfig.instance().chatEnabled
+                || !MineTogetherChat.isChatEnabled()
                 || MineTogetherChat.getTarget() == ChatTarget.VANILLA
                 || (button != 0 && button != 1)
                 || !Mouse.getEventButtonState()) {
@@ -234,7 +234,7 @@ public class ClientEvents {
     @SubscribeEvent
     public void onGuiInit(GuiScreenEvent.InitGuiEvent.Post event) {
         GuiScreen gui = event.getGui();
-        if (gui instanceof GuiChat && LocalConfig.instance().chatEnabled) {
+        if (gui instanceof GuiChat && MineTogetherChat.isChatEnabled()) {
             selectVanillaTargetForCommandInput(gui);
             clampFocusedChatHeight(Minecraft.getMinecraft());
             addChatTargetButtons(event, gui);
@@ -414,11 +414,11 @@ public class ClientEvents {
     @SubscribeEvent
     public void onDrawScreen(GuiScreenEvent.DrawScreenEvent.Pre event) {
         GuiScreen gui = event.getGui();
-        if (gui instanceof GuiChat && LocalConfig.instance().chatEnabled && !Minecraft.getMinecraft().gameSettings.hideGUI) {
+        if (gui instanceof GuiChat && MineTogetherChat.isChatEnabled() && !Minecraft.getMinecraft().gameSettings.hideGUI) {
             syncChatControlBounds(gui);
         }
         if (!(gui instanceof GuiChat)
-                || !LocalConfig.instance().chatEnabled
+                || !MineTogetherChat.isChatEnabled()
                 || Minecraft.getMinecraft().gameSettings.hideGUI
                 || MineTogetherChat.getTarget() != ChatTarget.PUBLIC
                 || !MineTogetherChat.isNewUser()) {
@@ -476,8 +476,8 @@ public class ClientEvents {
         int x = gui.width - 25;
         int y = 5;
         event.getButtonList().add(new IconButton(BUTTON_SETTINGS, x, y, 3, Constants.WIDGETS_SHEET, I18n.format("minetogether.gui.button.settings.info")));
-        event.getButtonList().add(new IconButton(BUTTON_FRIENDS, x - 21, y, 7, Constants.WIDGETS_SHEET, I18n.format("minetogether.gui.button.friends.info")));
-        if (LocalConfig.instance().chatEnabled) {
+        if (MineTogetherChat.isChatEnabled()) {
+            event.getButtonList().add(new IconButton(BUTTON_FRIENDS, x - 21, y, 7, Constants.WIDGETS_SHEET, I18n.format("minetogether.gui.button.friends.info")));
             event.getButtonList().add(new IconButton(BUTTON_CHAT, x - 42, y, 1, Constants.WIDGETS_SHEET, I18n.format("minetogether.gui.button.global_chat.info")));
         }
     }

@@ -17,6 +17,7 @@ import net.creeperhost.minetogethercommunity.cosmetic.PlayerCosmeticCache;
 import net.creeperhost.minetogethercommunity.gui.chat.PlayerIconElement;
 import net.creeperhost.minetogethercommunity.util.ModPackInfo;
 import net.minecraft.client.Minecraft;
+import net.minecraft.entity.player.EntityPlayer;
 import net.minecraft.util.text.TextComponentString;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -49,13 +50,13 @@ public class MineTogetherChat {
         markAccountFirstConnect();
         ChatStatistics.pollStats();
         InGameChatBridge.tick();
-        if (LocalConfig.instance().chatEnabled) {
+        if (isChatEnabled()) {
             enableChat();
         }
     }
 
     public static void enableChat() {
-        if (CHAT_STATE != null) {
+        if (CHAT_STATE != null && isChatEnabled()) {
             CHAT_STATE.ircClient.start();
         }
     }
@@ -77,7 +78,13 @@ public class MineTogetherChat {
     }
 
     public static ChatTarget getTarget() {
-        return LocalConfig.instance().chatEnabled ? LocalConfig.instance().selectedTab : ChatTarget.VANILLA;
+        return isChatEnabled() ? LocalConfig.instance().selectedTab : ChatTarget.VANILLA;
+    }
+
+    public static boolean isChatEnabled() {
+        Minecraft mc = Minecraft.getMinecraft();
+        return LocalConfig.instance().chatEnabled
+                && mc.gameSettings.chatVisibility != EntityPlayer.EnumChatVisibility.HIDDEN;
     }
 
     public static boolean isConnected() {
@@ -95,7 +102,7 @@ public class MineTogetherChat {
     }
 
     public static boolean sendPublicMessage(String text) {
-        if (CHAT_STATE == null || text.trim().isEmpty()) return false;
+        if (!isChatEnabled() || CHAT_STATE == null || text.trim().isEmpty()) return false;
         if (isBanned()) {
             localStatus("minetogether.gui.button.banned.info");
             return false;
@@ -113,6 +120,7 @@ public class MineTogetherChat {
     }
 
     public static boolean sendGroupMessage(String text) {
+        if (!isChatEnabled()) return false;
         if (CHAT_STATE == null || text.trim().isEmpty()) return false;
         ProfileManager.PrivateGroup group = CHAT_STATE.profileManager.getPrivateGroup();
         if (group == null || group.channelName == null) {
