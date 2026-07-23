@@ -123,6 +123,9 @@ public class PreviewElement extends GuiElement<PreviewElement> {
             double x = Math.min(mouseX, scaledScreenWidth() - (width + (border * 2)));
             double y = Math.min(mouseY, scaledScreenHeight() - (height + (border * 2)));
 
+            // Keep previews above vanilla screen content when this element is
+            // rendered by an injected ModularGui.
+            render.graphics().nextStratum();
             render.toolTipBackground(x, y, width + (border * 2), height + (border * 2));
             image.render(render, x + border, y + border, width, height);
         } else {
