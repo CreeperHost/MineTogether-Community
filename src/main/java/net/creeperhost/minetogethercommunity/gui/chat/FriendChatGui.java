@@ -230,6 +230,7 @@ public class FriendChatGui implements GuiProvider {
     }
 
     private void sendCurrentMessage() {
+        if (!MineTogetherChat.isChatEnabled()) return;
         if (input == null || chatMonitor.getChannel() == null) return;
         String text = input.getText().trim();
         if (text.isEmpty()) return;

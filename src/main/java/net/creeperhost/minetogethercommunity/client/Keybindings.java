@@ -8,6 +8,7 @@ import net.creeperhost.minetogethercommunity.cosmetic.emote.EmotePlayer;
 import net.creeperhost.minetogethercommunity.cosmetic.emote.EmoteRadialScreen;
 import net.creeperhost.minetogethercommunity.gui.chat.FriendChatGui;
 import net.creeperhost.minetogethercommunity.gui.chat.PublicChatGui;
+import net.creeperhost.minetogethercommunity.chat.MineTogetherChat;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.settings.KeyBinding;
 import cpw.mods.fml.client.registry.ClientRegistry;
@@ -43,10 +44,10 @@ public class Keybindings {
         Minecraft mc = Minecraft.getMinecraft();
         EmotePlayer.clientTick(mc);
         stopEmoteOnWorldInteraction(mc);
-        if (OPEN_FRIEND_CHAT.isPressed()) {
+        if (OPEN_FRIEND_CHAT.isPressed() && MineTogetherChat.isChatEnabled()) {
             mc.displayGuiScreen(new FriendChatGui.Screen(mc.currentScreen));
         }
-        if (OPEN_GLOBAL_CHAT.isPressed()) {
+        if (OPEN_GLOBAL_CHAT.isPressed() && MineTogetherChat.isChatEnabled()) {
             mc.displayGuiScreen(new PublicChatGui.Screen(mc.currentScreen));
         }
         if (OPEN_SETTINGS.isPressed()) {
