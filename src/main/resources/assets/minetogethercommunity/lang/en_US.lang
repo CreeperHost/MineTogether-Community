@@ -490,3 +490,4 @@ minetogether.connect.status.open=Friends sharing is open.
 minetogether.connect.status.failed=Friends sharing failed. Check the log for details.
 key.minetogethercommunity.cosmetics=Open Cosmetics
 minetogether.gui.emotes.traversal_active=%s active
+minetogether.gui.cosmetics.author=By %s
