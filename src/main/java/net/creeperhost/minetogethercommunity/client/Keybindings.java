@@ -24,6 +24,9 @@ public class Keybindings {
     public static final KeyBinding OPEN_COSMETICS = new KeyBinding("key.minetogethercommunity.cosmetics", Keyboard.KEY_C, CATEGORY);
     public static final KeyBinding OPEN_EMOTES = new KeyBinding("key.minetogethercommunity.emotes", Keyboard.KEY_NONE, CATEGORY);
     public static final KeyBinding[] PLAY_FAVORITE_EMOTES = createFavoriteEmoteMappings();
+    private static boolean wasAttackDown;
+    private static boolean wasUseDown;
+    private static boolean wasPickDown;
 
     public static void init() {
         ClientRegistry.registerKeyBinding(OPEN_FRIEND_CHAT);
@@ -38,6 +41,7 @@ public class Keybindings {
 
     public static void handleInput() {
         Minecraft mc = Minecraft.getMinecraft();
+        stopEmoteOnWorldInteraction(mc);
         if (OPEN_FRIEND_CHAT.isPressed()) {
             mc.displayGuiScreen(new FriendChatGui.Screen(mc.currentScreen));
         }
@@ -58,6 +62,24 @@ public class Keybindings {
                 playFavoriteEmote(i);
             }
         }
+    }
+
+    private static void stopEmoteOnWorldInteraction(Minecraft mc) {
+        if (mc.thePlayer == null || mc.currentScreen != null) {
+            wasAttackDown = false;
+            wasUseDown = false;
+            wasPickDown = false;
+            return;
+        }
+        boolean attackDown = mc.gameSettings.keyBindAttack.isKeyDown();
+        boolean useDown = mc.gameSettings.keyBindUseItem.isKeyDown();
+        boolean pickDown = mc.gameSettings.keyBindPickBlock.isKeyDown();
+        if ((attackDown && !wasAttackDown) || (useDown && !wasUseDown) || (pickDown && !wasPickDown)) {
+            EmotePlayer.stopLocal();
+        }
+        wasAttackDown = attackDown;
+        wasUseDown = useDown;
+        wasPickDown = pickDown;
     }
 
     private static KeyBinding[] createFavoriteEmoteMappings() {
