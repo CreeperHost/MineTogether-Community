@@ -4,15 +4,20 @@ import com.google.common.cache.Cache;
 import com.google.common.cache.CacheBuilder;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.util.concurrent.ThreadFactoryBuilder;
+import com.mojang.blaze3d.platform.NativeImage;
 import net.creeperhost.minetogethercommunity.chat.gui.MessageElement;
 import net.creeperhost.minetogether.lib.chat.message.Message;
 import net.creeperhost.polylib.client.modulargui.elements.GuiElement;
 import net.creeperhost.polylib.client.modulargui.elements.GuiList;
 import net.creeperhost.polylib.client.modulargui.lib.GuiRender;
 import net.creeperhost.polylib.client.modulargui.lib.geometry.GuiParent;
+import net.minecraft.client.Minecraft;
+import net.minecraft.client.renderer.RenderPipelines;
+import net.minecraft.client.renderer.texture.DynamicTexture;
 import net.minecraft.network.chat.Component;
 import net.minecraft.network.chat.HoverEvent;
 import net.minecraft.network.chat.Style;
+import net.minecraft.resources.Identifier;
 import org.apache.http.HttpEntity;
 import org.apache.http.client.methods.CloseableHttpResponse;
 import org.apache.http.client.methods.HttpGet;
@@ -35,6 +40,7 @@ import java.util.Set;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -60,6 +66,7 @@ public class PreviewElement extends GuiElement<PreviewElement> {
     private static final Logger LOGGER = LogManager.getLogger();
     private static final CloseableHttpClient HTTP_CLIENT = HttpClientBuilder.create().build();
     private static final ExecutorService PREVIEW_EXECUTOR = Executors.newSingleThreadExecutor(new ThreadFactoryBuilder().setNameFormat("preview-render-%d").setDaemon(true).build());
+    private static final AtomicLong NEXT_TEXTURE_ID = new AtomicLong();
     private static final Set<URL> INVALID_URLS = Collections.synchronizedSet(new HashSet<>());
     private static final Cache<URL, ImageLoader> CACHE = CacheBuilder.newBuilder()
             .expireAfterAccess(5, TimeUnit.MINUTES)
@@ -178,8 +185,10 @@ public class PreviewElement extends GuiElement<PreviewElement> {
     public record URLInfo(URL url, boolean admin){}
 
     private static class ImageLoader {
-        private int width = 1;
-        private int height = 1;
+        @Nullable
+        private NativeImage image = null;
+        @Nullable
+        private Identifier textureLocation = null;
         private volatile boolean loaded = false;
 
         private void load(URL url, boolean ogRedirect) {
@@ -197,8 +206,17 @@ public class PreviewElement extends GuiElement<PreviewElement> {
                         INVALID_URLS.add(url);
                         return;
                     }
-                    width = Math.max(1, bufferedImage.getWidth());
-                    height = Math.max(1, bufferedImage.getHeight());
+                    image = new NativeImage(NativeImage.Format.RGBA, bufferedImage.getWidth(), bufferedImage.getHeight(), false);
+                    for (int x = 0; x < bufferedImage.getWidth(); x++) {
+                        for (int y = 0; y < bufferedImage.getHeight(); y++) {
+                            int argb = bufferedImage.getRGB(x, y);
+                            int a = argb >>> 24;
+                            int r = argb >> 16 & 0xFF;
+                            int g = argb >> 8 & 0xFF;
+                            int b = argb & 0xFF;
+                            image.setPixelABGR(x, y, a << 24 | b << 16 | g << 8 | r);
+                        }
+                    }
                     loaded = true;
                     return;
                 }
@@ -234,19 +252,42 @@ public class PreviewElement extends GuiElement<PreviewElement> {
         }
 
         private int width() {
-            return width;
+            return image.getWidth();
         }
 
         private int height() {
-            return height;
+            return image.getHeight();
         }
 
         public void render(GuiRender render, double x, double y, double width, double height) {
-            render.borderRect(x, y, x + width, y + height, 1, 0xFF505050, 0xFF151515);
-            render.drawCenteredString(Component.translatable("minetogether:gui.chat.preview"), x + (width / 2D), y + ((height - render.font().lineHeight) / 2D), 0xFFFFFFFF);
+            if (textureLocation == null) {
+                textureLocation = Identifier.fromNamespaceAndPath("minetogethercommunity", "preview/" + NEXT_TEXTURE_ID.getAndIncrement());
+                Minecraft.getInstance().getTextureManager().register(textureLocation, new DynamicTexture(textureLocation::toString, image));
+            }
+
+            render.graphics().blit(
+                    RenderPipelines.GUI_TEXTURED,
+                    textureLocation,
+                    (int) x,
+                    (int) y,
+                    0,
+                    0,
+                    Math.max(1, (int) Math.ceil(width)),
+                    Math.max(1, (int) Math.ceil(height)),
+                    image.getWidth(),
+                    image.getHeight()
+            );
         }
 
         public void close() {
+            loaded = false;
+            if (textureLocation != null) {
+                Minecraft.getInstance().getTextureManager().release(textureLocation);
+                textureLocation = null;
+            } else if (image != null) {
+                image.close();
+            }
+            image = null;
         }
     }
 }
