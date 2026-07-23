@@ -18,6 +18,7 @@
     "license": "${license}",
     "icon": "",
     "environment": "*",
+    "accessWidener": "minetogethercommunity.accesswidener",
     "entrypoints": {
         "main": [
             "net.creeperhost.minetogethercommunity.fabric.MineTogetherFabric"
