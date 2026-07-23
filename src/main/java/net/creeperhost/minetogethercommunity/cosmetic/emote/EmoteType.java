@@ -5,15 +5,16 @@ import cpw.mods.fml.common.Loader;
 import java.util.Locale;
 
 public enum EmoteType {
-    SIMPLE("simple", true),
-    GECKOLIB("geckolib", false);
+    SIMPLE("simple", null),
+    GECKOLIB("geckolib", "geckolib"),
+    UNKNOWN("unknown", null);
 
     private final String metadataValue;
-    private final boolean builtInRuntime;
+    private final String requiredMod;
 
-    EmoteType(String metadataValue, boolean builtInRuntime) {
+    EmoteType(String metadataValue, String requiredMod) {
         this.metadataValue = metadataValue;
-        this.builtInRuntime = builtInRuntime;
+        this.requiredMod = requiredMod;
     }
 
     public String metadataValue() {
@@ -21,15 +22,20 @@ public enum EmoteType {
     }
 
     public boolean isAvailable() {
-        return builtInRuntime || Loader.isModLoaded("geckolib");
+        return this != UNKNOWN && (requiredMod == null || Loader.isModLoaded(requiredMod));
+    }
+
+    public boolean isKnown() {
+        return this != UNKNOWN;
     }
 
     public static EmoteType fromMetadata(String value) {
         if (value == null || value.trim().isEmpty()) return SIMPLE;
-        String normalized = value.toLowerCase(Locale.ROOT);
+        String normalized = value.trim().toLowerCase(Locale.ROOT);
         for (EmoteType type : values()) {
+            if (type == UNKNOWN) continue;
             if (type.metadataValue.equals(normalized)) return type;
         }
-        return SIMPLE;
+        return UNKNOWN;
     }
 }

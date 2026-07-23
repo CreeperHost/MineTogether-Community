@@ -330,6 +330,14 @@ public class CosmeticDownloader {
                 JsonObject object = element.getAsJsonObject();
                 String id = stringValue(object, "id", "");
                 if (id.isEmpty()) continue;
+                if ("emote".equals(slot)) {
+                    String metadataType = stringValue(object, "type", EmoteType.SIMPLE.metadataValue());
+                    EmoteType emoteType = EmoteType.fromMetadata(metadataType);
+                    if (!emoteType.isKnown() || !emoteType.isAvailable()) {
+                        LOGGER.info("Ignoring catalog emote '{}' with unsupported or unavailable type '{}'", id, metadataType);
+                        continue;
+                    }
+                }
                 CosmeticItem item = new CosmeticItem(
                         id,
                         stringValue(object, "name", id),
@@ -405,9 +413,10 @@ public class CosmeticDownloader {
                 JsonObject root = new JsonParser().parse(new InputStreamReader(inputStream, StandardCharsets.UTF_8)).getAsJsonObject();
                 String id = stringValue(root, "id", child.getName());
                 if (emoteCatalogById.containsKey(id)) continue;
-                EmoteType type = EmoteType.fromMetadata(stringValue(root, "type", EmoteType.SIMPLE.metadataValue()));
-                if (!type.isAvailable()) {
-                    LOGGER.info("Skipping local emote '{}' because runtime '{}' is not available", id, type.metadataValue());
+                String metadataType = stringValue(root, "type", EmoteType.SIMPLE.metadataValue());
+                EmoteType type = EmoteType.fromMetadata(metadataType);
+                if (!type.isKnown() || !type.isAvailable()) {
+                    LOGGER.info("Skipping local emote '{}' because type '{}' is unsupported or unavailable", id, metadataType);
                     continue;
                 }
                 CosmeticItem item = new CosmeticItem(
@@ -577,10 +586,20 @@ public class CosmeticDownloader {
         File itemDir = new File(new File(cacheBase, "emotes"), id);
         List<String> files = fetchAndCacheFiles(CDN_BASE_URL + "/emote/" + id, itemDir);
         JsonObject metadata = readMetadata(itemDir);
-        EmoteType type = EmoteType.fromMetadata(stringValue(metadata, "type", EmoteType.SIMPLE.metadataValue()));
-        if (!type.isAvailable()) {
-            loadingAssetIds.remove(assetKey("emote", id));
-            LOGGER.info("Skipping emote '{}' because runtime '{}' is not available", id, type.metadataValue());
+        String metadataType = stringValue(metadata, "type", EmoteType.SIMPLE.metadataValue());
+        EmoteType type = EmoteType.fromMetadata(metadataType);
+        if (!type.isKnown() || !type.isAvailable()) {
+            String key = assetKey("emote", id);
+            loadingAssetIds.remove(key);
+            failedAssetIds.add(key);
+            emoteCatalogById.remove(id);
+            for (CosmeticItem entry : emoteCatalogList) {
+                if (entry.id().equals(id)) {
+                    emoteCatalogList.remove(entry);
+                    break;
+                }
+            }
+            LOGGER.info("Ignoring emote '{}' because type '{}' is unsupported or unavailable", id, metadataType);
             return;
         }
 
