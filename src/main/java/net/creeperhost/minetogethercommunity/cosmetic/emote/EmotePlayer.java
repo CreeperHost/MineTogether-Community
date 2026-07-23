@@ -145,6 +145,11 @@ public final class EmotePlayer {
         ACTIVE.remove(playerId);
     }
 
+    public static void clearAll() {
+        ACTIVE.clear();
+        PREVIEW.remove();
+    }
+
     public static void withPreviewPose(String emoteId, Runnable render) {
         withPreviewPose(emoteId, Float.NaN, render);
     }

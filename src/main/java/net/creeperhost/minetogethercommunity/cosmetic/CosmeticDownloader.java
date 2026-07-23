@@ -47,6 +47,7 @@ import java.util.Locale;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.regex.Pattern;
 
 public class CosmeticDownloader {
 
@@ -54,6 +55,7 @@ public class CosmeticDownloader {
     private static final String CATALOG_BASE_URL = "https://api.creeper.host";
     private static final String CDN_BASE_URL = "https://cosmetic.cdn.minetogether.io";
     private static final int PAGE_LIMIT = 100;
+    private static final Pattern COSMETIC_ID_PATTERN = Pattern.compile("[a-z0-9][a-z0-9._-]{0,127}", Pattern.CASE_INSENSITIVE);
 
     private static volatile CosmeticDownloader instance;
 
@@ -134,7 +136,10 @@ public class CosmeticDownloader {
     }
 
     public void ensureAssetLoaded(final String slot, final String id) {
-        if (id == null || id.isEmpty()) return;
+        if (!isSupportedAssetSlot(slot) || !isValidAssetId(id)) {
+            LOGGER.warn("Refusing invalid cosmetic asset request: slot='{}', id='{}'", slot, id);
+            return;
+        }
         final String assetKey = assetKey(slot, id);
         if (failedAssetIds.contains(assetKey)) return;
         if ("hat".equals(slot) && loadedHats.containsKey(id)) return;
@@ -173,6 +178,15 @@ public class CosmeticDownloader {
         }, "CosmeticAssetLoad-" + slot + "-" + id);
         thread.setDaemon(true);
         thread.start();
+    }
+
+    public static boolean isSupportedAssetSlot(String slot) {
+        return "hat".equals(slot) || "cape".equals(slot) || "tail".equals(slot)
+                || "wing".equals(slot) || "emote".equals(slot);
+    }
+
+    public static boolean isValidAssetId(String id) {
+        return id != null && COSMETIC_ID_PATTERN.matcher(id).matches();
     }
 
     public List<CosmeticItem> getHatCatalog() {
