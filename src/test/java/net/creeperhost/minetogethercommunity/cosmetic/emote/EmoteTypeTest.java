@@ -16,6 +16,7 @@ public class EmoteTypeTest {
     @Test
     public void knownTypesAreCaseInsensitive() {
         assertEquals(EmoteType.SIMPLE, EmoteType.fromMetadata(" SIMPLE "));
+        assertEquals(EmoteType.JSON, EmoteType.fromMetadata(" JSON "));
         assertEquals(EmoteType.GECKOLIB, EmoteType.fromMetadata("GeckoLib"));
     }
 
