@@ -47,7 +47,7 @@ public final class EmotePlayer {
             EmoteNetworking.tryBroadcastStop();
             return;
         }
-        ACTIVE.put(playerId, new ActiveEmote(emote, mc.thePlayer.ticksExisted));
+        ACTIVE.put(playerId, new ActiveEmote(emote, mc.thePlayer.ticksExisted, false));
         EmoteNetworking.tryBroadcastStart(emoteId, emote.toggle());
     }
 
@@ -84,7 +84,7 @@ public final class EmotePlayer {
             return;
         }
         if (emote == null || !emote.type().isAvailable()) return;
-        ACTIVE.put(playerId, new ActiveEmote(emote, tickCount()));
+        ACTIVE.put(playerId, new ActiveEmote(emote, tickCount(), false));
     }
 
     private static void retryPlayRemote(final UUID playerId, final String emoteId) {
@@ -148,6 +148,20 @@ public final class EmotePlayer {
     public static void clearAll() {
         ACTIVE.clear();
         PREVIEW.remove();
+    }
+
+    public static void clientTick(Minecraft mc) {
+        if (mc.thePlayer == null) return;
+        UUID playerId = mc.thePlayer.getUniqueID();
+        ActiveEmote active = ACTIVE.get(playerId);
+        if (active == null || !active.emote.requiresMovement()) return;
+        if (isMoving(mc.thePlayer)) {
+            if (!active.movementObserved) {
+                ACTIVE.replace(playerId, active, active.withMovementObserved());
+            }
+        } else if (active.movementObserved) {
+            stopLocal();
+        }
     }
 
     public static void withPreviewPose(String emoteId, Runnable render) {
@@ -313,7 +327,10 @@ public final class EmotePlayer {
     private static boolean isMoving(AbstractClientPlayer player) {
         double x = player.motionX;
         double z = player.motionZ;
-        return x * x + z * z > CANCEL_MOVE_THRESHOLD_SQR;
+        if (x * x + z * z > CANCEL_MOVE_THRESHOLD_SQR) return true;
+        double positionX = player.posX - player.prevPosX;
+        double positionZ = player.posZ - player.prevPosZ;
+        return positionX * positionX + positionZ * positionZ > CANCEL_MOVE_THRESHOLD_SQR;
     }
 
     private static int tickCount() {
@@ -333,10 +350,16 @@ public final class EmotePlayer {
     private static class ActiveEmote {
         private final Emote emote;
         private final int startTick;
+        private final boolean movementObserved;
 
-        private ActiveEmote(Emote emote, int startTick) {
+        private ActiveEmote(Emote emote, int startTick, boolean movementObserved) {
             this.emote = emote;
             this.startTick = startTick;
+            this.movementObserved = movementObserved;
+        }
+
+        private ActiveEmote withMovementObserved() {
+            return new ActiveEmote(emote, startTick, true);
         }
     }
 

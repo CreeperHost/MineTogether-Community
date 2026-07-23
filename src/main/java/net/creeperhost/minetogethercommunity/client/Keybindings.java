@@ -41,6 +41,7 @@ public class Keybindings {
 
     public static void handleInput() {
         Minecraft mc = Minecraft.getMinecraft();
+        EmotePlayer.clientTick(mc);
         stopEmoteOnWorldInteraction(mc);
         if (OPEN_FRIEND_CHAT.isPressed()) {
             mc.displayGuiScreen(new FriendChatGui.Screen(mc.currentScreen));
