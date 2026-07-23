@@ -20,6 +20,10 @@ import java.net.URL;
 import java.nio.charset.StandardCharsets;
 import java.util.Locale;
 import java.util.UUID;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.ThreadFactory;
+import java.util.concurrent.atomic.AtomicInteger;
 
 public final class CosmeticApiClient {
 
@@ -27,12 +31,21 @@ public final class CosmeticApiClient {
     private static final String API_BASE = "https://api.creeper.host";
     private static final int PROFILE_POLL_ATTEMPTS = 20;
     private static final long PROFILE_POLL_DELAY_MS = 1000L;
+    private static final AtomicInteger REQUEST_WORKER_ID = new AtomicInteger();
+    private static final ExecutorService REQUEST_EXECUTOR = Executors.newFixedThreadPool(4, new ThreadFactory() {
+        @Override
+        public Thread newThread(Runnable runnable) {
+            Thread thread = new Thread(runnable, "CosmeticApiWorker-" + REQUEST_WORKER_ID.incrementAndGet());
+            thread.setDaemon(true);
+            return thread;
+        }
+    });
 
     private CosmeticApiClient() {
     }
 
     public static void fetchProfileAsync() {
-        Thread thread = new Thread(new Runnable() {
+        REQUEST_EXECUTOR.execute(new Runnable() {
             @Override
             public void run() {
                 try {
@@ -53,9 +66,7 @@ public final class CosmeticApiClient {
                     LOGGER.error("Failed to fetch cosmetic profile", e);
                 }
             }
-        }, "CosmeticProfileFetch");
-        thread.setDaemon(true);
-        thread.start();
+        });
     }
 
     public static void fetchProfileForPlayerAsync(final UUID uuid) {
@@ -74,7 +85,7 @@ public final class CosmeticApiClient {
     }
 
     private static void fetchProfileForTargetAsync(final String fullHash, final UUID uuid, final long revision) {
-        Thread thread = new Thread(new Runnable() {
+        REQUEST_EXECUTOR.execute(new Runnable() {
             @Override
             public void run() {
                 try {
@@ -92,9 +103,7 @@ public final class CosmeticApiClient {
                     }
                 }
             }
-        }, "CosmeticProfileFetch-" + profileLogName(uuid, fullHash));
-        thread.setDaemon(true);
-        thread.start();
+        });
     }
 
     private static String profileLogName(UUID uuid, String fullHash) {
@@ -111,7 +120,7 @@ public final class CosmeticApiClient {
             LOGGER.warn("Refusing cosmetic selection with invalid id '{}'", cosmeticId);
             return;
         }
-        Thread thread = new Thread(new Runnable() {
+        REQUEST_EXECUTOR.execute(new Runnable() {
             @Override
             public void run() {
                 try {
@@ -137,9 +146,7 @@ public final class CosmeticApiClient {
                     LOGGER.error("Failed to update cosmetic selection (slot={}, id={})", slot, cosmeticId, e);
                 }
             }
-        }, "CosmeticSelect-" + slot);
-        thread.setDaemon(true);
-        thread.start();
+        });
     }
 
     private static String waitForOwnProfileHash() throws InterruptedException {
@@ -238,8 +245,13 @@ public final class CosmeticApiClient {
         }
         int status = connection.getResponseCode();
         java.io.InputStream inputStream = status >= 400 ? connection.getErrorStream() : connection.getInputStream();
-        byte[] responseBody = inputStream == null ? new byte[0] : ByteStreams.toByteArray(inputStream);
-        return new HttpResponse(status, responseBody);
+        try {
+            byte[] responseBody = inputStream == null ? new byte[0] : ByteStreams.toByteArray(inputStream);
+            return new HttpResponse(status, responseBody);
+        } finally {
+            if (inputStream != null) inputStream.close();
+            connection.disconnect();
+        }
     }
 
     private static class HttpResponse {

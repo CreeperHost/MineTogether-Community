@@ -676,9 +676,14 @@ public class CosmeticDownloader {
         connection.setRequestProperty("Accept", "application/json, image/png, */*");
         int status = connection.getResponseCode();
         InputStream inputStream = status >= 400 ? connection.getErrorStream() : connection.getInputStream();
-        byte[] body = inputStream == null ? new byte[0] : ByteStreams.toByteArray(inputStream);
-        if (status != 200) throw new IOException("HTTP " + status + " for " + url + ": " + new String(body, StandardCharsets.UTF_8));
-        return body;
+        try {
+            byte[] body = inputStream == null ? new byte[0] : ByteStreams.toByteArray(inputStream);
+            if (status != 200) throw new IOException("HTTP " + status + " for " + url + ": " + new String(body, StandardCharsets.UTF_8));
+            return body;
+        } finally {
+            if (inputStream != null) inputStream.close();
+            connection.disconnect();
+        }
     }
 
     private static void writeBytes(File file, byte[] data) throws IOException {
