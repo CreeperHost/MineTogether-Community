@@ -167,7 +167,7 @@ public class CosmeticsGui implements GuiProvider {
         new CatalogGrid(root).setBounds(gridLeft, gridTop, gridWidth, screenHeight - gridTop - 14);
 
         new GuiRectangle(root, 0xE0101010).setBounds(previewLeft, bodyTop, PREVIEW_WIDTH, bodyHeight);
-        new PreviewElement(root).setBounds(previewLeft + 8, bodyTop + 42, PREVIEW_WIDTH - 16, bodyHeight - 90);
+        new PreviewElement(root).setBounds(previewLeft + 8, bodyTop + 50, PREVIEW_WIDTH - 16, bodyHeight - 98);
         new GuiText(root, new java.util.function.Supplier<String>() {
             @Override
             public String get() {
@@ -196,6 +196,12 @@ public class CosmeticsGui implements GuiProvider {
                 return currentPendingName();
             }
         }).setBounds(previewLeft + 8, bodyTop + 12, PREVIEW_WIDTH - 42, 8);
+        new GuiText(root, new java.util.function.Supplier<String>() {
+            @Override
+            public String get() {
+                return currentAuthorLine();
+            }
+        }).setColor(0xAAAAAA).setBounds(previewLeft + 8, bodyTop + 24, PREVIEW_WIDTH - 42, 8);
         new GuiButton(root, new java.util.function.Supplier<String>() {
             @Override
             public String get() {
@@ -812,6 +818,14 @@ public class CosmeticsGui implements GuiProvider {
         if (id.isEmpty()) return I18n.format("minetogether.gui.cosmetics.none");
         CosmeticItem item = catalogEntry(activeTab, id);
         return item == null ? id : item.displayName();
+    }
+
+    private String currentAuthorLine() {
+        String id = pendingFor(activeTab);
+        if (id.isEmpty()) return "";
+        CosmeticItem item = catalogEntry(activeTab, id);
+        if (item == null || item.author() == null || item.author().trim().isEmpty()) return "";
+        return I18n.format("minetogether.gui.cosmetics.author", item.author());
     }
 
     private CosmeticItem catalogEntry(CosmeticTypes type, String id) {
