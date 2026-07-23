@@ -477,12 +477,13 @@ public class CosmeticsGui implements GuiProvider {
 
         private void renderEmotePreview(CosmeticItem item, int x, int y, int width, int height) {
             if (item == null || item.locked()) return;
+            CosmeticDownloader.instance().ensureAssetLoaded("emote", item.id());
             Emote emote = EmoteRegistry.getLoaded(item.id());
             boolean loaded = emote != null;
             boolean favorite = EmoteFavorites.isFavorite(item.id());
             String state = loaded
                     ? I18n.format("minetogether.gui.cosmetics.emote.ready")
-                    : I18n.format("minetogether.gui.cosmetics.preview.loading");
+                    : spinnerFrame() + " " + I18n.format("minetogether.gui.cosmetics.preview.loading");
             int stateColor = loaded ? 0xFF7DFF91 : 0xFFFFDD55;
             font().drawString(trimToWidth(state, width - 12), x + 6, y + 9, stateColor);
             font().drawString(trimToWidth(favorite
