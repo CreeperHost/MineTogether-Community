@@ -28,6 +28,8 @@ import org.apache.commons.lang3.StringUtils;
 import org.jetbrains.annotations.NotNull;
 
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 import java.util.function.Supplier;
 
 import static net.creeperhost.polylib.client.modulargui.lib.geometry.Constraint.*;
@@ -40,6 +42,13 @@ import static net.minecraft.ChatFormatting.*;
  * Created by brandon3055 on 02/10/2023
  */
 public class SettingGui implements GuiProvider {
+
+    private static final ExecutorService PROFILE_VISIBILITY_EXECUTOR = Executors.newSingleThreadExecutor(task -> {
+        Thread thread = new Thread(task, "mt-profile-visibility");
+        thread.setContextClassLoader(SettingGui.class.getClassLoader());
+        thread.setDaemon(true);
+        return thread;
+    });
 
     private boolean showBlocked = false;
     private double blockedAnim;
@@ -301,7 +310,7 @@ public class SettingGui implements GuiProvider {
             } finally {
                 visibilityLoading = false;
             }
-        });
+        }, PROFILE_VISIBILITY_EXECUTOR);
     }
 
     private void cycleProfileVisibility() {
@@ -319,7 +328,7 @@ public class SettingGui implements GuiProvider {
             } finally {
                 visibilitySaving = false;
             }
-        });
+        }, PROFILE_VISIBILITY_EXECUTOR);
     }
 
     private static String nextProfileVisibility(String current) {
