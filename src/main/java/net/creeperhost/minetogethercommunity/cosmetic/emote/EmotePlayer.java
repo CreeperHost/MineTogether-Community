@@ -48,7 +48,7 @@ public final class EmotePlayer {
             return;
         }
         ACTIVE.put(playerId, new ActiveEmote(emote, mc.thePlayer.ticksExisted));
-        EmoteNetworking.tryBroadcastStart(emoteId);
+        EmoteNetworking.tryBroadcastStart(emoteId, emote.toggle());
     }
 
     public static void playRemote(UUID playerId, String emoteId) {
