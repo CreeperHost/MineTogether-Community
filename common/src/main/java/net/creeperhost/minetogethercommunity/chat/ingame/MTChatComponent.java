@@ -294,7 +294,8 @@ public class MTChatComponent extends ChatComponent {
                 Objects.requireNonNull(minecraft.font);
                 int j = (int) (y / 9.0 + (double) chatScrollbarPos());
                 if (j >= 0 && j < trimmedMessages().size()) {
-                    return handleClickedMessage(findMessageForTrimmedMessage(trimmedMessages().get(j)), x);
+                    GuiMessage.Line line = trimmedMessages().get(j);
+                    return handleClickedMessage(findMessageForTrimmedMessage(line), line.content(), x);
                 }
             }
         }
@@ -320,9 +321,10 @@ public class MTChatComponent extends ChatComponent {
                 Objects.requireNonNull(minecraft.font);
                 int j = (int) (y / 9.0 + (double) chatScrollbarPos());
                 if (j >= 0 && j < trimmedMessages().size()) {
-                    InGameDisplayableMessage message = findMessageForTrimmedMessage(trimmedMessages().get(j));
+                    GuiMessage.Line line = trimmedMessages().get(j);
+                    InGameDisplayableMessage message = findMessageForTrimmedMessage(line);
                     if (message == null) return null;
-                    return ChatStyleHelper.styleAtWidth(minecraft.font, message.getBuiltMessage(), (int) x);
+                    return ChatStyleHelper.styleAtWidth(minecraft.font, line.content(), (int) x);
                 }
             }
         }
@@ -355,14 +357,14 @@ public class MTChatComponent extends ChatComponent {
         return null;
     }
 
-    private boolean handleClickedMessage(@Nullable InGameDisplayableMessage clickedMessage, double x) {
+    private boolean handleClickedMessage(@Nullable InGameDisplayableMessage clickedMessage, FormattedCharSequence line, double x) {
         if (clickedMessage == null) return false;
 
         Message message = clickedMessage.getMessage();
         if (message.sender == null) return false;
         if (message.sender == MineTogetherChat.getOurProfile()) return false;
 
-        Style style = ChatStyleHelper.styleAtWidth(minecraft.font, clickedMessage.getBuiltMessage(), (int) x);
+        Style style = ChatStyleHelper.styleAtWidth(minecraft.font, line, (int) x);
         if (style == null) return false;
         ClickEvent event = style.getClickEvent();
         if (event == null) return false;
