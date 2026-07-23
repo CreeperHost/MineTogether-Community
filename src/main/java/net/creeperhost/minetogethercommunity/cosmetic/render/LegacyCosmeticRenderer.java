@@ -3,6 +3,7 @@ package net.creeperhost.minetogethercommunity.cosmetic.render;
 import net.creeperhost.minetogethercommunity.cosmetic.CosmeticSelections;
 import net.creeperhost.minetogethercommunity.cosmetic.CosmeticPreviewTime;
 import net.creeperhost.minetogethercommunity.cosmetic.PlayerCosmeticCache;
+import net.creeperhost.minetogethercommunity.cosmetic.ModelPlacement;
 import net.creeperhost.minetogethercommunity.cosmetic.cape.Cape;
 import net.creeperhost.minetogethercommunity.cosmetic.cape.CapeRegistry;
 import net.creeperhost.minetogethercommunity.cosmetic.emote.EmotePlayer;
@@ -16,6 +17,7 @@ import net.creeperhost.minetogethercommunity.util.CompatMath;
 import net.creeperhost.minetogethercommunity.cosmetic.wing.Wing;
 import net.creeperhost.minetogethercommunity.cosmetic.wing.WingAnimation;
 import net.creeperhost.minetogethercommunity.cosmetic.wing.WingRegistry;
+import net.creeperhost.minetogethercommunity.cosmetic.wing.WingPlacement;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.entity.AbstractClientPlayer;
 import net.minecraft.client.renderer.GlStateManager;
@@ -157,8 +159,9 @@ public class LegacyCosmeticRenderer implements LayerRenderer<AbstractClientPlaye
         Minecraft.getMinecraft().getTextureManager().bindTexture(hat.texture());
         if (hat.isJsonModel() && hat.jsonModel() != null) {
             float animationAge = CosmeticPreviewTime.ageInTicks(ageInTicks);
-            GlStateManager.scale(1.01F, 1.01F, 1.01F);
-            GlStateManager.translate(-8.0F / 16.0F, -16.0F / 16.0F, -8.0F / 16.0F);
+            ModelPlacement placement = hat.placement();
+            GlStateManager.scale(placement.scale(), placement.scale(), placement.scale());
+            GlStateManager.translate(placement.xPixels() / 16.0F, placement.yPixels() / 16.0F, placement.zPixels() / 16.0F);
             hat.jsonModel().render(hat.animation().pose(animationAge));
         } else {
             GlStateManager.scale(1.01F, 1.01F, 1.01F);
@@ -177,7 +180,9 @@ public class LegacyCosmeticRenderer implements LayerRenderer<AbstractClientPlaye
         Minecraft.getMinecraft().getTextureManager().bindTexture(tail.texture());
         GlStateManager.pushMatrix();
         renderer.getMainModel().bipedBody.postRender(SCALE);
-        GlStateManager.translate(-8.0F / 16.0F, 2.0F / 16.0F, 2.0F / 16.0F);
+        ModelPlacement placement = tail.placement();
+        GlStateManager.translate(placement.xPixels() / 16.0F, placement.yPixels() / 16.0F, placement.zPixels() / 16.0F);
+        GlStateManager.scale(placement.scale(), placement.scale(), placement.scale());
         float animationAge = CosmeticPreviewTime.ageInTicks(ageInTicks);
         TailPose tailPose = tail.animation().enabled()
                 ? tail.animation().pose(player, partialTicks, animationAge)
@@ -204,18 +209,20 @@ public class LegacyCosmeticRenderer implements LayerRenderer<AbstractClientPlaye
         Minecraft.getMinecraft().getTextureManager().bindTexture(wing.texture());
         GlStateManager.pushMatrix();
         renderer.getMainModel().bipedBody.postRender(SCALE);
-        GlStateManager.translate(0.0F, -7.0F / 16.0F, 4.2F / 16.0F);
-        GlStateManager.scale(0.58F, 0.58F, 0.58F);
-        renderWingSide(wing, false, spread);
-        renderWingSide(wing, true, spread);
+        WingPlacement placement = wing.placement();
+        ModelPlacement transform = placement.transform();
+        GlStateManager.translate(transform.xPixels() / 16.0F, transform.yPixels() / 16.0F, transform.zPixels() / 16.0F);
+        GlStateManager.scale(transform.scale(), transform.scale(), transform.scale());
+        renderWingSide(wing, placement, false, spread);
+        renderWingSide(wing, placement, true, spread);
         GlStateManager.popMatrix();
     }
 
-    private void renderWingSide(Wing wing, boolean mirrored, float flapAngle) {
+    private void renderWingSide(Wing wing, WingPlacement placement, boolean mirrored, float flapAngle) {
         GlStateManager.pushMatrix();
-        GlStateManager.translate(mirrored ? -2.4F / 16.0F : 2.4F / 16.0F, 0.0F, 0.0F);
+        GlStateManager.translate((mirrored ? -placement.hingeXPixels() : placement.hingeXPixels()) / 16.0F, 0.0F, 0.0F);
         GlStateManager.rotate(mirrored ? flapAngle : -flapAngle, 0.0F, 1.0F, 0.0F);
-        GlStateManager.rotate(mirrored ? -27.0F : 27.0F, 0.0F, 0.0F, 1.0F);
+        GlStateManager.rotate(mirrored ? -placement.restTiltDegrees() : placement.restTiltDegrees(), 0.0F, 0.0F, 1.0F);
         if (mirrored) {
             GlStateManager.scale(-1.0F, 1.0F, 1.0F);
         }
