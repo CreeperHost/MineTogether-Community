@@ -64,15 +64,16 @@ public final class CosmeticApiClient {
                 .hashString(uuid.toString(), StandardCharsets.UTF_8)
                 .toString()
                 .toUpperCase(Locale.ROOT);
-        fetchProfileForTargetAsync(fullHash, uuid);
+        fetchProfileForTargetAsync(fullHash, uuid, PlayerCosmeticCache.currentRevision(fullHash));
     }
 
     public static void fetchProfileForHashAsync(final String fullHash) {
         if (fullHash == null || fullHash.trim().isEmpty()) return;
-        fetchProfileForTargetAsync(fullHash.trim().toUpperCase(Locale.ROOT), null);
+        String normalized = fullHash.trim().toUpperCase(Locale.ROOT);
+        fetchProfileForTargetAsync(normalized, null, PlayerCosmeticCache.beginHashRefresh(normalized));
     }
 
-    private static void fetchProfileForTargetAsync(final String fullHash, final UUID uuid) {
+    private static void fetchProfileForTargetAsync(final String fullHash, final UUID uuid, final long revision) {
         Thread thread = new Thread(new Runnable() {
             @Override
             public void run() {
@@ -80,9 +81,9 @@ public final class CosmeticApiClient {
                     CosmeticSelections selections = fetchSelections(fullHash, true);
                     loadSelectedAssets(selections);
                     if (uuid != null) {
-                        PlayerCosmeticCache.put(uuid, selections);
+                        PlayerCosmeticCache.put(uuid, fullHash, selections, revision);
                     } else {
-                        PlayerCosmeticCache.putHash(fullHash, selections);
+                        PlayerCosmeticCache.putHash(fullHash, selections, revision);
                     }
                 } catch (Exception e) {
                     LOGGER.error("Failed to fetch cosmetic profile for player {}", profileLogName(uuid, fullHash), e);
@@ -101,6 +102,15 @@ public final class CosmeticApiClient {
     }
 
     public static void selectAsync(final String slot, final String cosmeticId) {
+        if (!isSelectionSlot(slot)) {
+            LOGGER.warn("Refusing cosmetic selection for unsupported slot '{}'", slot);
+            return;
+        }
+        if (cosmeticId != null && !cosmeticId.isEmpty() && !"none".equals(cosmeticId)
+                && !CosmeticDownloader.isValidAssetId(cosmeticId)) {
+            LOGGER.warn("Refusing cosmetic selection with invalid id '{}'", cosmeticId);
+            return;
+        }
         Thread thread = new Thread(new Runnable() {
             @Override
             public void run() {
@@ -175,7 +185,7 @@ public final class CosmeticApiClient {
                     ? selectedObject.get("slot").getAsString() : "";
             String id = selectedObject.has("cosmeticId") && !selectedObject.get("cosmeticId").isJsonNull()
                     ? selectedObject.get("cosmeticId").getAsString() : "";
-            if (id.isEmpty() || "none".equals(id)) continue;
+            if (!isSelectionSlot(slot) || !CosmeticDownloader.isValidAssetId(id)) continue;
             if ("hat".equals(slot)) selections.selectedHatId = id;
             else if ("cape".equals(slot)) selections.selectedCapeId = id;
             else if ("tail".equals(slot)) selections.selectedTailId = id;
@@ -183,6 +193,10 @@ public final class CosmeticApiClient {
         }
 
         return selections;
+    }
+
+    private static boolean isSelectionSlot(String slot) {
+        return "hat".equals(slot) || "cape".equals(slot) || "tail".equals(slot) || "wing".equals(slot);
     }
 
     private static void copySelections(CosmeticSelections source, CosmeticSelections target) {
