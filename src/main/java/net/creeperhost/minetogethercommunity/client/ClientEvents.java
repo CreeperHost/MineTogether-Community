@@ -134,7 +134,7 @@ public class ClientEvents {
         ServerAuthTest.processPackets();
         FriendChatNotifier.tick();
         InGameChatBridge.tick();
-        if (minecraft.currentScreen instanceof GuiChat && LocalConfig.instance().chatEnabled) {
+        if (minecraft.currentScreen instanceof GuiChat && MineTogetherChat.isChatEnabled()) {
             clampFocusedChatHeight(minecraft);
         }
         if (!(minecraft.currentScreen instanceof GuiChat) || MineTogetherChat.getTarget() == ChatTarget.VANILLA) {
@@ -148,7 +148,7 @@ public class ClientEvents {
     public void onGuiOpen(GuiOpenEvent event) {
         if (event.gui instanceof GuiChat
                 && !(event.gui instanceof MineTogetherGuiChat)
-                && LocalConfig.instance().chatEnabled) {
+                && MineTogetherChat.isChatEnabled()) {
             event.gui = new MineTogetherGuiChat(defaultChatText((GuiChat) event.gui));
         }
     }
@@ -165,7 +165,7 @@ public class ClientEvents {
     public void onRenderChatOverlay(RenderGameOverlayEvent.Chat event) {
         Minecraft mc = Minecraft.getMinecraft();
         if (!(mc.currentScreen instanceof GuiChat)
-                || !LocalConfig.instance().chatEnabled
+                || !MineTogetherChat.isChatEnabled()
                 || mc.gameSettings.hideGUI
                 || mc.ingameGUI == null) {
             return;
@@ -188,7 +188,7 @@ public class ClientEvents {
     @SubscribeEvent
     public void onGuiInit(GuiScreenEvent.InitGuiEvent.Post event) {
         GuiScreen gui = event.gui;
-        if (gui instanceof GuiChat && LocalConfig.instance().chatEnabled) {
+        if (gui instanceof GuiChat && MineTogetherChat.isChatEnabled()) {
             selectVanillaTargetForCommandInput(gui);
             clampFocusedChatHeight(Minecraft.getMinecraft());
             addChatTargetButtons(event, gui);
@@ -369,11 +369,11 @@ public class ClientEvents {
     @SubscribeEvent
     public void onDrawScreen(GuiScreenEvent.DrawScreenEvent.Pre event) {
         GuiScreen gui = event.gui;
-        if (gui instanceof GuiChat && LocalConfig.instance().chatEnabled && !Minecraft.getMinecraft().gameSettings.hideGUI) {
+        if (gui instanceof GuiChat && MineTogetherChat.isChatEnabled() && !Minecraft.getMinecraft().gameSettings.hideGUI) {
             syncChatControlBounds(gui);
         }
         if (!(gui instanceof GuiChat)
-                || !LocalConfig.instance().chatEnabled
+                || !MineTogetherChat.isChatEnabled()
                 || Minecraft.getMinecraft().gameSettings.hideGUI
                 || MineTogetherChat.getTarget() != ChatTarget.PUBLIC
                 || !MineTogetherChat.isNewUser()) {
@@ -431,8 +431,8 @@ public class ClientEvents {
         int x = gui.width - 25;
         int y = 5;
         event.buttonList.add(new IconButton(BUTTON_SETTINGS, x, y, 3, Constants.WIDGETS_SHEET, I18n.format("minetogether.gui.button.settings.info")));
-        event.buttonList.add(new IconButton(BUTTON_FRIENDS, x - 21, y, 7, Constants.WIDGETS_SHEET, I18n.format("minetogether.gui.button.friends.info")));
-        if (LocalConfig.instance().chatEnabled) {
+        if (MineTogetherChat.isChatEnabled()) {
+            event.buttonList.add(new IconButton(BUTTON_FRIENDS, x - 21, y, 7, Constants.WIDGETS_SHEET, I18n.format("minetogether.gui.button.friends.info")));
             event.buttonList.add(new IconButton(BUTTON_CHAT, x - 42, y, 1, Constants.WIDGETS_SHEET, I18n.format("minetogether.gui.button.global_chat.info")));
         }
     }
@@ -470,7 +470,7 @@ public class ClientEvents {
     }
 
     private boolean handleMineTogetherChatClick(GuiChat gui, int mouseX, int mouseY, int mouseButton) {
-        if (!LocalConfig.instance().chatEnabled || MineTogetherChat.getTarget() == ChatTarget.VANILLA) {
+        if (!MineTogetherChat.isChatEnabled() || MineTogetherChat.getTarget() == ChatTarget.VANILLA) {
             return false;
         }
 
@@ -1245,7 +1245,7 @@ public class ClientEvents {
         protected void keyTyped(char typedChar, int keyCode) throws IOException {
             ChatTarget target = MineTogetherChat.getTarget();
             if ((keyCode == Keyboard.KEY_RETURN || keyCode == Keyboard.KEY_NUMPADENTER)
-                    && LocalConfig.instance().chatEnabled
+                    && MineTogetherChat.isChatEnabled()
                     && target != ChatTarget.VANILLA) {
                 String text = inputField == null ? "" : inputField.getText();
                 if (!text.trim().startsWith("/")) {
