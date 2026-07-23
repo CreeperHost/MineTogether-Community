@@ -184,10 +184,7 @@ abstract class ChatScreenMixin extends Screen {
 
         switchToVanillaIfCommand();
 
-        ModularGui gui = ModularGuiInjector.getActiveGui();
-        if (gui != null && gui.getProvider() instanceof ChatScreenInjection) {
-            ChatScreenInjection.setURLProvider(this::getUrlUnderMouse);
-        }
+        ChatScreenInjection.setURLProvider(this::getUrlUnderMouse);
     }
 
     private void updateButtons() {
