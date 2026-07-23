@@ -2,6 +2,7 @@ package net.creeperhost.minetogethercommunity.cosmetic.emote;
 
 import io.netty.buffer.ByteBuf;
 import net.creeperhost.minetogethercommunity.cosmetic.CosmeticDownloader;
+import net.creeperhost.minetogethercommunity.cosmetic.CosmeticIdValidator;
 import net.minecraft.client.Minecraft;
 import net.minecraft.entity.player.EntityPlayerMP;
 import net.minecraft.server.MinecraftServer;
@@ -64,7 +65,7 @@ public final class EmoteNetworking {
     }
 
     private static boolean validEmoteId(String emoteId) {
-        return CosmeticDownloader.isValidAssetId(emoteId);
+        return CosmeticIdValidator.isValid(emoteId);
     }
 
     public static class StartEmoteC2S implements IMessage {
