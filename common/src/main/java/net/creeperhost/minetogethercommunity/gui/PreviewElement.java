@@ -275,6 +275,8 @@ public class PreviewElement extends GuiElement<PreviewElement> {
                     Math.max(1, (int) Math.ceil(width)),
                     Math.max(1, (int) Math.ceil(height)),
                     image.getWidth(),
+                    image.getHeight(),
+                    image.getWidth(),
                     image.getHeight()
             );
         }

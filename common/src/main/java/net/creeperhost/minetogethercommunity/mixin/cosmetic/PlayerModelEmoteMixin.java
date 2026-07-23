@@ -1,9 +1,9 @@
 package net.creeperhost.minetogethercommunity.mixin.cosmetic;
 
 import net.creeperhost.minetogethercommunity.cosmetic.emote.EmotePlayer;
+import net.creeperhost.minetogethercommunity.cosmetic.renderstate.MineTogetherCosmeticRenderState;
 import net.minecraft.client.model.player.PlayerModel;
-import net.minecraft.client.player.AbstractClientPlayer;
-import net.minecraft.world.entity.LivingEntity;
+import net.minecraft.client.renderer.entity.state.AvatarRenderState;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.Unique;
 import org.spongepowered.asm.mixin.injection.At;
@@ -11,25 +11,22 @@ import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 
 @Mixin(PlayerModel.class)
-public class PlayerModelEmoteMixin<T extends LivingEntity> {
+public class PlayerModelEmoteMixin {
 
     @Unique
     private boolean minetogether$hadEmotePose;
 
-    @Inject(method = "setupAnim(Lnet/minecraft/world/entity/LivingEntity;FFFFF)V", at = @At("HEAD"))
-    private void minetogether$resetEmotePose(T entity, float limbSwing, float limbSwingAmount, float ageInTicks,
-                                             float netHeadYaw, float headPitch, CallbackInfo ci) {
+    @Inject(method = "setupAnim(Lnet/minecraft/client/renderer/entity/state/AvatarRenderState;)V", at = @At("HEAD"))
+    private void minetogether$resetEmotePose(AvatarRenderState state, CallbackInfo ci) {
         if (!minetogether$hadEmotePose) return;
         PlayerModel model = (PlayerModel) (Object) this;
         minetogether$resetRotations(model);
         minetogether$hadEmotePose = false;
     }
 
-    @Inject(method = "setupAnim(Lnet/minecraft/world/entity/LivingEntity;FFFFF)V", at = @At("TAIL"))
-    private void minetogether$applyEmote(T entity, float limbSwing, float limbSwingAmount, float ageInTicks,
-                                         float netHeadYaw, float headPitch, CallbackInfo ci) {
-        if (!(entity instanceof AbstractClientPlayer player)) return;
-        EmotePlayer.Pose pose = EmotePlayer.poseFor(player, ageInTicks);
+    @Inject(method = "setupAnim(Lnet/minecraft/client/renderer/entity/state/AvatarRenderState;)V", at = @At("TAIL"))
+    private void minetogether$applyEmote(AvatarRenderState state, CallbackInfo ci) {
+        EmotePlayer.Pose pose = ((MineTogetherCosmeticRenderState) state).minetogether$emotePose();
         if (pose == null) return;
 
         PlayerModel model = (PlayerModel) (Object) this;
