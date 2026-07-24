@@ -176,7 +176,8 @@ public class MessageElement extends GuiElement<MessageElement> implements Foregr
             int index = (int) (y / (font().lineHeight + 1));
             if (index < 0 || index >= wrappedLines.size()) return null;
             FormattedCharSequence line = wrappedLines.get(index);
-            return font().getSplitter().componentStyleAtWidth(line, (int) Math.floor(x - inset));
+            double lineX = x - (index == 0 ? 0 : inset);
+            return font().getSplitter().componentStyleAtWidth(line, (int) Math.floor(lineX));
         }
     }
 
