@@ -244,7 +244,8 @@ public class MineTogetherChat {
     private static boolean isMinecraftChatAllowed(Minecraft mc) {
         Minecraft.ChatStatus status = mc.getChatStatus();
         return status != Minecraft.ChatStatus.DISABLED_BY_PROFILE
-                && status != Minecraft.ChatStatus.DISABLED_BY_LAUNCHER;
+                && status != Minecraft.ChatStatus.DISABLED_BY_LAUNCHER
+                && status != Minecraft.ChatStatus.DISABLED_BY_OPTIONS;
     }
 
     private static void refreshMinecraftChatAvailability(Minecraft mc) {
