@@ -53,7 +53,6 @@ public class PlayerModelEmoteMixin<T extends LivingEntity> {
         model.body.xRot = lerp(model.body.xRot, pose.bodyPitch(), weight);
         model.body.yRot = lerp(model.body.yRot, pose.bodyYaw(), weight);
         model.body.zRot = lerp(model.body.zRot, pose.bodyRoll(), weight);
-        minetogether$syncWearLayers(model);
     }
 
     private static float lerp(float from, float to, float weight) {
@@ -80,16 +79,5 @@ public class PlayerModelEmoteMixin<T extends LivingEntity> {
         model.leftLeg.xRot = 0.0F;
         model.leftLeg.yRot = 0.0F;
         model.leftLeg.zRot = 0.0F;
-        minetogether$syncWearLayers(model);
-    }
-
-    @Unique
-    private static void minetogether$syncWearLayers(PlayerModel model) {
-        model.hat.loadPose(model.head.storePose());
-        model.jacket.loadPose(model.body.storePose());
-        model.rightSleeve.loadPose(model.rightArm.storePose());
-        model.leftSleeve.loadPose(model.leftArm.storePose());
-        model.rightPants.loadPose(model.rightLeg.storePose());
-        model.leftPants.loadPose(model.leftLeg.storePose());
     }
 }
