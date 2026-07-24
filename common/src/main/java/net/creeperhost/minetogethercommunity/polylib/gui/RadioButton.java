@@ -118,10 +118,10 @@ public class RadioButton extends Button {
 
     @Override
     protected void extractContents(GuiGraphicsExtractor graphics, int mouseX, int mouseY, float partialTicks) {
-        int textColor = 0xFFFFFF;
+        int textColor = 0xFFFFFFFF;
         int fillColor = 0x64202020;
         if (isHovered || isPressed()) {
-            textColor = 0xffffa0;
+            textColor = 0xFFFFFFA0;
             fillColor = 0x80000000;
         }
         graphics.fill(getX(), getY(), getX() + width, getY() + height, fillColor);
