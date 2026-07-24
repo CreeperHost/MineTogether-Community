@@ -6,7 +6,6 @@ import net.creeperhost.minetogether.session.MineTogetherSession;
 import net.creeperhost.minetogethercommunity.activity.ActivityTelemetry;
 import net.creeperhost.minetogethercommunity.chat.FriendChatNotifier;
 import net.creeperhost.minetogethercommunity.chat.MineTogetherChat;
-import net.creeperhost.minetogethercommunity.chat.gui.ChatScreenInjection;
 import net.creeperhost.minetogethercommunity.compat.Integration;
 import net.creeperhost.minetogethercommunity.compat.MTPartners;
 import net.creeperhost.minetogethercommunity.compat.ftbquests.FTBQuestsCompat;
@@ -24,7 +23,6 @@ import net.creeperhost.minetogethercommunity.gui.SettingGui;
 import net.creeperhost.minetogethercommunity.orderform.OrderGui;
 import net.creeperhost.minetogethercommunity.util.MTSessionProvider;
 import net.creeperhost.polylib.client.modulargui.ModularGui;
-import net.creeperhost.polylib.client.modulargui.ModularGuiInjector;
 import net.creeperhost.polylib.client.screen.ButtonHelper;
 import net.creeperhost.polylib.event.events.client.PolyClientEntityEvents;
 import net.creeperhost.polylib.event.events.client.PolyClientLifecycleEvents;
@@ -38,7 +36,6 @@ import net.minecraft.client.gui.components.Renderable;
 import net.minecraft.client.gui.components.SpriteIconButton;
 import net.minecraft.client.gui.components.events.GuiEventListener;
 import net.minecraft.client.gui.narration.NarratableEntry;
-import net.minecraft.client.gui.screens.ChatScreen;
 import net.minecraft.client.gui.screens.ConfirmLinkScreen;
 import net.minecraft.client.gui.screens.PauseScreen;
 import net.minecraft.client.gui.screens.Screen;
@@ -69,8 +66,6 @@ public class MineTogetherClient {
             ActivityTelemetry.authChanged(token);
         });
         Keybindings.init();
-
-        ModularGuiInjector.registerInjection(e -> e instanceof ChatScreen, e -> new ChatScreenInjection());
 
         PolyClientLifecycleEvents.CLIENT_STARTED.register(MineTogetherClient::onClientStarted);
         PolyScreenEvents.SCREEN_OPENED.register(MineTogetherClient::onScreenOpen);

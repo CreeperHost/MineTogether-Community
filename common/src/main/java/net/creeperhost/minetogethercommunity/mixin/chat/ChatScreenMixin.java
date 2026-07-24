@@ -32,8 +32,6 @@ import net.minecraft.network.chat.Component;
 import net.minecraft.network.chat.Style;
 import net.minecraft.resources.Identifier;
 import net.minecraft.util.Mth;
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 import org.jetbrains.annotations.Nullable;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.Shadow;
@@ -49,8 +47,6 @@ import java.net.URL;
  */
 @Mixin(ChatScreen.class)
 abstract class ChatScreenMixin extends Screen {
-
-    private static final Logger LOGGER = LogManager.getLogger();
 
     private RadioButton vanillaChatButton;
     private RadioButton mtChatButton;
@@ -307,6 +303,7 @@ abstract class ChatScreenMixin extends Screen {
 
     @Override
     public void tick() {
+        ensurePreviewInjection();
         switchToVanillaIfCommand();
 
         if (groupChatButton != null && groupChatButton.visible == (MineTogetherChat.CHAT_STATE.profileManager.getPrivateGroup() == null)) {
@@ -338,6 +335,16 @@ abstract class ChatScreenMixin extends Screen {
         input.setSuggestion("");
     }
 
+    private void ensurePreviewInjection() {
+        Minecraft mc = Minecraft.getInstance();
+        if (!MineTogetherChat.isChatEnabled() || mc.gui.hud.isHidden()) return;
+
+        ModularGui gui = ModularGuiInjector.getActiveGui();
+        if (gui != null && gui.getScreen() == this) {
+            ChatScreenInjection.attachTo(gui);
+        }
+    }
+
     private boolean tryClickMTChat(MTChatComponent mtChat, double mouseX, double mouseY, int button) {
         if (!mtChat.handleClick(mouseX, mouseY)) return false;
 
@@ -345,7 +352,8 @@ abstract class ChatScreenMixin extends Screen {
         if (message == null) return false;
 
         ModularGui gui = ModularGuiInjector.getActiveGui();
-        if (gui != null && gui.getProvider() instanceof ChatScreenInjection injection && injection.canShowDialog()) {
+        ChatScreenInjection injection = gui == null ? null : ChatScreenInjection.getAttached(gui);
+        if (injection != null && injection.canShowDialog()) {
             clickedMessage = message;
             mtChat.clearClickedMessage();
             injection.openMessageDialog(clickedMessage, input, mouseX, mouseY, button);
