@@ -31,6 +31,7 @@ import net.minecraft.client.gui.screens.PauseScreen;
 import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.client.gui.screens.TitleScreen;
 import net.minecraft.network.chat.Component;
+import net.minecraft.world.entity.player.ChatVisiblity;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.jetbrains.annotations.Nullable;
@@ -252,7 +253,8 @@ public class MineTogetherChat {
     }
 
     private static boolean isMinecraftChatAllowed(Minecraft mc) {
-        return mc.computeChatAbilities().restrictions().noneMatch(restriction ->
+        return mc.options.chatVisibility().get() != ChatVisiblity.HIDDEN
+                && mc.computeChatAbilities().restrictions().noneMatch(restriction ->
                 restriction == ChatRestriction.DISABLED_BY_PROFILE
                         || restriction == ChatRestriction.DISABLED_BY_LAUNCHER);
     }
