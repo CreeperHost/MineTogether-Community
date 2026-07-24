@@ -3,6 +3,7 @@
     "package": "net.creeperhost.minetogethercommunity.mixin",
     "minVersion": "0.7.11",
     "client": [
+      "chat.MinecraftChatSafetyMixin",
       "chat.ChatScreenMixin",
       "chat.ScreenMixin",
       "chat.ingame.ChatComponentMixin",
