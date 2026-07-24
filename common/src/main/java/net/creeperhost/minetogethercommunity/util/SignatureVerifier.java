@@ -14,8 +14,12 @@ public class SignatureVerifier {
 
     private static final Logger LOGGER = LogManager.getLogger();
 
+    public static boolean isDebugSignatureSet() {
+        return System.getProperty("mt.develop.signature") != null;
+    }
+
     public static String generateSignature() {
-        if (!Platform.isDevelopmentEnvironment() && System.getProperty("mt.develop.signature") == null) {
+        if (!Platform.isDevelopmentEnvironment() && !isDebugSignatureSet()) {
             Path modJar = MineTogetherPlatform.getModJar();
             if (modJar != null && modJar.toString().endsWith(".jar")) {
                 try {
