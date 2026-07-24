@@ -253,7 +253,7 @@ public class MineTogetherChat {
     }
 
     private static boolean isMinecraftChatAllowed(Minecraft mc) {
-        return mc.options.chatVisibility().get() != ChatVisiblity.HIDDEN
+        return mc.options.chatVisibility().get() == ChatVisiblity.FULL
                 && mc.computeChatAbilities().restrictions().noneMatch(restriction ->
                 restriction == ChatRestriction.DISABLED_BY_PROFILE
                         || restriction == ChatRestriction.DISABLED_BY_LAUNCHER);
