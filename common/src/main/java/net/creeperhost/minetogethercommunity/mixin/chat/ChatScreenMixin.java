@@ -358,10 +358,20 @@ abstract class ChatScreenMixin extends Screen {
     private PreviewElement.URLInfo getUrlUnderMouse(double mouseX, double mouseY) {
         if (MineTogetherChat.getTarget() != ChatTarget.PUBLIC) return null;
 
-        Style style = MineTogetherChat.publicChat.getStyleUnderMouse(mouseX, mouseY);
-        URL url = PreviewElement.urlFromStyle(style);
+        ChatStyleHelper.ChatHit hit = ChatStyleHelper.chatHitAtPosition(
+                Minecraft.getInstance(),
+                getFont(),
+                MineTogetherChat.publicChat,
+                mouseX,
+                mouseY,
+                displayMode,
+                false
+        );
+        if (hit == null) return null;
+
+        URL url = PreviewElement.urlFromStyle(hit.style());
         if (url == null) return null;
-        Message message = MineTogetherChat.publicChat.getMessageUnderMouse(mouseX, mouseY);
+        Message message = MineTogetherChat.publicChat.getMessageForLine(hit.line());
         return new PreviewElement.URLInfo(url, message != null && message.sender == null);
     }
 

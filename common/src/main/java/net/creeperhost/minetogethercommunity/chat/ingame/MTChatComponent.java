@@ -365,6 +365,19 @@ public class MTChatComponent extends ChatComponent {
         return null;
     }
 
+    @Nullable
+    public Message getMessageForLine(@Nullable FormattedCharSequence lineContent) {
+        if (lineContent == null) return null;
+
+        for (GuiMessage.Line line : trimmedMessages()) {
+            if (line.content() == lineContent) {
+                InGameDisplayableMessage message = findMessageForTrimmedMessage(line);
+                return message == null ? null : message.getMessage();
+            }
+        }
+        return null;
+    }
+
     private boolean handleClickedMessage(@Nullable InGameDisplayableMessage clickedMessage, FormattedCharSequence line, double x) {
         if (clickedMessage == null) return false;
 
