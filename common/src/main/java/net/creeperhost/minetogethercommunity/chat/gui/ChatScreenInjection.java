@@ -32,6 +32,10 @@ public class ChatScreenInjection implements GuiProvider {
     private static final Logger LOGGER = LogManager.getLogger();
     @Nullable
     private static PreviewElement.URLProvider linkProvider;
+    @Nullable
+    private static ModularGui attachedGui;
+    @Nullable
+    private static ChatScreenInjection attachedInjection;
 
     @Override
     public GuiElement<?> createRootElement(ModularGui gui) {
@@ -45,11 +49,32 @@ public class ChatScreenInjection implements GuiProvider {
 
     @Override
     public void buildGui(ModularGui gui) {
-        this.gui = gui;
         gui.initFullscreenGui();
+        attachToGui(gui);
+    }
+
+    private void attachToGui(ModularGui gui) {
+        this.gui = gui;
         preview = new PreviewElement(gui.getRoot());
         Constraints.bind(preview, gui.getRoot());
         preview.setUrlProvider((mouseX, mouseY) -> linkProvider == null ? null : linkProvider.getUrlUnderMouse(mouseX, mouseY));
+        attachedGui = gui;
+        attachedInjection = this;
+    }
+
+    public static ChatScreenInjection attachTo(ModularGui gui) {
+        if (attachedGui == gui && attachedInjection != null) {
+            return attachedInjection;
+        }
+
+        ChatScreenInjection injection = new ChatScreenInjection();
+        injection.attachToGui(gui);
+        return injection;
+    }
+
+    @Nullable
+    public static ChatScreenInjection getAttached(ModularGui gui) {
+        return attachedGui == gui ? attachedInjection : null;
     }
 
     public static void setURLProvider(PreviewElement.URLProvider linkProvider) {
