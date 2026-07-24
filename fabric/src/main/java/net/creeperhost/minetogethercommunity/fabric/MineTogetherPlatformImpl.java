@@ -4,6 +4,7 @@ import net.creeperhost.minetogethercommunity.MineTogether;
 import net.creeperhost.minetogethercommunity.cosmetic.emote.EmoteNetworking;
 import net.creeperhost.minetogethercommunity.platform.MineTogetherPlatformService;
 import net.fabricmc.api.EnvType;
+import net.fabricmc.fabric.api.client.keymapping.v1.KeyMappingHelper;
 import net.fabricmc.loader.api.FabricLoader;
 import net.fabricmc.loader.api.ModContainer;
 import net.fabricmc.loader.api.metadata.ModOrigin;
@@ -77,7 +78,7 @@ public class MineTogetherPlatformImpl implements MineTogetherPlatformService {
 
     @Override
     public void registerKeyMapping(KeyMapping keyMapping) {
-        // KeyMapping registers itself in 26.1 when constructed.
+        KeyMappingHelper.registerKeyMapping(keyMapping);
     }
 
     @Override
