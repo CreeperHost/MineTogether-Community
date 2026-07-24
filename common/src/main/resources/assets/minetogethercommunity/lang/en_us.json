@@ -301,6 +301,7 @@
     "minetogether:gui.server_list.sort.ping": "Ping",
 
     "key.categories.minetogether": "MineTogether",
+    "key.category.minetogethercommunity.main": "MineTogether",
     "key.minetogether.friend_chat": "Open friend chat",
     "key.minetogether.global_chat": "Open global chat",
     "key.minetogether.settings": "Open Settings",
