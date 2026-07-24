@@ -345,11 +345,11 @@ public class SettingGui implements GuiProvider {
     private void toggleEnabled() {
         LocalConfig config = LocalConfig.instance();
         if (config.chatEnabled) {
-            MineTogetherChat.disableChat();
             config.chatEnabled = false;
+            MineTogetherChat.disableChat();
         } else {
-            MineTogetherChat.enableChat();
             config.chatEnabled = true;
+            MineTogetherChat.enableChat();
         }
         LocalConfig.save();
     }
