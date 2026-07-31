@@ -42,11 +42,14 @@ import net.minecraft.client.gui.GuiMainMenu;
 import net.minecraft.client.gui.GuiMultiplayer;
 import net.minecraft.client.gui.GuiNewChat;
 import net.minecraft.client.gui.GuiScreen;
+import net.minecraft.client.gui.ScaledResolution;
 import net.minecraft.client.gui.GuiTextField;
 import net.minecraft.client.renderer.GlStateManager;
 import net.minecraft.client.settings.GameSettings;
 import net.minecraft.client.resources.I18n;
 import net.minecraft.server.integrated.IntegratedServer;
+import net.minecraft.event.HoverEvent;
+import net.minecraft.util.IChatComponent;
 import net.minecraft.util.ResourceLocation;
 import net.minecraft.util.text.TextFormatting;
 import net.minecraft.util.text.ITextComponent;
@@ -66,6 +69,7 @@ import java.lang.reflect.Field;
 import java.net.MalformedURLException;
 import java.net.URL;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 import java.util.function.Supplier;
 
@@ -86,6 +90,8 @@ public class ClientEvents {
     private static final int BUTTON_NEW_USER_ACCEPT = -812030;
     private static final int BUTTON_NEW_USER_REJECT = -812031;
     private static final int CHAT_VANILLA_BASE_Y = 20;
+    private static final int CHAT_VANILLA_EVENT_BOTTOM_OFFSET = 48;
+    private static final int CHAT_CONTENT_BOTTOM_OFFSET = 40;
     private static final int VANILLA_BUTTON_SHARE_TO_LAN = 7;
     private static final Field CHAT_INPUT_FIELD = findField(GuiChat.class, "inputField", "field_146415_a");
     private static final Field CHAT_DEFAULT_INPUT_TEXT = findOptionalField(GuiChat.class, "defaultInputFieldText", "field_146409_v");
@@ -188,6 +194,7 @@ public class ClientEvents {
         GuiScreen gui = event.gui;
         if (gui instanceof GuiChat && MineTogetherChat.isChatEnabled()) {
             selectVanillaTargetForCommandInput(gui);
+            InGameChatBridge.onChatOpened();
             clampFocusedChatHeight(Minecraft.getMinecraft());
             addChatTargetButtons(event, gui);
             if (LocalConfig.instance().chatSettingsSliders) {
@@ -430,7 +437,7 @@ public class ClientEvents {
             chatActionPopup.draw(event.mouseX, event.mouseY);
             return;
         }
-        PreviewElement.URLInfo info = InGameChatBridge.getUrlUnderMouse(Mouse.getX(), Mouse.getY());
+        PreviewElement.URLInfo info = InGameChatBridge.getUrlUnderMouse(Mouse.getX(), focusedChatRawMouseY(Mouse.getY()));
         if (info != null) {
             PreviewElement.renderPreview(Minecraft.getMinecraft(), info, event.mouseX, event.mouseY,
                     event.gui.width, event.gui.height, 80, false);
@@ -526,7 +533,7 @@ public class ClientEvents {
 
         boolean overFocusedChat = isOverFocusedChat(gui, mouseX, mouseY);
         int rawMouseX = Mouse.getX();
-        int rawMouseY = Mouse.getY();
+        int rawMouseY = focusedChatRawMouseY(Mouse.getY());
         Message message = mouseButton == 1 || mouseButton == 0 && GuiScreen.isShiftKeyDown()
                 ? InGameChatBridge.getMessageUnderMouse(rawMouseX, rawMouseY)
                 : InGameChatBridge.getClickedMessage(rawMouseX, rawMouseY);
@@ -727,6 +734,9 @@ public class ClientEvents {
     }
 
     private boolean drawFocusedChat(Minecraft mc, GuiNewChat chat, RenderGameOverlayEvent.Chat event) throws IllegalAccessException {
+        if (MineTogetherChat.getTarget() != ChatTarget.VANILLA) {
+            event.posY = focusedChatEventY(event.resolution.getScaledHeight());
+        }
         @SuppressWarnings("unchecked")
         List<ChatLine> lines = (List<ChatLine>) DRAWN_CHAT_LINES.get(chat);
         if (lines == null || lines.isEmpty()) {
@@ -952,6 +962,22 @@ public class ClientEvents {
 
     private int focusedChatBackdropBottom(int screenHeight) {
         return LocalConfig.instance().chatSettingsSliders ? screenHeight - 25 : screenHeight - 40;
+    }
+
+    private int focusedChatBottomY(int screenHeight) {
+        return screenHeight - CHAT_CONTENT_BOTTOM_OFFSET;
+    }
+
+    private int focusedChatEventY(int screenHeight) {
+        return focusedChatBottomY(screenHeight) - CHAT_VANILLA_BASE_Y;
+    }
+
+    private int focusedChatRawMouseY(int rawMouseY) {
+        Minecraft mc = Minecraft.getMinecraft();
+        ScaledResolution resolution = new ScaledResolution(mc, mc.displayWidth, mc.displayHeight);
+        int vanillaEventY = resolution.getScaledHeight() - CHAT_VANILLA_EVENT_BOTTOM_OFFSET;
+        int eventOffset = focusedChatEventY(resolution.getScaledHeight()) - vanillaEventY;
+        return rawMouseY + eventOffset * resolution.getScaleFactor();
     }
 
     private int chatFocusedHeight() {
@@ -1270,6 +1296,25 @@ public class ClientEvents {
                 return;
             }
             super.mouseClicked(mouseX, mouseY, mouseButton);
+        }
+
+        @Override
+        public void drawScreen(int mouseX, int mouseY, float partialTicks) {
+            super.drawScreen(mouseX, mouseY, partialTicks);
+            if (MineTogetherChat.getTarget() != ChatTarget.VANILLA) {
+                IChatComponent component = focusedChatComponentUnderMouse();
+                HoverEvent hover = component == null || component.getChatStyle() == null
+                        ? null
+                        : component.getChatStyle().getChatHoverEvent();
+                if (hover != null && hover.getAction() == HoverEvent.Action.SHOW_TEXT && hover.getValue() != null) {
+                    drawHoveringText(Arrays.asList(hover.getValue().getFormattedText().split("\n", -1)), mouseX, mouseY);
+                }
+            }
+        }
+
+        private IChatComponent focusedChatComponentUnderMouse() {
+            if (mc == null || mc.ingameGUI == null) return null;
+            return mc.ingameGUI.getChatGUI().getChatComponent(Mouse.getX(), focusedChatRawMouseY(Mouse.getY()));
         }
     }
 

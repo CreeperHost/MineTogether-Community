@@ -41,6 +41,7 @@ public class InGameChatBridge {
     private static IrcChannel.ChatListener groupListener;
     private static String groupChannelName;
     private static ChatTarget renderedTarget = ChatTarget.VANILLA;
+    private static GuiNewChat renderedChat;
     private static ChatTarget deferredRenderTarget;
     private static boolean replaying;
     private static int nextMessageId = 1;
@@ -56,8 +57,14 @@ public class InGameChatBridge {
         syncChannelHistory(ChatTarget.GROUP, groupChannel);
         flushPending();
         ChatTarget target = MineTogetherChat.getTarget();
-        if (target != renderedTarget || target == deferredRenderTarget) {
+        GuiNewChat activeChat = Minecraft.getMinecraft().ingameGUI == null
+                ? null
+                : Minecraft.getMinecraft().ingameGUI.getChatGUI();
+        if (target != renderedTarget || target == deferredRenderTarget
+                || target != ChatTarget.VANILLA && activeChat != null && activeChat != renderedChat) {
             renderTarget(target);
+        } else if (target == ChatTarget.VANILLA && activeChat != null) {
+            renderedChat = activeChat;
         }
     }
 
@@ -103,6 +110,7 @@ public class InGameChatBridge {
         nextMessageId = 1;
         deferredRenderTarget = null;
         renderedTarget = ChatTarget.VANILLA;
+        renderedChat = null;
     }
 
     public static void captureVanillaMessage(IChatComponent message) {
@@ -115,6 +123,15 @@ public class InGameChatBridge {
 
     public static void onTargetChanged(ChatTarget target) {
         renderTarget(target == null ? ChatTarget.VANILLA : target);
+    }
+
+    public static void onChatOpened() {
+        ChatTarget target = MineTogetherChat.getTarget();
+        if (target != ChatTarget.VANILLA) {
+            renderTarget(target);
+        } else if (Minecraft.getMinecraft().ingameGUI != null) {
+            renderedChat = Minecraft.getMinecraft().ingameGUI.getChatGUI();
+        }
     }
 
     public static Message getClickedMessage(int mouseX, int mouseY) {
@@ -315,7 +332,7 @@ public class InGameChatBridge {
         boolean currentTargetNeedsReplay = false;
         for (PendingMessage pending : copy) {
             HistoryEntry entry = addMtHistory(pending.target, pending.message);
-            if (pending.target == target && renderedTarget == target && activeChat != null) {
+            if (pending.target == target && renderedTarget == target && activeChat != null && activeChat == renderedChat) {
                 activeChat.printChatMessage(format(pending.target, entry));
                 printed++;
             } else if (pending.target == target) {
@@ -370,6 +387,7 @@ public class InGameChatBridge {
             }
             chat.resetScroll();
             renderedTarget = target;
+            renderedChat = chat;
             deferredRenderTarget = null;
             DiagnosticLog.info(LOGGER, "[MT-1710-DIAG] replayed in-game chat target={} messages={} publicHistory={} groupHistory={} drawnBefore={} storedBefore={} drawnAfterClear={} storedAfterClear={} drawnAfterReplay={} storedAfterReplay={}",
                     target, Integer.valueOf(replayed),
