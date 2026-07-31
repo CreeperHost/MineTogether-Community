@@ -28,7 +28,7 @@ import net.creeperhost.minetogethercommunity.modulargui.GuiTextPrompt;
 import net.creeperhost.minetogethercommunity.modulargui.GuiTexture;
 import net.creeperhost.minetogethercommunity.modulargui.ModularGui;
 import net.creeperhost.minetogethercommunity.modulargui.ModularGuiScreen;
-import net.creeperhost.minetogethercommunity.oauth.KeycloakOAuth;
+import net.creeperhost.minetogethercommunity.util.ChatLinkOpener;
 import net.creeperhost.minetogethercommunity.util.MessageFormatter;
 import net.minecraft.client.gui.GuiScreen;
 import net.minecraft.client.resources.I18n;
@@ -803,9 +803,7 @@ public class FriendChatGui implements GuiProvider {
                         return true;
                     }
                     if (clickedUrl != null) {
-                        if (!KeycloakOAuth.openURL(clickedUrl)) {
-                            MineTogetherChat.localStatus("minetogether.gui.chat.action.open_failed");
-                        }
+                        ChatLinkOpener.open(clickedUrl);
                         return true;
                     }
                     if (isNameClick(style) && isActionable(message)) {
@@ -832,9 +830,7 @@ public class FriendChatGui implements GuiProvider {
                 menu.addOption(I18n.format("minetogether.gui.chat.action.open_link"), 0x55AAFF, new Runnable() {
                     @Override
                     public void run() {
-                        if (!KeycloakOAuth.openURL(url)) {
-                            MineTogetherChat.localStatus("minetogether.gui.chat.action.open_failed");
-                        }
+                        ChatLinkOpener.open(url);
                     }
                 });
             }
