@@ -33,6 +33,7 @@ public class MineTogetherChat {
     public static ChatState CHAT_STATE;
     private static boolean attached;
     private static Object profileListener;
+    private static boolean minecraftChatAllowed = true;
 
     public static void init() {
         CHAT_AUTH = new ChatAuthImpl(Minecraft.getMinecraft());
@@ -50,6 +51,7 @@ public class MineTogetherChat {
         markAccountFirstConnect();
         ChatStatistics.pollStats();
         InGameChatBridge.tick();
+        refreshMinecraftChatAvailability();
         if (isChatEnabled()) {
             enableChat();
         }
@@ -82,9 +84,29 @@ public class MineTogetherChat {
     }
 
     public static boolean isChatEnabled() {
-        Minecraft mc = Minecraft.getMinecraft();
         return LocalConfig.instance().chatEnabled
-                && mc.gameSettings.chatVisibility != EntityPlayer.EnumChatVisibility.HIDDEN;
+                && isMinecraftChatAllowed();
+    }
+
+    public static void tick() {
+        refreshMinecraftChatAvailability();
+    }
+
+    private static boolean isMinecraftChatAllowed() {
+        return Minecraft.getMinecraft().gameSettings.chatVisibility == EntityPlayer.EnumChatVisibility.FULL;
+    }
+
+    private static void refreshMinecraftChatAvailability() {
+        boolean allowed = isMinecraftChatAllowed();
+        if (minecraftChatAllowed == allowed) return;
+
+        minecraftChatAllowed = allowed;
+        if (CHAT_STATE == null) return;
+        if (!allowed) {
+            CHAT_STATE.ircClient.stop();
+        } else if (LocalConfig.instance().chatEnabled) {
+            CHAT_STATE.ircClient.start();
+        }
     }
 
     public static boolean isConnected() {
