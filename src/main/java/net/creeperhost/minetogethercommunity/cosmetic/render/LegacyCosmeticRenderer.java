@@ -86,13 +86,13 @@ public class LegacyCosmeticRenderer {
         }
 
         try {
-            renderCape(event, player, renderer, event.partialRenderTick);
             EmotePlayer.ModelState modelState = EmotePlayer.applyToModel(renderer.modelBipedMain, player, ageInTicks);
             GlStateManager.pushMatrix();
             boolean retainEmoteTransform = false;
             try {
                 EmoteRenderTransforms.apply(player, ageInTicks);
                 GlStateManager.color(1.0F, 1.0F, 1.0F, 1.0F);
+                renderCape(event, player, renderer, event.partialRenderTick);
                 renderHat(player, renderer, ageInTicks);
                 renderTail(player, renderer, event.partialRenderTick, ageInTicks);
                 renderWing(player, renderer, ageInTicks);
