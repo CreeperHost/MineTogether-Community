@@ -25,7 +25,7 @@ import net.creeperhost.minetogethercommunity.modulargui.GuiTextPrompt;
 import net.creeperhost.minetogethercommunity.modulargui.GuiTexture;
 import net.creeperhost.minetogethercommunity.modulargui.ModularGui;
 import net.creeperhost.minetogethercommunity.modulargui.ModularGuiScreen;
-import net.creeperhost.minetogethercommunity.oauth.KeycloakOAuth;
+import net.creeperhost.minetogethercommunity.util.ChatLinkOpener;
 import net.creeperhost.minetogethercommunity.util.MessageFormatter;
 import net.minecraft.client.gui.GuiScreen;
 import net.minecraft.client.resources.I18n;
@@ -472,9 +472,7 @@ public class PublicChatGui implements GuiProvider {
         }
 
         private void openUrl(URL url) {
-            if (!KeycloakOAuth.openURL(url)) {
-                MineTogetherChat.localStatus("minetogether.gui.chat.action.open_failed");
-            }
+            ChatLinkOpener.open(url);
         }
 
         private void toggleMute(Profile profile) {

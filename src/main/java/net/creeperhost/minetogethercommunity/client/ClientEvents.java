@@ -29,6 +29,7 @@ import net.creeperhost.minetogethercommunity.gui.chat.PublicChatGui;
 import net.creeperhost.minetogethercommunity.oauth.KeycloakOAuth;
 import net.creeperhost.minetogethercommunity.oauth.ServerAuthTest;
 import net.creeperhost.minetogethercommunity.proxy.ClientProxy;
+import net.creeperhost.minetogethercommunity.util.ChatLinkOpener;
 import net.creeperhost.minetogethercommunity.util.CompatMath;
 import net.minecraft.client.Minecraft;
 import net.minecraft.entity.player.EntityPlayer;
@@ -512,9 +513,7 @@ public class ClientEvents {
         }
 
         if (mouseButton == 0 && url != null && !GuiScreen.isShiftKeyDown()) {
-            if (!KeycloakOAuth.openURL(url)) {
-                MineTogetherChat.localStatus("minetogether.gui.chat.action.open_failed");
-            }
+            ChatLinkOpener.open(url);
             return true;
         }
         if (mouseButton == 0 && !GuiScreen.isShiftKeyDown() && isActionableMessage(message)) {
@@ -1052,9 +1051,7 @@ public class ClientEvents {
                 options.add(new PopupOption(I18n.format("minetogether.gui.chat.action.open_link"), 0x55AAFF, new Runnable() {
                     @Override
                     public void run() {
-                        if (!KeycloakOAuth.openURL(ChatActionPopup.this.url)) {
-                            MineTogetherChat.localStatus("minetogether.gui.chat.action.open_failed");
-                        }
+                        ChatLinkOpener.open(ChatActionPopup.this.url);
                     }
                 }));
             }
