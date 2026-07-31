@@ -436,6 +436,40 @@ task checkLegacyLog4jCompatibility(dependsOn: reobfShadowJar) {
     }
 }
 
+task checkExternalInvocationDescriptors(dependsOn: reobfShadowJar) {
+    doLast {
+        def relocatedGuava = "net/creeperhost/minetogethercommunity/repack/com/google/common"
+        def offenders = []
+        new java.util.zip.ZipFile(shadowJar.archivePath).withCloseable { zip ->
+            zip.entries().each { entry ->
+                if (!entry.name.endsWith(".class")) {
+                    return
+                }
+                byte[] bytes = zip.getInputStream(entry).withCloseable { stream -> stream.bytes }
+                def reader = new org.objectweb.asm.ClassReader(bytes)
+                def visitor = new org.objectweb.asm.ClassVisitor(org.objectweb.asm.Opcodes.ASM5) {
+                    @Override
+                    org.objectweb.asm.MethodVisitor visitMethod(int access, String name, String desc, String signature, String[] exceptions) {
+                        return new org.objectweb.asm.MethodVisitor(org.objectweb.asm.Opcodes.ASM5) {
+                            @Override
+                            void visitMethodInsn(int opcode, String owner, String methodName, String methodDesc, boolean itf) {
+                                if ((owner.startsWith("net/minecraft/") || owner.startsWith("net/minecraftforge/"))
+                                        && methodDesc.contains(relocatedGuava)) {
+                                    offenders << "${entry.name} calls ${owner}.${methodName}${methodDesc}"
+                                }
+                            }
+                        }
+                    }
+                }
+                reader.accept(visitor, org.objectweb.asm.ClassReader.SKIP_DEBUG | org.objectweb.asm.ClassReader.SKIP_FRAMES)
+            }
+        }
+        if (!offenders.isEmpty()) {
+            throw new GradleException("Shading rewrote an external Minecraft/Forge invocation descriptor to relocated Guava:\n" + offenders.sort().join("\n"))
+        }
+    }
+}
+
 task checkResourceReferences {
     doLast {
         File assetRoot = file("src/main/resources/assets/minetogethercommunity")
@@ -600,3 +634,4 @@ check.dependsOn checkLanguageKeys
 check.dependsOn checkServerEntrypoints
 check.dependsOn checkBackportSourceHygiene
 check.dependsOn checkLegacyResourceMetadata
+check.dependsOn checkExternalInvocationDescriptors

@@ -3,6 +3,8 @@ package net.creeperhost.minetogethercommunity.cosmetic.emote;
 import io.netty.buffer.ByteBuf;
 import net.creeperhost.minetogethercommunity.cosmetic.CosmeticDownloader;
 import net.creeperhost.minetogethercommunity.cosmetic.CosmeticIdValidator;
+import net.creeperhost.minetogethercommunity.util.ClientTaskRunner;
+import net.creeperhost.minetogethercommunity.util.ServerTaskRunner;
 import net.minecraft.client.Minecraft;
 import net.minecraft.entity.player.EntityPlayerMP;
 import net.minecraft.server.MinecraftServer;
@@ -160,7 +162,7 @@ public final class EmoteNetworking {
             final EntityPlayerMP sender = ctx.getServerHandler().playerEntity;
             final MinecraftServer server = FMLCommonHandler.instance().getMinecraftServerInstance();
             if (server == null) return null;
-            server.addScheduledTask(new Runnable() {
+            ServerTaskRunner.run(server, new Runnable() {
                 @Override
                 public void run() {
                     if (!validEmoteId(message.emoteId)) return;
@@ -184,7 +186,7 @@ public final class EmoteNetworking {
             final EntityPlayerMP sender = ctx.getServerHandler().playerEntity;
             final MinecraftServer server = FMLCommonHandler.instance().getMinecraftServerInstance();
             if (server == null) return null;
-            server.addScheduledTask(new Runnable() {
+            ServerTaskRunner.run(server, new Runnable() {
                 @Override
                 public void run() {
                     ACTIVE_PERSISTENT_EMOTES.remove(sender.getUniqueID());
@@ -221,7 +223,7 @@ public final class EmoteNetworking {
     public static class StartClientHandler implements IMessageHandler<StartEmoteS2C, IMessage> {
         @Override
         public IMessage onMessage(final StartEmoteS2C message, MessageContext ctx) {
-            Minecraft.getMinecraft().addScheduledTask(new Runnable() {
+            ClientTaskRunner.run(new Runnable() {
                 @Override
                 public void run() {
                     if (!validEmoteId(message.emoteId)) return;
@@ -237,7 +239,7 @@ public final class EmoteNetworking {
     public static class StopClientHandler implements IMessageHandler<StopEmoteS2C, IMessage> {
         @Override
         public IMessage onMessage(final StopEmoteS2C message, MessageContext ctx) {
-            Minecraft.getMinecraft().addScheduledTask(new Runnable() {
+            ClientTaskRunner.run(new Runnable() {
                 @Override
                 public void run() {
                     if (Minecraft.getMinecraft().thePlayer != null && Minecraft.getMinecraft().thePlayer.getUniqueID().equals(message.playerId)) return;

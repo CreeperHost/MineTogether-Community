@@ -1,6 +1,7 @@
 package net.creeperhost.minetogethercommunity.cosmetic.emote;
 
 import net.creeperhost.minetogethercommunity.cosmetic.CosmeticPreviewTime;
+import net.creeperhost.minetogethercommunity.util.ClientTaskRunner;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.entity.AbstractClientPlayer;
 import net.minecraft.client.model.ModelBiped;
@@ -99,7 +100,7 @@ public final class EmotePlayer {
                         return;
                     }
                     if (EmoteRegistry.getLoaded(emoteId) != null) {
-                        Minecraft.getMinecraft().addScheduledTask(new Runnable() {
+                        ClientTaskRunner.run(new Runnable() {
                             @Override
                             public void run() {
                                 playRemote(playerId, emoteId, false);
@@ -126,7 +127,7 @@ public final class EmotePlayer {
                         return;
                     }
                     if (EmoteRegistry.getLoaded(emoteId) != null) {
-                        Minecraft.getMinecraft().addScheduledTask(new Runnable() {
+                        ClientTaskRunner.run(new Runnable() {
                             @Override
                             public void run() {
                                 playLocal(emoteId, false);
