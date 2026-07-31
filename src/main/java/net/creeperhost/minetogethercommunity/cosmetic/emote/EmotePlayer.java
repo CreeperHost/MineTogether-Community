@@ -225,7 +225,7 @@ public final class EmotePlayer {
         return poseFrom(animation, elapsed, !loopingToggle);
     }
 
-    public static ModelState applyToModel(ModelPlayer model, AbstractClientPlayer player, float ageInTicks) {
+    public static ModelState applyToModel(ModelBiped model, AbstractClientPlayer player, float ageInTicks) {
         Pose pose = poseFor(player, ageInTicks);
         if (pose == null) return null;
         ModelState state = new ModelState(model);
@@ -339,13 +339,15 @@ public final class EmotePlayer {
         return mc.thePlayer != null ? mc.thePlayer.ticksExisted : 0;
     }
 
-    private static void syncWearLayers(ModelPlayer model) {
-        ModelBiped.copyModelAngles(model.bipedHead, model.bipedHeadwear);
-        ModelBiped.copyModelAngles(model.bipedBody, model.bipedBodyWear);
-        ModelBiped.copyModelAngles(model.bipedRightArm, model.bipedRightArmwear);
-        ModelBiped.copyModelAngles(model.bipedLeftArm, model.bipedLeftArmwear);
-        ModelBiped.copyModelAngles(model.bipedRightLeg, model.bipedRightLegwear);
-        ModelBiped.copyModelAngles(model.bipedLeftLeg, model.bipedLeftLegwear);
+    private static void syncWearLayers(ModelBiped model) {
+        if (!(model instanceof ModelPlayer)) return;
+        ModelPlayer playerModel = (ModelPlayer) model;
+        ModelBiped.copyModelAngles(playerModel.bipedHead, playerModel.bipedHeadwear);
+        ModelBiped.copyModelAngles(playerModel.bipedBody, playerModel.bipedBodyWear);
+        ModelBiped.copyModelAngles(playerModel.bipedRightArm, playerModel.bipedRightArmwear);
+        ModelBiped.copyModelAngles(playerModel.bipedLeftArm, playerModel.bipedLeftArmwear);
+        ModelBiped.copyModelAngles(playerModel.bipedRightLeg, playerModel.bipedRightLegwear);
+        ModelBiped.copyModelAngles(playerModel.bipedLeftLeg, playerModel.bipedLeftLegwear);
     }
 
     private static class ActiveEmote {
@@ -382,7 +384,7 @@ public final class EmotePlayer {
         private final PartState rightLeg;
         private final PartState leftLeg;
 
-        private ModelState(ModelPlayer model) {
+        private ModelState(ModelBiped model) {
             this.head = new PartState(model.bipedHead);
             this.body = new PartState(model.bipedBody);
             this.rightArm = new PartState(model.bipedRightArm);
@@ -391,7 +393,7 @@ public final class EmotePlayer {
             this.leftLeg = new PartState(model.bipedLeftLeg);
         }
 
-        public void restore(ModelPlayer model) {
+        public void restore(ModelBiped model) {
             head.restore(model.bipedHead);
             body.restore(model.bipedBody);
             rightArm.restore(model.bipedRightArm);

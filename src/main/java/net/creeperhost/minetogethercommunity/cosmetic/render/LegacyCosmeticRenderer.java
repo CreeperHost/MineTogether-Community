@@ -25,14 +25,15 @@ import net.minecraft.client.renderer.OpenGlHelper;
 import net.minecraft.client.renderer.entity.RendererLivingEntity;
 import net.minecraft.client.renderer.entity.RenderPlayer;
 import net.minecraft.client.renderer.entity.layers.LayerCape;
+import net.minecraft.client.renderer.entity.layers.LayerBipedArmor;
 import net.minecraft.client.renderer.entity.layers.LayerRenderer;
 import net.minecraft.entity.EntityLivingBase;
 import net.minecraft.entity.player.EnumPlayerModelParts;
 import net.minecraft.util.ResourceLocation;
 
 import java.lang.reflect.Field;
-import java.util.Iterator;
 import java.util.List;
+import java.util.ListIterator;
 import java.util.Map;
 
 public class LegacyCosmeticRenderer implements LayerRenderer<AbstractClientPlayer> {
@@ -63,10 +64,12 @@ public class LegacyCosmeticRenderer implements LayerRenderer<AbstractClientPlaye
                 MAIN_MODEL_FIELD.set(renderer, new EmoteModelPlayer(smallArms));
             }
             List<LayerRenderer> layers = (List<LayerRenderer>) LAYER_RENDERERS_FIELD.get(renderer);
-            Iterator<LayerRenderer> iterator = layers.iterator();
+            ListIterator<LayerRenderer> iterator = layers.listIterator();
             while (iterator.hasNext()) {
                 LayerRenderer layer = iterator.next();
-                if (layer instanceof LegacyCosmeticRenderer || layer instanceof LayerCape) {
+                if (layer instanceof LayerBipedArmor && !(layer instanceof EmoteArmorLayer)) {
+                    iterator.set(new EmoteArmorLayer(renderer));
+                } else if (layer instanceof LegacyCosmeticRenderer || layer instanceof LayerCape) {
                     iterator.remove();
                 }
             }
