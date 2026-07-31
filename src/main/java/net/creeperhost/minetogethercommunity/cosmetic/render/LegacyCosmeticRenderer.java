@@ -25,13 +25,23 @@ import net.minecraft.client.renderer.OpenGlHelper;
 import net.minecraft.client.renderer.entity.RenderPlayer;
 import net.minecraft.util.ResourceLocation;
 import net.minecraftforge.client.event.RenderPlayerEvent;
+import cpw.mods.fml.common.eventhandler.EventPriority;
 import cpw.mods.fml.common.eventhandler.SubscribeEvent;
+
+import java.util.ArrayDeque;
+import java.util.Deque;
 
 public class LegacyCosmeticRenderer {
 
     private static final float SCALE = 0.0625F;
+    private final ThreadLocal<Deque<EmoteRenderState>> activeEmoteRenders = new ThreadLocal<Deque<EmoteRenderState>>() {
+        @Override
+        protected Deque<EmoteRenderState> initialValue() {
+            return new ArrayDeque<EmoteRenderState>();
+        }
+    };
 
-    @SubscribeEvent
+    @SubscribeEvent(priority = EventPriority.LOWEST)
     public void onRenderPlayerSpecials(RenderPlayerEvent.Specials.Pre event) {
         if (!(event.entityPlayer instanceof AbstractClientPlayer)) return;
         AbstractClientPlayer player = (AbstractClientPlayer) event.entityPlayer;
@@ -53,6 +63,7 @@ public class LegacyCosmeticRenderer {
             float yaw = EmotePlayer.renderYaw(player, ageInTicks);
             float roll = EmotePlayer.renderRoll(player, ageInTicks);
             GlStateManager.pushMatrix();
+            boolean retainEmoteTransform = false;
             try {
                 if (translateY != 0.0F) {
                     GlStateManager.translate(0.0F, translateY, 0.0F);
@@ -74,10 +85,16 @@ public class LegacyCosmeticRenderer {
                 renderHat(player, renderer, ageInTicks);
                 renderTail(player, renderer, event.partialRenderTick, ageInTicks);
                 renderWing(player, renderer, ageInTicks);
-            } finally {
-                GlStateManager.popMatrix();
                 if (modelState != null) {
-                    modelState.restore(renderer.modelBipedMain);
+                    activeEmoteRenders.get().push(new EmoteRenderState(renderer, modelState));
+                    retainEmoteTransform = true;
+                }
+            } finally {
+                if (!retainEmoteTransform) {
+                    GlStateManager.popMatrix();
+                    if (modelState != null) {
+                        modelState.restore(renderer.modelBipedMain);
+                    }
                 }
             }
         } finally {
@@ -85,6 +102,26 @@ public class LegacyCosmeticRenderer {
             if (fullBrightPreview) {
                 OpenGlHelper.setLightmapTextureCoords(OpenGlHelper.lightmapTexUnit, previousLightX, previousLightY);
             }
+        }
+    }
+
+    @SubscribeEvent(priority = EventPriority.HIGHEST)
+    public void onRenderPlayerSpecialsPost(RenderPlayerEvent.Specials.Post event) {
+        Deque<EmoteRenderState> renders = activeEmoteRenders.get();
+        if (renders.isEmpty()) return;
+
+        EmoteRenderState render = renders.pop();
+        GlStateManager.popMatrix();
+        render.modelState.restore(render.renderer.modelBipedMain);
+    }
+
+    private static class EmoteRenderState {
+        private final RenderPlayer renderer;
+        private final EmotePlayer.ModelState modelState;
+
+        private EmoteRenderState(RenderPlayer renderer, EmotePlayer.ModelState modelState) {
+            this.renderer = renderer;
+            this.modelState = modelState;
         }
     }
 
