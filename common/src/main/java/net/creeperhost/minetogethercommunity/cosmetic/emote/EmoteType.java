@@ -33,6 +33,8 @@ public enum EmoteType {
     public static EmoteType fromMetadata(String value) {
         if (value == null || value.isBlank()) return SIMPLE;
         String normalized = value.trim().toLowerCase(Locale.ROOT);
+        // Existing CDN animations use "json" for the built-in JSON animation runtime.
+        if (normalized.equals("json")) return SIMPLE;
         for (EmoteType type : values()) {
             if (type == UNKNOWN) continue;
             if (type.metadataValue.equals(normalized)) return type;
