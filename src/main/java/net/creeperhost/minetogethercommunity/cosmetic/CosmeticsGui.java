@@ -330,7 +330,10 @@ public class CosmeticsGui implements GuiProvider {
                 CosmeticItem item = catalog.get(index - 1);
                 if (item.locked()) return true;
                 if (activeTab == CosmeticTypes.EMOTES) {
-                    if (mouseButton == 1 || Keyboard.isKeyDown(Keyboard.KEY_LSHIFT) || Keyboard.isKeyDown(Keyboard.KEY_RSHIFT)) {
+                    int tileX = x + column * pitchX;
+                    int tileY = y + row * pitchY - catalogScroll;
+                    if (mouseButton == 1 || isRadialButton(tileX, tileY, tileWidth, TILE_HEIGHT, mouseX, mouseY)
+                            || Keyboard.isKeyDown(Keyboard.KEY_LSHIFT) || Keyboard.isKeyDown(Keyboard.KEY_RSHIFT)) {
                         EmoteFavorites.toggle(item.id());
                     } else {
                         setPending(activeTab, item.id());
@@ -340,6 +343,12 @@ public class CosmeticsGui implements GuiProvider {
                 }
             }
             return true;
+        }
+
+        private boolean isRadialButton(int tileX, int tileY, int tileWidth, int tileHeight, int mouseX, int mouseY) {
+            int actionY = tileY + tileHeight - 18;
+            int favoriteX = tileX + tileWidth - 24;
+            return mouseX >= favoriteX && mouseX < favoriteX + 18 && mouseY >= actionY && mouseY < actionY + 14;
         }
 
         @Override
