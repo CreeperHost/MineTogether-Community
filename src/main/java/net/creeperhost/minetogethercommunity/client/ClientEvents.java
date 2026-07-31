@@ -110,6 +110,7 @@ public class ClientEvents {
         }
         ServerAuthTest.processPackets();
         FriendChatNotifier.tick();
+        MineTogetherChat.tick();
         InGameChatBridge.tick();
         if (Minecraft.getMinecraft().currentScreen instanceof GuiChat && MineTogetherChat.isChatEnabled()) {
             clampFocusedChatHeight(Minecraft.getMinecraft());
