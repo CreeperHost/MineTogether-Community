@@ -39,6 +39,7 @@ public class LegacyCosmeticRenderer implements LayerRenderer<AbstractClientPlaye
 
     private static final float SCALE = 0.0625F;
     private static final Field LAYER_RENDERERS_FIELD = findField(RendererLivingEntity.class, "layerRenderers", "field_177097_h", "h");
+    private static final Field MAIN_MODEL_FIELD = findField(RendererLivingEntity.class, "mainModel", "field_77045_g", "i");
 
     private final RenderPlayer renderer;
 
@@ -49,15 +50,18 @@ public class LegacyCosmeticRenderer implements LayerRenderer<AbstractClientPlaye
     public static void registerLayers() {
         Map<String, RenderPlayer> skinMap = Minecraft.getMinecraft().getRenderManager().getSkinMap();
         if (skinMap == null || skinMap.isEmpty()) return;
-        for (RenderPlayer renderer : skinMap.values()) {
-            registerLayer(renderer);
+        for (Map.Entry<String, RenderPlayer> entry : skinMap.entrySet()) {
+            registerLayer(entry.getValue(), "slim".equals(entry.getKey()));
         }
     }
 
     @SuppressWarnings("unchecked")
-    private static void registerLayer(RenderPlayer renderer) {
+    private static void registerLayer(RenderPlayer renderer, boolean smallArms) {
         if (renderer == null) return;
         try {
+            if (!(renderer.getMainModel() instanceof EmoteModelPlayer)) {
+                MAIN_MODEL_FIELD.set(renderer, new EmoteModelPlayer(smallArms));
+            }
             List<LayerRenderer> layers = (List<LayerRenderer>) LAYER_RENDERERS_FIELD.get(renderer);
             Iterator<LayerRenderer> iterator = layers.iterator();
             while (iterator.hasNext()) {
@@ -85,31 +89,12 @@ public class LegacyCosmeticRenderer implements LayerRenderer<AbstractClientPlaye
         }
 
         try {
-            renderCape(player, partialTicks);
             EmotePlayer.ModelState modelState = EmotePlayer.applyToModel(renderer.getMainModel(), player, ageInTicks);
-            float translateY = EmotePlayer.renderTranslateY(player, ageInTicks);
-            float pitch = EmotePlayer.renderPitch(player, ageInTicks);
-            float yaw = EmotePlayer.renderYaw(player, ageInTicks);
-            float roll = EmotePlayer.renderRoll(player, ageInTicks);
             GlStateManager.pushMatrix();
             try {
-                if (translateY != 0.0F) {
-                    GlStateManager.translate(0.0F, translateY, 0.0F);
-                }
-                if (yaw != 0.0F) {
-                    GlStateManager.rotate(yaw * 180.0F / (float) Math.PI, 0.0F, 1.0F, 0.0F);
-                }
-                if (roll != 0.0F) {
-                    GlStateManager.translate(0.0F, -1.25F, 0.0F);
-                    GlStateManager.rotate(roll * 180.0F / (float) Math.PI, 0.0F, 0.0F, 1.0F);
-                    GlStateManager.translate(0.0F, 1.25F, 0.0F);
-                }
-                if (pitch != 0.0F) {
-                    GlStateManager.translate(0.0F, -1.25F, 0.0F);
-                    GlStateManager.rotate(pitch * 180.0F / (float) Math.PI, 1.0F, 0.0F, 0.0F);
-                    GlStateManager.translate(0.0F, 1.25F, 0.0F);
-                }
+                EmoteRenderTransforms.apply(player, ageInTicks);
                 GlStateManager.color(1.0F, 1.0F, 1.0F, 1.0F);
+                renderCape(player, partialTicks);
                 renderHat(player, renderer, ageInTicks);
                 renderTail(player, renderer, partialTicks, ageInTicks);
                 renderWing(player, renderer, ageInTicks);
