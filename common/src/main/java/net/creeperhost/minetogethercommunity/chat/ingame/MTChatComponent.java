@@ -27,7 +27,6 @@ import java.time.Instant;
 import java.util.ArrayList;
 import java.util.LinkedList;
 import java.util.List;
-import java.util.Objects;
 
 /**
  * Created by covers1624 on 20/7/22.
@@ -245,90 +244,52 @@ public class MTChatComponent extends ChatComponent {
     }
 
     public boolean handleClick(double mouseX, double mouseY) {
-        if (!isChatFocused()) return false;
+        HoveredLine hovered = getLineUnderMouse(mouseX, mouseY);
+        if (hovered == null) return false;
 
-        double x = mouseX - 2.0;
-        double y = (double) minecraft.getWindow().getGuiScaledHeight() - mouseY - 40.0;
-        x = Mth.floor(x / getScale());
-        y = Mth.floor(y / (getScale() * (minecraft.options.chatLineSpacing().get() + 1.0)));
-        if (x < 0.0 || y < 0.0) return false;
-
-        int i = Math.min(getLinesPerPage(), trimmedMessages.size());
-        if (x <= (double) Mth.floor((double) getWidth() / getScale())) {
-            Objects.requireNonNull(minecraft.font);
-            if (y < (double) (9 * i + i)) {
-                Objects.requireNonNull(minecraft.font);
-                int j = (int) (y / 9.0 + (double) chatScrollbarPos);
-                if (j >= 0 && j < trimmedMessages.size()) {
-                    return handleClickedMessage(findMessageForTrimmedMessage(trimmedMessages.get(j)), x);
-                }
-            }
-        }
-
-        return false;
+        Style style = minecraft.font.getSplitter().componentStyleAtWidth(hovered.line().content(), (int) hovered.x());
+        return handleClickedMessage(findMessageForTrimmedMessage(hovered.line()), style);
     }
 
-    // TOOD unify with above and bellow.
     @Nullable
     public Style getStyleUnderMouse(double mouseX, double mouseY) {
-        if (!isChatFocused()) return null;
-
-        double x = mouseX - 2.0;
-        double y = (double) minecraft.getWindow().getGuiScaledHeight() - mouseY - 40.0;
-        x = Mth.floor(x / getScale());
-        y = Mth.floor(y / (getScale() * (minecraft.options.chatLineSpacing().get() + 1.0)));
-        if (x < 0.0 || y < 0.0) return null;
-
-        int i = Math.min(getLinesPerPage(), trimmedMessages.size());
-        if (x <= (double) Mth.floor((double) getWidth() / getScale())) {
-            Objects.requireNonNull(minecraft.font);
-            if (y < (double) (9 * i + i)) {
-                Objects.requireNonNull(minecraft.font);
-                int j = (int) (y / 9.0 + (double) chatScrollbarPos);
-                if (j >= 0 && j < trimmedMessages.size()) {
-                    InGameDisplayableMessage message = findMessageForTrimmedMessage(trimmedMessages.get(j));
-                    if (message == null) return null;
-                    return minecraft.font.getSplitter().componentStyleAtWidth(message.getBuiltMessage(), (int) x);
-                }
-            }
-        }
-        return null;
+        return getClickedComponentStyleAt(mouseX, mouseY);
     }
 
     @Nullable
     public Message getMessageUnderMouse(double mouseX, double mouseY) {
-        if (!isChatFocused()) return null;
+        HoveredLine hovered = getLineUnderMouse(mouseX, mouseY);
+        if (hovered == null) return null;
 
-        double x = mouseX - 2.0;
-        double y = (double) minecraft.getWindow().getGuiScaledHeight() - mouseY - 40.0;
-        x = Mth.floor(x / getScale());
-        y = Mth.floor(y / (getScale() * (minecraft.options.chatLineSpacing().get() + 1.0)));
-        if (x < 0.0 || y < 0.0) return null;
-
-        int i = Math.min(getLinesPerPage(), trimmedMessages.size());
-        if (x <= (double) Mth.floor((double) getWidth() / getScale())) {
-            Objects.requireNonNull(minecraft.font);
-            if (y < (double) (9 * i + i)) {
-                Objects.requireNonNull(minecraft.font);
-                int j = (int) (y / 9.0 + (double) chatScrollbarPos);
-                if (j >= 0 && j < trimmedMessages.size()) {
-                    InGameDisplayableMessage message = findMessageForTrimmedMessage(trimmedMessages.get(j));
-                    return message == null ? null : message.getMessage();
-                }
-            }
-        }
-
-        return null;
+        InGameDisplayableMessage message = findMessageForTrimmedMessage(hovered.line());
+        return message == null ? null : message.getMessage();
     }
 
-    private boolean handleClickedMessage(@Nullable InGameDisplayableMessage clickedMessage, double x) {
+    @Nullable
+    private HoveredLine getLineUnderMouse(double mouseX, double mouseY) {
+        if (!isChatFocused()) return null;
+
+        double scale = getScale();
+        double x = mouseX / scale - 4.0;
+        int lineHeight = (int) (9.0 * (minecraft.options.chatLineSpacing().get() + 1.0));
+        double y = ((double) minecraft.getWindow().getGuiScaledHeight() - mouseY - 40.0) / (scale * lineHeight);
+
+        if (x < -4.0 || x > Mth.floor((double) getWidth() / scale)) return null;
+        int visibleLines = Math.min(getLinesPerPage(), trimmedMessages.size());
+        if (y < 0.0 || y >= visibleLines) return null;
+
+        int lineIndex = Mth.floor(y + chatScrollbarPos);
+        if (lineIndex < 0 || lineIndex >= trimmedMessages.size()) return null;
+        return new HoveredLine(trimmedMessages.get(lineIndex), x);
+    }
+
+    private boolean handleClickedMessage(@Nullable InGameDisplayableMessage clickedMessage, @Nullable Style style) {
         if (clickedMessage == null) return false;
 
         Message message = clickedMessage.getMessage();
         if (message.sender == null) return false;
         if (message.sender == MineTogetherChat.getOurProfile()) return false;
 
-        Style style = minecraft.font.getSplitter().componentStyleAtWidth(clickedMessage.getBuiltMessage(), (int) x);
         if (style == null) return false;
         ClickEvent event = style.getClickEvent();
         if (event == null) return false;
@@ -337,6 +298,8 @@ public class MTChatComponent extends ChatComponent {
         this.clickedMessage = message;
         return true;
     }
+
+    private record HoveredLine(GuiMessage.Line line, double x) { }
 
     @Nullable
     private InGameDisplayableMessage findMessageForTrimmedMessage(GuiMessage.Line trimmedMessage) {

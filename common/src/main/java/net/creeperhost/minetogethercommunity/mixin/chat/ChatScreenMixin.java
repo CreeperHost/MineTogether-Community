@@ -179,10 +179,9 @@ abstract class ChatScreenMixin extends Screen {
 
         switchToVanillaIfCommand();
 
-        ModularGui gui = ModularGuiInjector.getActiveGui();
-        if (gui != null && gui.getProvider() instanceof ChatScreenInjection) {
-            ChatScreenInjection.setURLProvider(this::getUrlUnderMouse);
-        }
+        // The PolyLib injection may not be active yet when ChatScreen.init returns.
+        // Register the provider independently so previews work the first time chat is opened.
+        ChatScreenInjection.setURLProvider(this::getUrlUnderMouse);
     }
 
     private void updateButtons() {
