@@ -38,6 +38,7 @@ import net.minecraft.client.gui.Gui;
 import net.minecraft.client.gui.GuiButton;
 import net.minecraft.client.gui.GuiChat;
 import net.minecraft.client.gui.GuiIngameMenu;
+import net.minecraft.client.gui.GuiLabel;
 import net.minecraft.client.gui.GuiMainMenu;
 import net.minecraft.client.gui.GuiMultiplayer;
 import net.minecraft.client.gui.GuiNewChat;
@@ -1300,7 +1301,8 @@ public class ClientEvents {
 
         @Override
         public void drawScreen(int mouseX, int mouseY, float partialTicks) {
-            super.drawScreen(mouseX, mouseY, partialTicks);
+            Gui.drawRect(2, height - 14, width - 2, height - 2, 0x80000000);
+            inputField.drawTextBox();
             if (MineTogetherChat.getTarget() != ChatTarget.VANILLA) {
                 IChatComponent component = focusedChatComponentUnderMouse();
                 HoverEvent hover = component == null || component.getChatStyle() == null
@@ -1309,6 +1311,12 @@ public class ClientEvents {
                 if (hover != null && hover.getAction() == HoverEvent.Action.SHOW_TEXT && hover.getValue() != null) {
                     drawHoveringText(Arrays.asList(hover.getValue().getFormattedText().split("\n", -1)), mouseX, mouseY);
                 }
+            }
+            for (Object button : buttonList) {
+                ((GuiButton) button).drawButton(mc, mouseX, mouseY);
+            }
+            for (Object label : labelList) {
+                ((GuiLabel) label).drawLabel(mc, mouseX, mouseY);
             }
         }
 
