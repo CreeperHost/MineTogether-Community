@@ -54,13 +54,20 @@ public class LegacyCosmeticRenderer {
         if (!(render instanceof RenderPlayer)) return;
 
         RenderPlayer renderer = (RenderPlayer) render;
-        if (renderer.modelBipedMain instanceof EmoteModelPlayer) return;
-        EmoteModelPlayer model = new EmoteModelPlayer();
         try {
-            MAIN_MODEL_FIELD.set(renderer, model);
-            renderer.modelBipedMain = model;
+            if (!(renderer.modelBipedMain instanceof EmoteModelPlayer)) {
+                EmoteModelPlayer model = new EmoteModelPlayer();
+                MAIN_MODEL_FIELD.set(renderer, model);
+                renderer.modelBipedMain = model;
+            }
+            if (!(renderer.modelArmorChestplate instanceof EmoteModelArmor)) {
+                renderer.modelArmorChestplate = new EmoteModelArmor(1.0F);
+            }
+            if (!(renderer.modelArmor instanceof EmoteModelArmor)) {
+                renderer.modelArmor = new EmoteModelArmor(0.5F);
+            }
         } catch (IllegalAccessException ex) {
-            throw new RuntimeException("Unable to install MineTogether emote player model", ex);
+            throw new RuntimeException("Unable to install MineTogether emote player and armour models", ex);
         }
     }
 
