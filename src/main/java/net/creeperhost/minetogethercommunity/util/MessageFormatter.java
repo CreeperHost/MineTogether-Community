@@ -39,7 +39,6 @@ public final class MessageFormatter {
     public static ITextComponent formatInGame(ChatTarget target, Message message, int messageId) {
         ITextComponent root = new TextComponentString("");
         int clickMessageId = messageClickId(message, messageId);
-        root.appendSibling(styled(target == ChatTarget.GROUP ? "[MT Group] " : "[MT] ", TextFormatting.AQUA));
         root.appendSibling(styled("<", arrowColor(message)));
         root.appendSibling(sender(message, messageId));
         root.appendSibling(styled("> ", arrowColor(message)));
