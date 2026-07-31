@@ -26,6 +26,7 @@ import net.minecraft.client.renderer.entity.RendererLivingEntity;
 import net.minecraft.client.renderer.entity.RenderPlayer;
 import net.minecraft.client.renderer.entity.layers.LayerCape;
 import net.minecraft.client.renderer.entity.layers.LayerBipedArmor;
+import net.minecraft.client.renderer.entity.layers.LayerHeldItem;
 import net.minecraft.client.renderer.entity.layers.LayerRenderer;
 import net.minecraft.entity.EntityLivingBase;
 import net.minecraft.entity.player.EnumPlayerModelParts;
@@ -69,6 +70,8 @@ public class LegacyCosmeticRenderer implements LayerRenderer<AbstractClientPlaye
                 LayerRenderer layer = iterator.next();
                 if (layer instanceof LayerBipedArmor && !(layer instanceof EmoteArmorLayer)) {
                     iterator.set(new EmoteArmorLayer(renderer));
+                } else if (layer instanceof LayerHeldItem && !(layer instanceof EmoteHeldItemLayer)) {
+                    iterator.set(new EmoteHeldItemLayer(renderer));
                 } else if (layer instanceof LegacyCosmeticRenderer || layer instanceof LayerCape) {
                     iterator.remove();
                 }
