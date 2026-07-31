@@ -22,7 +22,11 @@ import net.minecraft.client.Minecraft;
 import net.minecraft.client.entity.AbstractClientPlayer;
 import net.minecraft.client.renderer.GlStateManager;
 import net.minecraft.client.renderer.OpenGlHelper;
+import net.minecraft.client.renderer.entity.Render;
 import net.minecraft.client.renderer.entity.RenderPlayer;
+import net.minecraft.client.renderer.entity.RenderManager;
+import net.minecraft.client.renderer.entity.RendererLivingEntity;
+import net.minecraft.entity.player.EntityPlayer;
 import net.minecraft.util.ResourceLocation;
 import net.minecraftforge.client.event.RenderPlayerEvent;
 import cpw.mods.fml.common.eventhandler.EventPriority;
@@ -30,16 +34,35 @@ import cpw.mods.fml.common.eventhandler.SubscribeEvent;
 
 import java.util.ArrayDeque;
 import java.util.Deque;
+import java.lang.reflect.Field;
 
 public class LegacyCosmeticRenderer {
 
     private static final float SCALE = 0.0625F;
+    private static final Field MAIN_MODEL_FIELD = findField(RendererLivingEntity.class, "mainModel", "field_77045_g", "g");
     private final ThreadLocal<Deque<EmoteRenderState>> activeEmoteRenders = new ThreadLocal<Deque<EmoteRenderState>>() {
         @Override
         protected Deque<EmoteRenderState> initialValue() {
             return new ArrayDeque<EmoteRenderState>();
         }
     };
+
+    public static void installEmoteModels() {
+        RenderManager renderManager = RenderManager.instance;
+        if (renderManager == null) return;
+        Render render = (Render) renderManager.entityRenderMap.get(EntityPlayer.class);
+        if (!(render instanceof RenderPlayer)) return;
+
+        RenderPlayer renderer = (RenderPlayer) render;
+        if (renderer.modelBipedMain instanceof EmoteModelPlayer) return;
+        EmoteModelPlayer model = new EmoteModelPlayer();
+        try {
+            MAIN_MODEL_FIELD.set(renderer, model);
+            renderer.modelBipedMain = model;
+        } catch (IllegalAccessException ex) {
+            throw new RuntimeException("Unable to install MineTogether emote player model", ex);
+        }
+    }
 
     @SubscribeEvent(priority = EventPriority.LOWEST)
     public void onRenderPlayerSpecials(RenderPlayerEvent.Specials.Pre event) {
@@ -58,29 +81,10 @@ public class LegacyCosmeticRenderer {
         try {
             renderCape(event, player, renderer, event.partialRenderTick);
             EmotePlayer.ModelState modelState = EmotePlayer.applyToModel(renderer.modelBipedMain, player, ageInTicks);
-            float translateY = EmotePlayer.renderTranslateY(player, ageInTicks);
-            float pitch = EmotePlayer.renderPitch(player, ageInTicks);
-            float yaw = EmotePlayer.renderYaw(player, ageInTicks);
-            float roll = EmotePlayer.renderRoll(player, ageInTicks);
             GlStateManager.pushMatrix();
             boolean retainEmoteTransform = false;
             try {
-                if (translateY != 0.0F) {
-                    GlStateManager.translate(0.0F, translateY, 0.0F);
-                }
-                if (yaw != 0.0F) {
-                    GlStateManager.rotate(yaw * 180.0F / (float) Math.PI, 0.0F, 1.0F, 0.0F);
-                }
-                if (roll != 0.0F) {
-                    GlStateManager.translate(0.0F, -1.25F, 0.0F);
-                    GlStateManager.rotate(roll * 180.0F / (float) Math.PI, 0.0F, 0.0F, 1.0F);
-                    GlStateManager.translate(0.0F, 1.25F, 0.0F);
-                }
-                if (pitch != 0.0F) {
-                    GlStateManager.translate(0.0F, -1.25F, 0.0F);
-                    GlStateManager.rotate(pitch * 180.0F / (float) Math.PI, 1.0F, 0.0F, 0.0F);
-                    GlStateManager.translate(0.0F, 1.25F, 0.0F);
-                }
+                EmoteRenderTransforms.apply(player, ageInTicks);
                 GlStateManager.color(1.0F, 1.0F, 1.0F, 1.0F);
                 renderHat(player, renderer, ageInTicks);
                 renderTail(player, renderer, event.partialRenderTick, ageInTicks);
@@ -342,5 +346,17 @@ public class LegacyCosmeticRenderer {
 
     private static double interpolate(double previous, double current, float partialTicks) {
         return previous + (current - previous) * partialTicks;
+    }
+
+    private static Field findField(Class<?> owner, String... names) {
+        for (String name : names) {
+            try {
+                Field field = owner.getDeclaredField(name);
+                field.setAccessible(true);
+                return field;
+            } catch (NoSuchFieldException ignored) {
+            }
+        }
+        throw new IllegalStateException("Could not find field on " + owner.getName());
     }
 }

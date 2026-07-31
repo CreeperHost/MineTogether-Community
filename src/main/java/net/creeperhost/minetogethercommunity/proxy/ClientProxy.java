@@ -71,6 +71,7 @@ public class ClientProxy extends CommonProxy {
         MinecraftForge.EVENT_BUS.register(clientEvents);
         FMLCommonHandler.instance().bus().register(clientEvents);
         DiagnosticLog.info(LOGGER, "[MT-1710-DIAG] registered MineTogether client events on Forge and FML buses");
+        LegacyCosmeticRenderer.installEmoteModels();
         MinecraftForge.EVENT_BUS.register(new LegacyCosmeticRenderer());
     }
 
