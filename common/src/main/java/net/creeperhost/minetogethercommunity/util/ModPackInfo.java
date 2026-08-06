@@ -4,13 +4,15 @@ import com.google.common.util.concurrent.ThreadFactoryBuilder;
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
 import net.covers1624.quack.gson.JsonUtils;
+import net.creeperhost.minetogether.lib.web.ApiClientResponse;
 import net.creeperhost.minetogether.lib.web.requests.GetCurseForgeVersionRequest;
 import net.creeperhost.minetogether.lib.web.requests.GetModpacksCHVersionRequest;
 import net.creeperhost.minetogethercommunity.MineTogether;
 import net.creeperhost.minetogethercommunity.MineTogetherPlatform;
+import net.creeperhost.minetogethercommunity.config.Config;
 import net.creeperhost.minetogethercommunity.config.LocalConfig;
 import org.apache.commons.lang3.StringUtils;
-
+import org.apache.commons.lang3.math.NumberUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.jetbrains.annotations.Nullable;
@@ -23,14 +25,17 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Base64;
-import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.Locale;
 import java.util.Map;
-import java.util.concurrent.*;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 import java.util.function.Consumer;
 
 /**
- * Created by covers1624 on 25/10/22.
+ * Resolves the current launcher instance to a canonical modpack identity.
  */
 public class ModPackInfo {
     public static final ExecutorService EXECUTOR = Executors.newSingleThreadExecutor(
@@ -42,18 +47,9 @@ public class ModPackInfo {
 
     private static final Gson GSON = new GsonBuilder().disableHtmlEscaping().create();
     private static final Logger LOGGER = LogManager.getLogger();
+    private static final int MAX_MODRINTH_DB_BYTES = 64 * 1024 * 1024;
 
     private static CompletableFuture<VersionInfo> initTask;
-
-    public static boolean isParsable(String str) {
-        if (str == null || str.isEmpty()) return false;
-        for (int i = 0; i < str.length(); i++) {
-            if (!Character.isDigit(str.charAt(i))) {
-                return false;
-            }
-        }
-        return true;
-    }
 
     public static void init() {
         initTask = CompletableFuture.supplyAsync(() -> new VersionInfo().init(), EXECUTOR);
@@ -67,13 +63,17 @@ public class ModPackInfo {
     public static VersionInfo getInfo() {
         try {
             return initTask.get();
-        } catch (InterruptedException | ExecutionException e) {
-            LOGGER.warn("Failed to retrieve version data", e);
+        } catch (InterruptedException ex) {
+            Thread.currentThread().interrupt();
+            LOGGER.warn("Interrupted while retrieving modpack information", ex);
+            return new VersionInfo();
+        } catch (ExecutionException ex) {
+            LOGGER.warn("Failed to retrieve modpack information", ex);
             return new VersionInfo();
         }
     }
 
-    //Note Callback may be called from a different thread.
+    // Note: callback may be called from a different thread.
     public static void waitForInfo(Consumer<VersionInfo> callback) {
         initTask.thenAccept(callback);
     }
@@ -88,16 +88,120 @@ public class ModPackInfo {
         return CompletableFuture.supplyAsync(() -> new VersionInfo(false).init(), EXECUTOR);
     }
 
-    public static class ModpackVersionManifest {
+    public enum PackSource {
+        UNKNOWN,
+        CURSEFORGE,
+        FTB,
+        MODRINTH;
 
+        public static PackSource fromConfig(String value) {
+            return switch (StringUtils.lowerCase(StringUtils.stripToEmpty(value))) {
+                case "curse", "curseforge", "flame" -> CURSEFORGE;
+                case "ftb" -> FTB;
+                case "modrinth" -> MODRINTH;
+                default -> UNKNOWN;
+            };
+        }
+
+        public String telemetryName() {
+            return this == CURSEFORGE ? "curse" : name().toLowerCase(Locale.ROOT);
+        }
+    }
+
+    /**
+     * Canonical pack identity. The connect key remains explicit so legacy manual
+     * FTB selections can be preserved even when their original version is unknown.
+     */
+    public record PackIdentity(PackSource source, String projectId, String versionId, String connectKey, String websiteId) {
+        public PackIdentity {
+            source = source == null ? PackSource.UNKNOWN : source;
+            projectId = StringUtils.stripToEmpty(projectId);
+            versionId = StringUtils.stripToEmpty(versionId);
+            connectKey = StringUtils.stripToEmpty(connectKey);
+            websiteId = StringUtils.stripToEmpty(websiteId);
+        }
+
+        public static PackIdentity unknown() {
+            return new PackIdentity(PackSource.UNKNOWN, "", "", "", "");
+        }
+
+        public static PackIdentity curseForge(String projectId) {
+            String cleanProjectId = StringUtils.stripToEmpty(projectId);
+            return new PackIdentity(PackSource.CURSEFORGE, cleanProjectId, "", cleanProjectId, "");
+        }
+
+        public static PackIdentity ftb(String projectId, String versionId) {
+            String cleanProjectId = StringUtils.stripToEmpty(projectId);
+            String cleanVersionId = StringUtils.stripToEmpty(versionId);
+            String key = cleanProjectId.isEmpty() || cleanVersionId.isEmpty() ? "" : encodeFTB(cleanProjectId, cleanVersionId);
+            return new PackIdentity(PackSource.FTB, cleanProjectId, cleanVersionId, key, "");
+        }
+
+        public static PackIdentity ftbManual(String projectId, String versionId, String connectKey) {
+            return new PackIdentity(PackSource.FTB, projectId, versionId, connectKey, "");
+        }
+
+        public static PackIdentity modrinth(String projectId, String versionId) {
+            String cleanProjectId = stripModrinthPrefix(projectId);
+            String key = cleanProjectId.isEmpty() ? "" : "mr:" + cleanProjectId;
+            return new PackIdentity(PackSource.MODRINTH, cleanProjectId, versionId, key, "");
+        }
+
+        public boolean isKnown() {
+            return source != PackSource.UNKNOWN && !projectId.isEmpty();
+        }
+
+        public boolean hasConnectKey() {
+            return !connectKey.isEmpty();
+        }
+
+        public PackIdentity withWebsiteId(String value) {
+            return new PackIdentity(source, projectId, versionId, connectKey, value);
+        }
+
+        public String identifierJson() {
+            Map<String, String> values = new LinkedHashMap<>();
+            switch (source) {
+                case MODRINTH -> {
+                    values.put("p", projectId.isEmpty() ? "-1" : "mr:" + projectId);
+                    if (!versionId.isEmpty()) values.put("v", versionId);
+                }
+                case FTB -> {
+                    values.put("p", projectId.isEmpty() ? "-1" : "m" + projectId);
+                    if (!connectKey.isEmpty()) values.put("b", connectKey);
+                }
+                case CURSEFORGE -> values.put("p", NumberUtils.isParsable(projectId) ? projectId : "-1");
+                default -> values.put("p", "-1");
+            }
+            return GSON.toJson(values);
+        }
+
+        public String telemetryPackId() {
+            return switch (source) {
+                case FTB -> projectId.isEmpty() ? "" : "m" + projectId;
+                case CURSEFORGE, MODRINTH -> projectId;
+                default -> "";
+            };
+        }
+
+        public String telemetryVersionId() {
+            return source == PackSource.FTB ? connectKey : versionId;
+        }
+
+        public String lookupIdentifier() {
+            return source == PackSource.MODRINTH && !versionId.isEmpty() ? versionId : projectId;
+        }
+    }
+
+    public static class ModpackVersionManifest {
         public long id;
         public long parent;
     }
 
     public static class FTBInstanceNew {
-        public long id = -1;
-        public long packType = -1;
-        public long versionId = -1;
+        public long id;
+        public long packType;
+        public long versionId;
     }
 
     public static class CurseInstance {
@@ -106,7 +210,7 @@ public class ModPackInfo {
 
     public static class Auxilium {
         public long id = -1;
-        public AuxiliumVersion version = null;
+        public AuxiliumVersion version;
     }
 
     public static class AuxiliumVersion {
@@ -117,13 +221,16 @@ public class ModPackInfo {
 
     public static class VersionInfo {
         private final boolean allowManualOverride;
+        private PackIdentity identity = PackIdentity.unknown();
+
+        // Legacy fields retained while callers migrate to PackIdentity.
         public String curseID = "";
         public String websiteID = "";
         public String base64FTBID = "";
         public String ftbPackID = "";
         public String modrinthProjectID = "";
         public String modrinthVersionID = "";
-        public String realName = "{\"p\": \"-1\"}";
+        public String realName = "{\"p\":\"-1\"}";
 
         public VersionInfo() {
             this(true);
@@ -135,332 +242,344 @@ public class ModPackInfo {
 
         public VersionInfo init() {
             if (!(allowManualOverride && applyManualOverride())) {
-                tryParseLauncherFiles();
+                PackIdentity detected = detectLauncherIdentity();
+                if (detected != null) identity = detected;
             }
 
-            Map<String, String> json = new HashMap<>();
-            if (!modrinthProjectID.isEmpty()) {
-                json.put("p", "mr:" + modrinthProjectID);
-                if (!modrinthVersionID.isEmpty()) {
-                    json.put("v", modrinthVersionID);
-                }
-            } else if (!ftbPackID.isEmpty()) {
-                json.put("p", ftbPackID);
-                if (!base64FTBID.isEmpty()) {
-                    json.put("b", base64FTBID);
-                }
-            } else {
-                json.put("p", isParsable(curseID) ? curseID : "-1");
+            if (identity.isKnown() && identity.websiteId().isEmpty()) {
+                String websiteId = resolveWebsiteId(identity);
+                if (!websiteId.isEmpty()) identity = identity.withWebsiteId(websiteId);
             }
 
-            realName = GSON.toJson(json);
+            syncLegacyFields();
+            debugInfo("pack identity source={} project={} version={} websiteId={} connectKey={}",
+                    identity.source(), identity.projectId(), identity.versionId(), identity.websiteId(), identity.connectKey());
             return this;
         }
 
-        /**
-         * Attempts to detect the modpack identity from launcher-specific files.
-         * Priority order:
-         * 1. Auxilium metadata (FTB App config/metadata.json)
-         * 2. FTB version.json (old FTB launcher, game folder)
-         * 3. instance.json (FTB App new format, game folder — handles both FTB and CurseForge packs)
-         * 4. minecraftinstance.json (CurseForge Launcher, game folder)
-         * 5. instance.cfg (MultiMC/Prism, parent folder — handles CurseForge, FTB, Modrinth, and iconKey fallback)
-         * 6. Modrinth App app.db (raw byte scan for native Modrinth App instances)
-         */
-        private void tryParseLauncherFiles() {
-            // 1. Auxilium (FTB App metadata in config folder)
-            if (readAuxiliumMetadata()) return;
-
-            // 2. Old FTB Launcher version.json
-            Path versionJson = MineTogetherPlatform.getGameFolder().resolve("version.json");
-            if (Files.exists(versionJson) && readFTBVersionJson(versionJson)) return;
-
-            // 3. FTB App instance.json (handles both FTB packType=0 and CurseForge packType=1)
-            Path instanceJson = MineTogetherPlatform.getGameFolder().resolve("instance.json");
-            if (Files.exists(instanceJson) && readInstanceJson(instanceJson)) return;
-
-            // 4. CurseForge Launcher minecraftinstance.json
-            Path curseJson = MineTogetherPlatform.getGameFolder().resolve("minecraftinstance.json");
-            if (Files.exists(curseJson) && readCurseInstance(curseJson)) return;
-
-            // 5. MultiMC/Prism instance.cfg (parent folder — handles CurseForge, FTB, and Modrinth)
-            if (readMultiMc()) return;
-
-            // 6. Native Modrinth App (raw byte scan of app.db)
-            if (readModrinthApp()) return;
-
-            LOGGER.info("Could not find a supported launcher modpack identity.");
+        public PackIdentity getPackIdentity() {
+            return identity;
         }
 
-        private boolean readAuxiliumMetadata() {
-            Path auxilium = MineTogetherPlatform.getConfigFolder().resolve("metadata.json");
-            if (!Files.exists(auxilium)) return false;
+        private @Nullable PackIdentity detectLauncherIdentity() {
+            PackIdentity detected;
 
-            try {
-                Auxilium aux = JsonUtils.parse(GSON, auxilium, Auxilium.class);
-                if (aux.id <= 0 || aux.version == null || aux.version.id <= 0) {
-                    return false;
-                }
-                LOGGER.info("Found auxilium id: {} version: {}", aux.id, aux.version.id);
-                ftbPackID = "m" + aux.id;
-                base64FTBID = encodeFTB(aux.id, aux.version.id);
-                return fetchWebsiteIDFTB();
-            } catch (Exception e) {
-                LOGGER.warn("Failed to load pack id from metadata.json", e);
-                return false;
-            }
+            detected = readAuxiliumMetadata();
+            if (detected != null) return detected;
+
+            detected = readFTBVersionJson(MineTogetherPlatform.getGameFolder().resolve("version.json"));
+            if (detected != null) return detected;
+
+            detected = readInstanceJson(MineTogetherPlatform.getGameFolder().resolve("instance.json"));
+            if (detected != null) return detected;
+
+            detected = readCurseInstance(MineTogetherPlatform.getGameFolder().resolve("minecraftinstance.json"));
+            if (detected != null) return detected;
+
+            detected = readMultiMc();
+            if (detected != null) return detected;
+
+            detected = readModrinthApp();
+            if (detected != null) return detected;
+
+            debugInfo("no supported launcher modpack identity found");
+            return null;
         }
 
-        private boolean readFTBVersionJson(Path versionJson) {
+        private @Nullable PackIdentity readAuxiliumMetadata() {
+            Path path = MineTogetherPlatform.getConfigFolder().resolve("metadata.json");
+            if (!Files.exists(path)) return null;
             try {
-                ModpackVersionManifest manifest = JsonUtils.parse(GSON, versionJson, ModpackVersionManifest.class);
-                if (manifest.parent <= 0 || manifest.id <= 0) return false;
-                ftbPackID = "m" + manifest.parent;
-                base64FTBID = encodeFTB(manifest.parent, manifest.id);
-                return fetchWebsiteIDFTB();
+                Auxilium aux = JsonUtils.parse(GSON, path, Auxilium.class);
+                if (aux.id <= 0 || aux.version == null || aux.version.id <= 0) return null;
+                debugInfo("detected FTB pack {} version {} from Auxilium metadata", aux.id, aux.version.id);
+                return PackIdentity.ftb(String.valueOf(aux.id), String.valueOf(aux.version.id));
             } catch (Exception ex) {
-                LOGGER.warn("Failed to read FTB version manifest {}", versionJson, ex);
-                return false;
+                LOGGER.warn("Failed to load pack id from metadata.json", ex);
+                return null;
             }
         }
 
-        private boolean readInstanceJson(Path path) {
+        private @Nullable PackIdentity readFTBVersionJson(Path path) {
+            if (!Files.exists(path)) return null;
+            try {
+                ModpackVersionManifest manifest = JsonUtils.parse(GSON, path, ModpackVersionManifest.class);
+                if (manifest.parent <= 0 || manifest.id <= 0) return null;
+                debugInfo("detected FTB pack {} version {} from version.json", manifest.parent, manifest.id);
+                return PackIdentity.ftb(String.valueOf(manifest.parent), String.valueOf(manifest.id));
+            } catch (Exception ex) {
+                LOGGER.warn("Failed to read FTB version manifest {}", path, ex);
+                return null;
+            }
+        }
+
+        private @Nullable PackIdentity readInstanceJson(Path path) {
+            if (!Files.exists(path)) return null;
             try {
                 FTBInstanceNew manifest = JsonUtils.parse(GSON, path, FTBInstanceNew.class);
-                if (manifest.id <= 0) return false;
-                // FTB pack
+                if (manifest.id <= 0) return null;
                 if (manifest.packType == 0 && manifest.versionId > 0) {
-                    ftbPackID = "m" + manifest.id;
-                    base64FTBID = encodeFTB(manifest.id, manifest.versionId);
-                    return fetchWebsiteIDFTB();
+                    debugInfo("detected FTB pack {} version {} from instance.json", manifest.id, manifest.versionId);
+                    return PackIdentity.ftb(String.valueOf(manifest.id), String.valueOf(manifest.versionId));
                 }
-                // CurseForge pack
                 if (manifest.packType == 1) {
-                    curseID = String.valueOf(manifest.id);
-                    LOGGER.info("Extracted CurseID {} from instance.json", curseID);
-                    return fetchWebsiteIDCurse();
+                    debugInfo("detected CurseForge pack {} from instance.json", manifest.id);
+                    return PackIdentity.curseForge(String.valueOf(manifest.id));
                 }
-                return false;
             } catch (Exception ex) {
                 LOGGER.warn("Failed to read launcher instance {}", path, ex);
-                return false;
             }
+            return null;
         }
 
-        private boolean readCurseInstance(Path path) {
+        private @Nullable PackIdentity readCurseInstance(Path path) {
+            if (!Files.exists(path)) return null;
             try {
                 CurseInstance instance = JsonUtils.parse(GSON, path, CurseInstance.class);
-                if (instance.projectID <= 0) return false;
-                curseID = String.valueOf(instance.projectID);
-                LOGGER.info("Extracted CurseID {} from minecraftinstance.json", curseID);
-                return fetchWebsiteIDCurse();
+                if (instance.projectID <= 0) return null;
+                debugInfo("detected CurseForge pack {} from minecraftinstance.json", instance.projectID);
+                return PackIdentity.curseForge(String.valueOf(instance.projectID));
             } catch (Exception ex) {
-                LOGGER.warn("Failed to read Curse instance {}", path, ex);
-                return false;
+                LOGGER.warn("Failed to read CurseForge instance {}", path, ex);
+                return null;
             }
         }
 
-        private boolean readMultiMc() {
+        private @Nullable PackIdentity readMultiMc() {
             Path parent = MineTogetherPlatform.getGameFolder().getParent();
-            if (parent == null) return false;
-            Path instanceCfg = parent.resolve("instance.cfg");
-            if (!Files.exists(instanceCfg)) return false;
+            if (parent == null) return null;
+            Path path = parent.resolve("instance.cfg");
+            if (!Files.exists(path)) return null;
 
-            try (BufferedReader reader = new BufferedReader(new InputStreamReader(Files.newInputStream(instanceCfg)))) {
-                Map<String, String> values = new HashMap<>();
+            try (BufferedReader reader = new BufferedReader(new InputStreamReader(Files.newInputStream(path)))) {
+                Map<String, String> values = new LinkedHashMap<>();
                 String line;
                 while ((line = reader.readLine()) != null) {
                     int equals = line.indexOf('=');
                     if (equals <= 0) continue;
-                    String key = line.substring(0, equals).trim();
-                    String value = StringUtils.stripToEmpty(line.substring(equals + 1));
-                    values.put(key, value);
+                    values.put(line.substring(0, equals).trim(), StringUtils.stripToEmpty(line.substring(equals + 1)));
                 }
-                return readMultiMcValues(values);
+                PackIdentity result = identityFromMultiMcValues(values);
+                if (result != null) {
+                    debugInfo("detected {} pack {} version {} from Prism/MultiMC", result.source(), result.projectId(), result.versionId());
+                }
+                return result;
             } catch (Exception ex) {
-                LOGGER.warn("Failed to read MultiMC/Prism instance config {}", instanceCfg, ex);
-                return false;
+                LOGGER.warn("Failed to read MultiMC/Prism instance config {}", path, ex);
+                return null;
             }
         }
 
-        private boolean readMultiMcValues(Map<String, String> values) {
-            String packType = StringUtils.lowerCase(StringUtils.stripToEmpty(values.get("ManagedPackType")));
-            String packId = StringUtils.stripToEmpty(values.get("ManagedPackID"));
-            String versionId = StringUtils.stripToEmpty(values.get("ManagedPackVersionID"));
+        private @Nullable PackIdentity readModrinthApp() {
+            Path gameDir = MineTogetherPlatform.getGameFolder();
+            Path profilesDir = gameDir.getParent();
+            if (profilesDir == null || !"profiles".equalsIgnoreCase(profilesDir.getFileName().toString())) return null;
+            Path root = profilesDir.getParent();
+            if (root == null) return null;
+            Path appDb = root.resolve("app.db");
+            if (!Files.exists(appDb)) return null;
 
-            // Fallback: try iconKey if ManagedPack fields are empty
-            if (packType.isEmpty() || packId.isEmpty()) {
-                String iconKey = StringUtils.stripToEmpty(values.get("iconKey"));
-                String[] split = StringUtils.split(iconKey, '_');
-                if (split != null && split.length >= 2) {
-                    packType = StringUtils.lowerCase(StringUtils.stripToEmpty(split[0]));
-                    packId = StringUtils.stripToEmpty(split[1]);
+            try (RandomAccessFile file = new RandomAccessFile(appDb.toFile(), "r")) {
+                long size = file.length();
+                if (size > MAX_MODRINTH_DB_BYTES) {
+                    LOGGER.warn("Modrinth app.db is too large ({} bytes), skipping scan", size);
+                    return null;
                 }
-            }
-
-            if (packType.isEmpty() || packId.isEmpty()) return false;
-
-            // CurseForge pack types
-            if ("flame".equals(packType) || "curseforge".equals(packType) || "curse".equals(packType)) {
-                if (!isParsable(packId)) return false;
-                curseID = packId;
-                LOGGER.info("Extracted CurseID {} from instance.cfg (type: {})", curseID, packType);
-                return fetchWebsiteIDCurse();
-            }
-
-            // FTB pack type
-            if ("ftb".equals(packType)) {
-                if (!isParsable(packId)) return false;
-                ftbPackID = "m" + packId;
-                if (isParsable(versionId)) {
-                    base64FTBID = encodeFTB(packId, versionId);
-                    return fetchWebsiteIDFTB();
+                byte[] bytes = new byte[(int) size];
+                file.readFully(bytes);
+                PackIdentity result = findModrinthAppIdentity(bytes, gameDir.getFileName().toString());
+                if (result != null) {
+                    debugInfo("detected Modrinth pack {} version {} from Modrinth App", result.projectId(), result.versionId());
+                } else {
+                    debugInfo("Modrinth app.db contained no matching pack for instance {}", gameDir.getFileName());
                 }
-                LOGGER.info("Found FTB pack {} from instance.cfg but no version ID", packId);
-                return true;
-            }
-
-            // Modrinth pack type
-            if ("modrinth".equals(packType)) {
-                if (packId.isEmpty()) return false;
-                modrinthProjectID = packId;
-                modrinthVersionID = StringUtils.stripToEmpty(versionId);
-                LOGGER.info("Detected Modrinth pack {} version {} from Prism/MultiMC", packId, versionId);
-                return true;
-            }
-
-            return false;
-        }
-
-        private boolean fetchWebsiteIDCurse() {
-            try {
-                if (!isParsable(curseID)) return false;
-                GetCurseForgeVersionRequest.Response response = MineTogether.API.execute(new GetCurseForgeVersionRequest(curseID)).apiResponse();
-                if (response.getStatus().equals("error") || response.id.isEmpty()) return false;
-                websiteID = response.id;
-                return true;
-            } catch (IOException ex) {
-                LOGGER.warn("Failed to resolve CurseForge pack id {}", curseID, ex);
-                return false;
+                return result;
+            } catch (Exception ex) {
+                LOGGER.warn("Failed to scan Modrinth App database {}", appDb, ex);
+                return null;
             }
         }
 
-        private boolean fetchWebsiteIDFTB() {
+        private String resolveWebsiteId(PackIdentity pack) {
+            return switch (pack.source()) {
+                case CURSEFORGE -> resolveCurseForgeWebsiteId(pack.projectId());
+                case FTB -> resolveFtbWebsiteId(pack.connectKey());
+                case MODRINTH -> resolveModrinthWebsiteId(pack.lookupIdentifier());
+                default -> "";
+            };
+        }
+
+        private String resolveCurseForgeWebsiteId(String projectId) {
+            if (!NumberUtils.isParsable(projectId)) return "";
             try {
-                if (base64FTBID.isEmpty()) return false;
-                GetModpacksCHVersionRequest.Response response = MineTogether.API.execute(new GetModpacksCHVersionRequest(base64FTBID)).apiResponse();
-                if (response.getStatus().equals("error") || response.id.isEmpty()) return false;
-                websiteID = response.id;
-                return true;
+                ApiClientResponse<GetCurseForgeVersionRequest.Response> result = MineTogether.API.execute(new GetCurseForgeVersionRequest(projectId));
+                if (result.statusCode() == 404) {
+                    debugInfo("no CreeperHost mapping found for CurseForge pack {}", projectId);
+                    return "";
+                }
+                if (!isSuccessful(result.statusCode()) || !result.hasBody()) {
+                    LOGGER.warn("CurseForge pack lookup for {} returned HTTP {}", projectId, result.statusCode());
+                    return "";
+                }
+                return StringUtils.stripToEmpty(result.apiResponse().id);
             } catch (IOException ex) {
-                LOGGER.warn("Failed to resolve FTB pack id {}", base64FTBID, ex);
-                return false;
+                LOGGER.warn("Failed to resolve CurseForge pack {}", projectId, ex);
+                return "";
+            }
+        }
+
+        private String resolveFtbWebsiteId(String connectKey) {
+            if (StringUtils.isBlank(connectKey)) return "";
+            try {
+                ApiClientResponse<GetModpacksCHVersionRequest.Response> result = MineTogether.API.execute(new GetModpacksCHVersionRequest(connectKey));
+                if (result.statusCode() == 404) {
+                    debugInfo("no CreeperHost mapping found for FTB pack {}", connectKey);
+                    return "";
+                }
+                if (!isSuccessful(result.statusCode()) || !result.hasBody()) {
+                    LOGGER.warn("FTB pack lookup for {} returned HTTP {}", connectKey, result.statusCode());
+                    return "";
+                }
+                return StringUtils.stripToEmpty(result.apiResponse().id);
+            } catch (IOException ex) {
+                LOGGER.warn("Failed to resolve FTB pack {}", connectKey, ex);
+                return "";
+            }
+        }
+
+        private String resolveModrinthWebsiteId(String identifier) {
+            if (StringUtils.isBlank(identifier)) return "";
+            try {
+                ModrinthPackLookup.Result result = ModrinthPackLookup.lookup(identifier, identity.identifierJson());
+                if (result.isNotFound()) {
+                    debugInfo("no CreeperHost mapping found for Modrinth identifier {}", identifier);
+                    return "";
+                }
+                if (!result.isSuccessful()) {
+                    LOGGER.warn("Modrinth pack lookup for {} returned HTTP {}", identifier, result.statusCode());
+                    return "";
+                }
+                return result.id();
+            } catch (IOException ex) {
+                LOGGER.warn("Failed to resolve Modrinth identifier {}", identifier, ex);
+                return "";
             }
         }
 
         public boolean hasConnectPackKey() {
-            return !StringUtils.isEmpty(base64FTBID) || !StringUtils.isEmpty(curseID) || !StringUtils.isEmpty(modrinthProjectID);
+            return identity.hasConnectKey();
         }
 
         public @Nullable String getConnectPackKey() {
-            if (!StringUtils.isEmpty(modrinthProjectID)) return "mr:" + modrinthProjectID;
-            if (!StringUtils.isEmpty(base64FTBID)) return base64FTBID;
-            if (!StringUtils.isEmpty(curseID)) return curseID;
-            return null;
+            return identity.hasConnectKey() ? identity.connectKey() : null;
         }
 
         private boolean applyManualOverride() {
             LocalConfig config = LocalConfig.instance();
-            if (config.connectPackBypass) {
-                return true;
-            }
-            if (StringUtils.isEmpty(config.connectPackKey)) {
-                return false;
+            if (config.connectPackBypass) return true;
+            String key = StringUtils.stripToEmpty(config.connectPackKey);
+            if (key.isEmpty()) return false;
+
+            PackSource source = PackSource.fromConfig(config.connectPackProjectType);
+            if (source == PackSource.UNKNOWN) {
+                if (StringUtils.startsWithIgnoreCase(key, "mr:")) source = PackSource.MODRINTH;
+                else if (NumberUtils.isParsable(key)) source = PackSource.CURSEFORGE;
+                else source = PackSource.FTB;
             }
 
-            String type = StringUtils.stripToEmpty(config.connectPackProjectType).toLowerCase(Locale.ROOT);
-            if ("ftb".equals(type) || !isParsable(config.connectPackKey)) {
-                base64FTBID = config.connectPackKey;
-                if (!StringUtils.isEmpty(config.connectPackProjectId)) {
-                    ftbPackID = "m" + config.connectPackProjectId;
-                }
-            } else {
-                curseID = config.connectPackKey;
-            }
+            String projectId = StringUtils.stripToEmpty(config.connectPackProjectId);
+            String versionId = StringUtils.stripToEmpty(config.connectPackProjectVersion);
+            identity = switch (source) {
+                case MODRINTH -> PackIdentity.modrinth(projectId.isEmpty() ? key : projectId, versionId);
+                case CURSEFORGE -> PackIdentity.curseForge(projectId.isEmpty() ? key : projectId);
+                case FTB -> PackIdentity.ftbManual(projectId, versionId, key);
+                default -> PackIdentity.unknown();
+            };
 
             if (config.connectPackCreeperHostVersionId > 0) {
-                websiteID = String.valueOf(config.connectPackCreeperHostVersionId);
+                identity = identity.withWebsiteId(String.valueOf(config.connectPackCreeperHostVersionId));
             }
-            return hasConnectPackKey();
+            return identity.hasConnectKey();
         }
 
-        /**
-         * Detects Modrinth App instances by checking if the game directory is
-         * under ModrinthApp/profiles/ and scanning app.db for pack metadata.
-         */
-        private boolean readModrinthApp() {
-            Path gameDir = MineTogetherPlatform.getGameFolder();
-            Path profilesDir = gameDir.getParent();
-            if (profilesDir == null || !"profiles".equals(profilesDir.getFileName().toString())) return false;
-            Path modrinthRoot = profilesDir.getParent();
-            if (modrinthRoot == null) return false;
-
-            Path appDb = modrinthRoot.resolve("app.db");
-            if (!Files.exists(appDb)) return false;
-
-            String instanceName = gameDir.getFileName().toString();
-            LOGGER.info("Detected Modrinth App environment, scanning app.db for instance '{}'", instanceName);
-
-            try (RandomAccessFile raf = new RandomAccessFile(appDb.toFile(), "r")) {
-                long fileSize = raf.length();
-                if (fileSize > 64 * 1024 * 1024) {
-                    LOGGER.warn("Modrinth app.db is too large ({} bytes), skipping scan", fileSize);
-                    return false;
-                }
-                byte[] buffer = new byte[(int) fileSize];
-                raf.readFully(buffer);
-                String content = new String(buffer, StandardCharsets.UTF_8);
-
-                String marker = "modrinth_modpack";
-                int idx = -1;
-                while ((idx = content.indexOf(marker, idx + 1)) >= 0) {
-                    int afterMarker = idx + marker.length();
-                    if (afterMarker + 16 > content.length()) continue;
-
-                    String projectId = content.substring(afterMarker, afterMarker + 8);
-                    String versionId = content.substring(afterMarker + 8, afterMarker + 16);
-
-                    if (!isBase62(projectId) || !isBase62(versionId)) continue;
-
-                    // Verify this row belongs to our instance by checking nearby bytes
-                    int searchStart = Math.max(0, idx - 300);
-                    String nearby = content.substring(searchStart, idx);
-                    if (nearby.contains(instanceName)) {
-                        modrinthProjectID = projectId;
-                        modrinthVersionID = versionId;
-                        LOGGER.info("Detected Modrinth pack {} version {} from Modrinth App (instance: {})",
-                                projectId, versionId, instanceName);
-                        return true;
-                    }
-                }
-                LOGGER.info("Modrinth App app.db scanned but no matching instance found for '{}'", instanceName);
-            } catch (Exception ex) {
-                LOGGER.warn("Failed to scan Modrinth App database {}", appDb, ex);
-            }
-            return false;
-        }
-
-        private static boolean isBase62(String s) {
-            if (s == null || s.length() != 8) return false;
-            for (int i = 0; i < s.length(); i++) {
-                char c = s.charAt(i);
-                if (!Character.isLetterOrDigit(c)) return false;
-            }
-            return true;
+        private void syncLegacyFields() {
+            curseID = identity.source() == PackSource.CURSEFORGE ? identity.projectId() : "";
+            ftbPackID = identity.source() == PackSource.FTB && !identity.projectId().isEmpty() ? "m" + identity.projectId() : "";
+            base64FTBID = identity.source() == PackSource.FTB ? identity.connectKey() : "";
+            modrinthProjectID = identity.source() == PackSource.MODRINTH ? identity.projectId() : "";
+            modrinthVersionID = identity.source() == PackSource.MODRINTH ? identity.versionId() : "";
+            websiteID = identity.websiteId();
+            realName = identity.identifierJson();
         }
     }
 
-    private static String encodeFTB(Object packId, Object versionId) {
-        return Base64.getEncoder().encodeToString((String.valueOf(packId) + versionId).getBytes(StandardCharsets.UTF_8));
+    static @Nullable PackIdentity identityFromMultiMcValues(Map<String, String> values) {
+        String type = StringUtils.lowerCase(StringUtils.stripToEmpty(values.get("ManagedPackType")));
+        String projectId = StringUtils.stripToEmpty(values.get("ManagedPackID"));
+        String versionId = StringUtils.stripToEmpty(values.get("ManagedPackVersionID"));
+
+        if (type.isEmpty() || projectId.isEmpty()) {
+            String[] iconParts = StringUtils.split(StringUtils.stripToEmpty(values.get("iconKey")), '_');
+            if (iconParts != null && iconParts.length >= 2) {
+                type = StringUtils.lowerCase(StringUtils.stripToEmpty(iconParts[0]));
+                projectId = StringUtils.stripToEmpty(iconParts[1]);
+            }
+        }
+
+        if (type.isEmpty() || projectId.isEmpty()) return null;
+        return switch (PackSource.fromConfig(type)) {
+            case CURSEFORGE -> NumberUtils.isParsable(projectId) ? PackIdentity.curseForge(projectId) : null;
+            case FTB -> NumberUtils.isParsable(projectId) ? PackIdentity.ftb(projectId, versionId) : null;
+            case MODRINTH -> PackIdentity.modrinth(projectId, versionId);
+            default -> null;
+        };
     }
+
+    static @Nullable PackIdentity findModrinthAppIdentity(byte[] bytes, String instanceName) {
+        if (bytes == null || StringUtils.isBlank(instanceName)) return null;
+        String content = new String(bytes, StandardCharsets.UTF_8);
+        String marker = "modrinth_modpack";
+        int index = -1;
+        while ((index = content.indexOf(marker, index + 1)) >= 0) {
+            int idsStart = index + marker.length();
+            if (idsStart + 16 > content.length()) continue;
+            String projectId = content.substring(idsStart, idsStart + 8);
+            String versionId = content.substring(idsStart + 8, idsStart + 16);
+            if (!isBase62Id(projectId) || !isBase62Id(versionId)) continue;
+
+            int nearbyStart = Math.max(0, index - 300);
+            if (content.substring(nearbyStart, index).contains(instanceName)) {
+                return PackIdentity.modrinth(projectId, versionId);
+            }
+        }
+        return null;
+    }
+
+    private static boolean isSuccessful(int statusCode) {
+        return statusCode >= 200 && statusCode < 300;
+    }
+
+    private static boolean isBase62Id(String value) {
+        if (value == null || value.length() != 8) return false;
+        for (int i = 0; i < value.length(); i++) {
+            if (!Character.isLetterOrDigit(value.charAt(i))) return false;
+        }
+        return true;
+    }
+
+    private static String stripModrinthPrefix(String value) {
+        String clean = StringUtils.stripToEmpty(value);
+        return StringUtils.startsWithIgnoreCase(clean, "mr:") ? clean.substring(3) : clean;
+    }
+
+    private static String encodeFTB(Object projectId, Object versionId) {
+        return Base64.getEncoder().encodeToString((String.valueOf(projectId) + versionId).getBytes(StandardCharsets.UTF_8));
+    }
+
+    private static void debugInfo(String message, Object... args) {
+        if (Config.instance().debugMode) {
+            LOGGER.info("[MT-PACK-DEBUG] " + message, args);
+        }
+    }
+
 }

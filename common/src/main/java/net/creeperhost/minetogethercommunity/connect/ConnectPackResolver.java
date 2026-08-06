@@ -1,8 +1,10 @@
 package net.creeperhost.minetogethercommunity.connect;
 
 import com.google.common.util.concurrent.ThreadFactoryBuilder;
+import net.creeperhost.minetogether.lib.web.ApiClientResponse;
 import net.creeperhost.minetogether.lib.web.ApiRequest;
 import net.creeperhost.minetogethercommunity.MineTogether;
+import net.creeperhost.minetogethercommunity.util.ModrinthPackLookup;
 import net.minecraft.network.chat.Component;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.commons.lang3.math.NumberUtils;
@@ -93,12 +95,30 @@ public class ConnectPackResolver {
 
     private static String resolveName(String key) {
         try {
-            LookupResponse response;
-            if (NumberUtils.isParsable(key)) {
-                response = MineTogether.API.execute(new CurseForgeLookupRequest(key)).apiResponse();
-            } else {
-                response = MineTogether.API.execute(new ModpacksChLookupRequest(key)).apiResponse();
+            if (StringUtils.startsWithIgnoreCase(key, "mr:")) {
+                ModrinthPackLookup.Result result = ModrinthPackLookup.lookup(key.substring(3));
+                if (result.isNotFound()) return UNKNOWN_MODPACK;
+                if (!result.isSuccessful()) {
+                    LOGGER.warn("Connect Modrinth name lookup for {} returned HTTP {}", key, result.statusCode());
+                    return UNKNOWN_MODPACK;
+                }
+                return StringUtils.isBlank(result.name()) ? UNKNOWN_MODPACK : result.name();
             }
+
+            ApiClientResponse<LookupResponse> result;
+            if (NumberUtils.isParsable(key)) {
+                result = MineTogether.API.execute(new CurseForgeLookupRequest(key));
+            } else {
+                result = MineTogether.API.execute(new ModpacksChLookupRequest(key));
+            }
+            if (result.statusCode() == 404) {
+                return UNKNOWN_MODPACK;
+            }
+            if (result.statusCode() < 200 || result.statusCode() >= 300 || !result.hasBody()) {
+                LOGGER.warn("Connect modpack name lookup for {} returned HTTP {}", key, result.statusCode());
+                return UNKNOWN_MODPACK;
+            }
+            LookupResponse response = result.apiResponse();
             if ("success".equalsIgnoreCase(response.status) && !StringUtils.isBlank(response.name)) {
                 return response.name;
             }
@@ -133,6 +153,17 @@ public class ConnectPackResolver {
                     type,
                     detail.meta.projectId,
                     detail.meta.projectVersion,
+                    displayName,
+                    StringUtils.stripToEmpty(detail.meta.versionFor),
+                    detail.id
+            );
+        }
+        if ("modrinth".equals(type)) {
+            return new ManualSelection(
+                    "mr:" + detail.meta.projectId,
+                    type,
+                    detail.meta.projectId,
+                    StringUtils.stripToEmpty(detail.meta.projectVersion),
                     displayName,
                     StringUtils.stripToEmpty(detail.meta.versionFor),
                     detail.id
