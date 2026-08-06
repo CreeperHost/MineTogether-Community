@@ -8,6 +8,7 @@ import net.creeperhost.minetogether.lib.chat.profile.Profile;
 import net.creeperhost.minetogether.lib.chat.profile.ProfileManager;
 import net.creeperhost.minetogethercommunity.Constants;
 import net.creeperhost.minetogethercommunity.MineTogether;
+import net.creeperhost.minetogethercommunity.chat.gui.ChatScreenTickHandler;
 import net.creeperhost.minetogethercommunity.MineTogetherPlatform;
 import net.creeperhost.minetogethercommunity.chat.gui.FriendChatGui;
 import net.creeperhost.minetogethercommunity.chat.gui.PublicChatGui;
@@ -73,6 +74,11 @@ public class MineTogetherChat {
         }
 
         PolyClientTickEvents.CLIENT_TICK_END.register(MineTogetherChat::refreshMinecraftChatAvailability);
+        PolyClientTickEvents.CLIENT_TICK_END.register(mc -> {
+            if (mc.gui.screen() instanceof ChatScreenTickHandler handler) {
+                handler.minetogethercommunity$tickChatState();
+            }
+        });
         ChatStatistics.pollStats();
     }
 
