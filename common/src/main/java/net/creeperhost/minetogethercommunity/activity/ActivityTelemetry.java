@@ -563,16 +563,13 @@ public class ActivityTelemetry {
 
     private static ActivityModels.Modpack currentModpack() {
         ActivityModels.Modpack modpack = new ActivityModels.Modpack();
-        ModPackInfo.VersionInfo info = ModPackInfo.getInfo();
-        if (!info.ftbPackID.isEmpty()) {
-            modpack.source = "ftb";
-            modpack.packId = info.ftbPackID;
-            modpack.versionId = info.base64FTBID;
-        } else if (!info.curseID.isEmpty()) {
-            modpack.source = "curse";
-            modpack.packId = info.curseID;
+        ModPackInfo.PackIdentity identity = ModPackInfo.getInfo().getPackIdentity();
+        if (identity.isKnown()) {
+            modpack.source = identity.source().telemetryName();
+            modpack.packId = identity.telemetryPackId();
+            modpack.versionId = identity.telemetryVersionId();
         }
-        modpack.websiteId = info.websiteID;
+        modpack.websiteId = identity.websiteId();
         modpack.minecraftVersion = Platform.getMinecraftVersion();
         modpack.loader = ArchitecturyTarget.getCurrentTarget();
         modpack.modVersion = MineTogetherPlatform.getVersion();

@@ -112,7 +112,7 @@ public class LocalConfig {
     @Comment ("If this instance should keep using the custom / unknown modpack path.")
     public boolean connectPackBypass = false;
 
-    @Comment ("The manually selected modpack key. CurseForge project id, or base64 FTB project + version.")
+    @Comment ("The manually selected modpack key. CurseForge project id, base64 FTB project + version, or mr:<Modrinth project id>.")
     public String connectPackKey = "";
 
     @Comment ("Display name for the manually selected modpack.")
