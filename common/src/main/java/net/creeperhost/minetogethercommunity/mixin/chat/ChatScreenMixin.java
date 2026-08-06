@@ -2,6 +2,7 @@ package net.creeperhost.minetogethercommunity.mixin.chat;
 
 import net.creeperhost.minetogethercommunity.MineTogether;
 import net.creeperhost.minetogethercommunity.chat.gui.ChatScreenInjection;
+import net.creeperhost.minetogethercommunity.chat.gui.ChatScreenTickHandler;
 import net.creeperhost.minetogethercommunity.chat.gui.FriendChatGui;
 import net.creeperhost.minetogethercommunity.chat.ingame.MTChatComponent;
 import net.creeperhost.minetogethercommunity.config.LocalConfig;
@@ -46,7 +47,7 @@ import java.net.URL;
  * Created by covers1624 on 5/8/22.
  */
 @Mixin(ChatScreen.class)
-abstract class ChatScreenMixin extends Screen {
+abstract class ChatScreenMixin extends Screen implements ChatScreenTickHandler {
 
     private RadioButton vanillaChatButton;
     private RadioButton mtChatButton;
@@ -303,7 +304,7 @@ abstract class ChatScreenMixin extends Screen {
     }
 
     @Override
-    public void tick() {
+    public void minetogethercommunity$tickChatState() {
         ensurePreviewInjection();
         switchToVanillaIfCommand();
 
