@@ -11,6 +11,7 @@ import net.covers1624.quack.net.httpapi.WebBody;
 import net.creeperhost.minetogether.lib.web.WebConstants;
 import net.creeperhost.minetogethercommunity.MineTogether;
 import net.creeperhost.minetogethercommunity.MineTogetherPlatform;
+import net.creeperhost.minetogethercommunity.config.Config;
 import net.creeperhost.minetogethercommunity.config.LocalConfig;
 import net.creeperhost.minetogethercommunity.util.ModPackInfo;
 import net.creeperhost.polylib.event.events.client.PolyClientLifecycleEvents;
@@ -80,6 +81,18 @@ public class ActivityTelemetry {
     private static boolean englishLanguageLoadAttempted = false;
     private static ClientLanguage englishLanguage;
 
+    private static void debugInfo(String message, Object... args) {
+        if (Config.instance().debugMode) {
+            LOGGER.info("[MT-TELEMETRY-DEBUG] " + message, args);
+        }
+    }
+
+    private static void debugWarn(String message, Object... args) {
+        if (Config.instance().debugMode) {
+            LOGGER.warn("[MT-TELEMETRY-DEBUG] " + message, args);
+        }
+    }
+
     public static void init() {
         state = freshState();
         if (!currentAuthKey.isEmpty()) {
@@ -93,7 +106,7 @@ public class ActivityTelemetry {
 
     public static void authChanged(Object token) {
         currentAuthKey = authKey(token);
-        LOGGER.info("[MT-TELEMETRY-DEBUG] authChanged: authKey {} (empty means telemetry stays disabled)", currentAuthKey.isEmpty() ? "EMPTY" : "set (len=" + currentAuthKey.length() + ")");
+        debugInfo("authChanged: authKey {} (empty means telemetry stays disabled)", currentAuthKey.isEmpty() ? "EMPTY" : "set (len=" + currentAuthKey.length() + ")");
         if (state == null) return;
         applyAuthKey(currentAuthKey);
         lastPreferenceRequest = 0;
@@ -132,7 +145,7 @@ public class ActivityTelemetry {
                 doneCount++;
             }
         }
-        LOGGER.info("[MT-TELEMETRY-DEBUG] advancement packet: added={} progress={} queued={} skipped(no display, e.g. recipes)={} reset={}", addedCount, progress.size(), doneCount, skipped, reset);
+        debugInfo("advancement packet: added={} progress={} queued={} skipped(no display, e.g. recipes)={} reset={}", addedCount, progress.size(), doneCount, skipped, reset);
     }
 
     private static boolean hasDisplay(Object holder) {
@@ -194,14 +207,14 @@ public class ActivityTelemetry {
             try {
                 GetTelemetryPreferencesRequest.Response response = MineTogether.API.execute(new GetTelemetryPreferencesRequest()).apiResponse();
                 enabled = response.enabled;
-                LOGGER.info("[MT-TELEMETRY-DEBUG] preferences fetched: enabled={} hasAccount={}", response.enabled, response.hasAccount);
+                debugInfo("preferences fetched: enabled={} hasAccount={}", response.enabled, response.hasAccount);
                 if (!enabled) {
                     synchronized (ActivityTelemetry.class) {
                         state.pending.clear();
                     }
                 }
             } catch (Throwable t) {
-                LOGGER.warn("[MT-TELEMETRY-DEBUG] preferences fetch failed (enabled stays {}): {}", enabled, t.toString());
+                LOGGER.warn("MineTogether activity telemetry: preferences fetch failed (enabled stays {}): {}", enabled, t.toString());
             } finally {
                 preferenceRequestRunning = false;
             }
@@ -238,7 +251,7 @@ public class ActivityTelemetry {
             try {
                 queueQuest(provider, questId, rawTitle, rawDescription, iconItemId);
             } catch (Throwable t) {
-                LOGGER.warn("[MT-TELEMETRY-DEBUG] async quest queue threw", t);
+                LOGGER.warn("MineTogether activity telemetry: asynchronous quest queue failed", t);
             }
         });
     }
@@ -272,7 +285,7 @@ public class ActivityTelemetry {
         ActivityModels.Batch batch = newBaseBatch();
         batch.metadata.add(metadata);
         batch.questCompletions.add(event);
-        LOGGER.info("[MT-TELEMETRY-DEBUG] queueQuest id={} title={} descLen={}", questId, metadata.titleEn, metadata.descriptionEn.length());
+        debugInfo("queueQuest id={} title={} descLen={}", questId, metadata.titleEn, metadata.descriptionEn.length());
         queue(batch);
         flush();
     }
@@ -294,14 +307,14 @@ public class ActivityTelemetry {
         ActivityModels.Batch batch = newBaseBatch();
         batch.metadata.add(metadata);
         batch.advancements.add(event);
-        LOGGER.info("[MT-TELEMETRY-DEBUG] queueAdvancement id={} source={} title={}", advancementId, source, metadata.titleEn);
+        debugInfo("queueAdvancement id={} source={} title={}", advancementId, source, metadata.titleEn);
         queue(batch);
         flush();
     }
 
     private static synchronized void queue(ActivityModels.Batch batch) {
         if (state.authKey == null || state.authKey.isEmpty()) {
-            LOGGER.warn("[MT-TELEMETRY-DEBUG] queue() dropped batch: authKey is empty (not authenticated / JWT had no sha/sub claim)");
+            debugWarn("queue() dropped batch: authKey is empty (not authenticated / JWT had no sha/sub claim)");
             return;
         }
         batch.sequence = state.nextSequence++;
@@ -319,7 +332,7 @@ public class ActivityTelemetry {
             try {
                 success = drainQueue();
             } catch (Throwable t) {
-                LOGGER.warn("[MT-TELEMETRY-DEBUG] flush drainQueue threw", t);
+                LOGGER.warn("MineTogether activity telemetry: queue flush failed", t);
             } finally {
                 recordFlushResult(success);
                 flushRunning = false;
@@ -370,7 +383,7 @@ public class ActivityTelemetry {
         }
         long delay = Math.min(RETRY_BASE_MS << (consecutiveFailures - 1), RETRY_MAX_MS);
         nextFlushAllowedAt = System.currentTimeMillis() + delay;
-        LOGGER.info("[MT-TELEMETRY-DEBUG] flush failed ({}/{}), backing off {}ms", consecutiveFailures, MAX_CONSECUTIVE_FAILURES, delay);
+        debugInfo("flush failed ({}/{}), backing off {}ms", consecutiveFailures, MAX_CONSECUTIVE_FAILURES, delay);
     }
 
     private static synchronized void resetBackoff() {
@@ -393,7 +406,7 @@ public class ActivityTelemetry {
             }
             String url = WebConstants.CH_API + "minetogether/activity/batch";
             String json = GSON.toJson(batch);
-            LOGGER.info("[MT-TELEMETRY-DEBUG] POST batch seq={} advancements={} playtime={} bodyBytes={} -> {}",
+            debugInfo("POST batch seq={} advancements={} playtime={} bodyBytes={} -> {}",
                     batch.sequence, batch.advancements.size(), batch.playtime != null, json.getBytes(StandardCharsets.UTF_8).length, url);
 
             // Raw request so we can log the return code + raw response body, before
@@ -407,7 +420,7 @@ public class ActivityTelemetry {
             for (String name : new String[]{"Authorization", "Fingerprint", "Identifier"}) {
                 String value = authHeaders.get(name);
                 request.header(name, value == null ? "" : value);
-                LOGGER.info("[MT-TELEMETRY-DEBUG] auth header {}: {}", name, value == null ? "<MISSING>" : "len=" + value.length());
+                debugInfo("auth header {}: {}", name, value == null ? "<MISSING>" : "len=" + value.length());
             }
 
             int statusCode;
@@ -423,17 +436,17 @@ public class ActivityTelemetry {
                     }
                 }
             }
-            LOGGER.info("[MT-TELEMETRY-DEBUG] RAW response: returnCode={} contentType={} body={}", statusCode, contentType, rawBody);
+            debugInfo("RAW response: returnCode={} contentType={} body={}", statusCode, contentType, rawBody);
 
             boolean accepted = statusCode >= 200 && statusCode < 300 && responseAccepted(rawBody);
             if (!accepted) {
-                LOGGER.warn("[MT-TELEMETRY-DEBUG] batch NOT accepted (returnCode={}), leaving in queue (size={})", statusCode, state.pending.size());
+                LOGGER.warn("MineTogether activity telemetry: batch was not accepted (returnCode={}), leaving in queue (size={})", statusCode, state.pending.size());
                 return false;
             }
             synchronized (ActivityTelemetry.class) {
                 state.pending.remove(0);
             }
-            LOGGER.info("[MT-TELEMETRY-DEBUG] batch seq={} accepted & removed from queue", batch.sequence);
+            debugInfo("batch seq={} accepted & removed from queue", batch.sequence);
         }
     }
 
