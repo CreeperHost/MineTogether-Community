@@ -11,6 +11,7 @@ import net.creeperhost.minetogether.lib.chat.profile.Profile;
 import net.creeperhost.minetogether.lib.chat.profile.ProfileManager;
 import net.creeperhost.minetogethercommunity.Constants;
 import net.creeperhost.minetogethercommunity.MineTogether;
+import net.creeperhost.minetogethercommunity.chat.gui.ChatScreenTickHandler;
 import net.creeperhost.minetogethercommunity.chat.gui.FriendChatGui;
 import net.creeperhost.minetogethercommunity.chat.gui.PublicChatGui;
 import net.creeperhost.minetogethercommunity.chat.ingame.MTChatComponent;
@@ -68,6 +69,11 @@ public class MineTogetherChat {
         }
 
         ClientTickEvent.CLIENT_POST.register(MineTogetherChat::refreshMinecraftChatAvailability);
+        ClientTickEvent.CLIENT_POST.register(mc -> {
+            if (mc.screen instanceof ChatScreenTickHandler handler) {
+                handler.minetogethercommunity$tickChatState();
+            }
+        });
         ChatStatistics.pollStats();
     }
 
