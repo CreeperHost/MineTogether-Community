@@ -82,16 +82,20 @@ class ModPackInfoTest {
     }
 
     @Test
-    void nativeModrinthScanRequiresMatchingInstanceAndValidIds() {
-        byte[] matching = "profile-name-padding-modrinth_modpackA1b2C3d4V5w6X7y8".getBytes(StandardCharsets.UTF_8);
+    void nativeModrinthScanSupportsCurrentInstanceLinksAndLegacyRecords() {
+        String instanceId = "local:69f4cdee-d173-4e99-8974-47a89b005715";
+        byte[] current = ("instance-row" + instanceId + "-profile-name-padding-"
+                + "link-row" + instanceId + "modrinth_modpackA1b2C3d4V5w6X7y8").getBytes(StandardCharsets.UTF_8);
+        byte[] legacy = "profile-name-padding-modrinth_modpackA1b2C3d4V5w6X7y8".getBytes(StandardCharsets.UTF_8);
         byte[] invalid = "profile-name-padding-modrinth_modpackbad!id!!V5w6X7y8".getBytes(StandardCharsets.UTF_8);
 
-        ModPackInfo.PackIdentity identity = ModPackInfo.findModrinthAppIdentity(matching, "profile-name");
+        ModPackInfo.PackIdentity identity = ModPackInfo.findModrinthAppIdentity(current, "profile-name");
 
         assertNotNull(identity);
         assertEquals("A1b2C3d4", identity.projectId());
         assertEquals("V5w6X7y8", identity.versionId());
-        assertNull(ModPackInfo.findModrinthAppIdentity(matching, "different-profile"));
+        assertNotNull(ModPackInfo.findModrinthAppIdentity(legacy, "profile-name"));
+        assertNull(ModPackInfo.findModrinthAppIdentity(current, "different-profile"));
         assertNull(ModPackInfo.findModrinthAppIdentity(invalid, "profile-name"));
     }
 

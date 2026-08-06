@@ -26,8 +26,11 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Base64;
 import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Set;
+import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
@@ -48,6 +51,7 @@ public class ModPackInfo {
     private static final Gson GSON = new GsonBuilder().disableHtmlEscaping().create();
     private static final Logger LOGGER = LogManager.getLogger();
     private static final int MAX_MODRINTH_DB_BYTES = 64 * 1024 * 1024;
+    private static final int MODRINTH_INSTANCE_ID_SCAN_WINDOW = 1024;
 
     private static CompletableFuture<VersionInfo> initTask;
 
@@ -539,20 +543,59 @@ public class ModPackInfo {
         if (bytes == null || StringUtils.isBlank(instanceName)) return null;
         String content = new String(bytes, StandardCharsets.UTF_8);
         String marker = "modrinth_modpack";
+
+        Set<String> instanceIds = new LinkedHashSet<>();
+        int nameIndex = -1;
+        while ((nameIndex = content.indexOf(instanceName, nameIndex + 1)) >= 0) {
+            int nearbyStart = Math.max(0, nameIndex - MODRINTH_INSTANCE_ID_SCAN_WINDOW);
+            int instanceIdIndex = content.indexOf("local:", nearbyStart);
+            while (instanceIdIndex >= 0 && instanceIdIndex < nameIndex) {
+                int instanceIdEnd = instanceIdIndex + 42;
+                if (instanceIdEnd <= content.length()) {
+                    String candidate = content.substring(instanceIdIndex, instanceIdEnd);
+                    if (isModrinthInstanceId(candidate)) instanceIds.add(candidate);
+                }
+                instanceIdIndex = content.indexOf("local:", instanceIdIndex + 1);
+            }
+        }
+
+        for (String instanceId : instanceIds) {
+            String linkMarker = instanceId + marker;
+            int linkIndex = -1;
+            while ((linkIndex = content.indexOf(linkMarker, linkIndex + 1)) >= 0) {
+                PackIdentity identity = readModrinthIdentityAfter(content, linkIndex + linkMarker.length());
+                if (identity != null) return identity;
+            }
+        }
+
+        // Modrinth App versions before the instance_links schema stored the name and
+        // pack link close together in the same SQLite record.
         int index = -1;
         while ((index = content.indexOf(marker, index + 1)) >= 0) {
-            int idsStart = index + marker.length();
-            if (idsStart + 16 > content.length()) continue;
-            String projectId = content.substring(idsStart, idsStart + 8);
-            String versionId = content.substring(idsStart + 8, idsStart + 16);
-            if (!isBase62Id(projectId) || !isBase62Id(versionId)) continue;
-
             int nearbyStart = Math.max(0, index - 300);
             if (content.substring(nearbyStart, index).contains(instanceName)) {
-                return PackIdentity.modrinth(projectId, versionId);
+                PackIdentity identity = readModrinthIdentityAfter(content, index + marker.length());
+                if (identity != null) return identity;
             }
         }
         return null;
+    }
+
+    private static @Nullable PackIdentity readModrinthIdentityAfter(String content, int idsStart) {
+        if (idsStart + 16 > content.length()) return null;
+        String projectId = content.substring(idsStart, idsStart + 8);
+        String versionId = content.substring(idsStart + 8, idsStart + 16);
+        return isBase62Id(projectId) && isBase62Id(versionId) ? PackIdentity.modrinth(projectId, versionId) : null;
+    }
+
+    private static boolean isModrinthInstanceId(String value) {
+        if (value == null || value.length() != 42 || !value.startsWith("local:")) return false;
+        try {
+            String uuid = value.substring(6);
+            return UUID.fromString(uuid).toString().equalsIgnoreCase(uuid);
+        } catch (IllegalArgumentException ignored) {
+            return false;
+        }
     }
 
     private static boolean isSuccessful(int statusCode) {
