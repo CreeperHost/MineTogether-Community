@@ -46,6 +46,10 @@ allprojects {
             name "CreeperHost"
             url 'https://maven.creeperhost.net'
         }
+        maven {
+            name "CurseMaven"
+            url 'https://cursemaven.com'
+        }
         maven { url "https://maven.ftb.dev/releases" }
     }
 

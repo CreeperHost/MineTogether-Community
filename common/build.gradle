@@ -43,7 +43,7 @@ dependencies {
 
     modApi "dev.ftb.mods:ftb-pack-companion:${ftb_companion_version}"
     //TODO we should start putting this on maven so we don't need to keep the jar around
-//    compileOnly('minetogetherpartners-neoforge:minetogetherpartners-neoforge:1.21-6.3.4')
+    compileOnly('curse.maven:creeperhost-minetogether-partners-1370860:7162509')
 }
 
 test {
