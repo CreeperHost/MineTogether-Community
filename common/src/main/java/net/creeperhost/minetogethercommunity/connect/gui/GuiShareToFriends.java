@@ -4,11 +4,11 @@ import com.google.common.util.concurrent.ThreadFactoryBuilder;
 import net.creeperhost.minetogethercommunity.MineTogetherClient;
 import net.creeperhost.minetogethercommunity.chat.gui.MTStyle;
 import net.creeperhost.minetogethercommunity.connect.ConnectHandler;
+import net.creeperhost.minetogethercommunity.connect.ConnectCredentials;
 import net.creeperhost.minetogethercommunity.connect.netty.NettyClient;
 import net.creeperhost.minetogethercommunity.gui.LoadingSpinner;
 import net.creeperhost.minetogethercommunity.gui.MTTextures;
 import net.creeperhost.minetogether.session.JWebToken;
-import net.creeperhost.minetogether.session.MineTogetherSession;
 import net.creeperhost.minetogethercommunity.orderform.OrderGui;
 import net.creeperhost.polylib.client.modulargui.ModularGui;
 import net.creeperhost.polylib.client.modulargui.ModularGuiScreen;
@@ -248,13 +248,14 @@ public class GuiShareToFriends implements GuiProvider {
     }
 
     private static int requestMaxPlayers() throws Exception {
-        JWebToken token = MineTogetherSession.getDefault().getTokenAsync().get();
+        JWebToken token = ConnectCredentials.get();
         return NettyClient.getMaxPlayers(ConnectHandler.getEndpoint(), token);
     }
 
     /** CI-only seam: prevents an offline UI test from contacting production Connect services. */
     public static void configureLocalForTesting(int availablePlayers) {
-        if (!"connect-ui".equals(System.getenv("MINETOGETHER_CI_ROLE"))) {
+        String role = System.getenv("MINETOGETHER_CI_ROLE");
+        if (!"connect-ui".equals(role) && !"connect-host".equals(role)) {
             throw new IllegalStateException("Local Connect testing is only available to the CI probe");
         }
         maxPlayersLookup = () -> availablePlayers;
