@@ -1,8 +1,5 @@
 package net.creeperhost.minetogethercommunity.ci;
 
-import net.creeperhost.minetogether.lib.chat.irc.IrcChannel;
-import net.creeperhost.minetogether.lib.chat.irc.IrcState;
-import net.creeperhost.minetogether.lib.chat.message.Message;
 import net.creeperhost.minetogethercommunity.chat.ChatTarget;
 import net.creeperhost.minetogethercommunity.chat.MineTogetherChat;
 import net.creeperhost.minetogethercommunity.cosmetic.CosmeticDownloader;
@@ -13,7 +10,7 @@ import net.creeperhost.minetogethercommunity.cosmetic.emote.EmotePlayer;
 import net.creeperhost.minetogethercommunity.cosmetic.emote.EmoteType;
 import net.creeperhost.minetogethercommunity.gui.chat.PublicChatGui;
 import net.minecraft.client.Minecraft;
-import net.minecraft.client.gui.GuiConnecting;
+import net.minecraft.client.multiplayer.GuiConnecting;
 import net.minecraft.client.multiplayer.ServerData;
 import net.minecraft.entity.player.EntityPlayer;
 
@@ -200,14 +197,15 @@ public final class MineTogetherCiProbe {
         } else if (started && !stopped && !activeEmotes.containsKey(peerId)) {
             stopped = true;
             marker("receiver-remote-stop");
+        } else if (stopped && exists("sender-success")) {
             success(minecraft);
         }
     }
 
-    private static void tickChatSender(Minecraft minecraft) {
-        IrcChannel channel = MineTogetherChat.CHAT_STATE.ircClient.getPrimaryChannel();
+    private static void tickChatSender(Minecraft minecraft) throws ReflectiveOperationException {
+        Object channel = primaryChannel();
         if (!started && chatReady(channel) && exists("chat-receiver-ready")) {
-            channel.sendMessage(TEST_CHAT_MESSAGE);
+            channel.getClass().getMethod("sendMessage", String.class).invoke(channel, TEST_CHAT_MESSAGE);
             started = true;
             marker("chat-message-sent");
         } else if (started && !stopped && exists("chat-message-received")) {
@@ -221,8 +219,8 @@ public final class MineTogetherCiProbe {
         }
     }
 
-    private static void tickChatReceiver(Minecraft minecraft) {
-        IrcChannel channel = MineTogetherChat.CHAT_STATE.ircClient.getPrimaryChannel();
+    private static void tickChatReceiver(Minecraft minecraft) throws ReflectiveOperationException {
+        Object channel = primaryChannel();
         if (!started && chatReady(channel)) {
             started = true;
             marker("chat-receiver-ready");
@@ -240,15 +238,31 @@ public final class MineTogetherCiProbe {
         }
     }
 
-    private static boolean containsMessage(IrcChannel channel, String expected) {
-        for (Message message : channel.getMessages()) {
-            if (expected.equals(message.getMessage().toString())) return true;
+    private static boolean containsMessage(Object channel, String expected) throws ReflectiveOperationException {
+        Object messages = channel.getClass().getMethod("getMessages").invoke(channel);
+        if (!(messages instanceof Iterable)) return false;
+        for (Object message : (Iterable<?>) messages) {
+            Object contents = message.getClass().getMethod("getMessage").invoke(message);
+            if (expected.equals(contents.toString())) return true;
         }
         return false;
     }
 
-    private static boolean chatReady(IrcChannel channel) {
-        return channel != null && MineTogetherChat.CHAT_STATE.ircClient.getState() == IrcState.CONNECTED;
+    private static Object ircClient() throws ReflectiveOperationException {
+        Object chatState = MineTogetherChat.class.getField("CHAT_STATE").get(null);
+        return chatState.getClass().getField("ircClient").get(chatState);
+    }
+
+    private static Object primaryChannel() throws ReflectiveOperationException {
+        Object client = ircClient();
+        return client.getClass().getMethod("getPrimaryChannel").invoke(client);
+    }
+
+    private static boolean chatReady(Object channel) throws ReflectiveOperationException {
+        if (channel == null) return false;
+        Object client = ircClient();
+        Object state = client.getClass().getMethod("getState").invoke(client);
+        return "CONNECTED".equals(state.toString());
     }
 
     private static void openPublicChat(Minecraft minecraft) {

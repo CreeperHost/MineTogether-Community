@@ -17,7 +17,7 @@ gradle.projectsEvaluated {
             root.file(".github/ci-probe/src/forge/java")
     )
     probeSourceSet.resources.srcDir(root.file(".github/ci-probe/src/forge/resources"))
-    probeSourceSet.compileClasspath += mainSourceSet.output + root.configurations.compile
+    probeSourceSet.compileClasspath += mainSourceSet.output + mainSourceSet.compileClasspath
     probeSourceSet.runtimeClasspath += probeSourceSet.output + probeSourceSet.compileClasspath
 
     def probeJar = root.tasks.create(name: "ciProbeJar", type: Jar) {

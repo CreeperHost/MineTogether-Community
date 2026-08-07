@@ -73,6 +73,9 @@ for raw_loader in "${loader_list[@]}"; do
       regex='.*forge.*'
       row_fabric_api=none
       loader_version="$(property forge_version)"
+      # Legacy ForgeGradle uses Maven coordinates such as
+      # 11.15.1.2318-1.8.9, while launchers identify that build by the UID.
+      loader_version="${loader_version%-$minecraft}"
       ;;
     neoforge)
       runtime_test=neoforge

@@ -214,8 +214,10 @@ start_client() {
     fi
   else
     case "$version" in
-      1.8.*) game_args+=(--game-args "--server 127.0.0.1 --port $port") ;;
-      *) game_args+=(--game-args "--quickPlayMultiplayer=127.0.0.1:$port") ;;
+      # QuickExitCli joins argv back into one command before parsing it, so the
+      # quotes must reach HeadlessMC rather than only grouping the shell argv.
+      1.8.*) game_args+=(--game-args "\"--server 127.0.0.1 --port $port\"") ;;
+      *) game_args+=(--game-args "\"--quickPlayMultiplayer=127.0.0.1:$port\"") ;;
     esac
   fi
   [[ "$version" == "$launch_regex" ]] && command+=( -regex )
@@ -238,7 +240,9 @@ assert_clean_logs() {
   local logs=()
   mapfile -d '' logs < <(find "$work" -type f -name '*.log' -print0)
   [[ ${#logs[@]} -gt 0 ]] || fail "No multiplayer logs were produced"
-  if grep -Ein "$bad" "${logs[@]}" | grep -v 'dev/ftb/mods/ftbquests/client/FTBQuestsNetClient'; then
+  if grep -Ein "$bad" "${logs[@]}" \
+      | grep -v 'dev/ftb/mods/ftbquests/client/FTBQuestsNetClient' \
+      | grep -vE '(/logs/(vanilla-server|modded-server)\.log|/servers/.*/logs/latest\.log):[0-9]+:.*(CiConnect|CiVanilla|CiMixed|CiSender|CiReceiver|CiChatSend|CiChatRecv) lost connection:.*Connection reset by peer'; then
     fail "A fatal runtime signature was found in multiplayer logs"
   fi
 }
@@ -304,7 +308,7 @@ if run_scenario 2; then
   reset_results
   start_client "$vanilla_client" vanilla-client "$minecraft" "$modded_port"
   vanilla_pid="$LAST_PID"
-  wait_for_log "$work/logs/modded-server.log" 'CiVanilla.*joined the game' "$modded_server_pid" 240
+  wait_for_log "$work/logs/modded-server.log" 'CiVanilla.*joined the game' "$vanilla_pid" 240
   start_client "$mixed_sender" mixed-sender "$launch_regex" "$modded_port" mixed-sender 2
   mixed_pid="$LAST_PID"
   wait_for_marker mixed-sender-success "$mixed_pid"

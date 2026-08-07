@@ -119,10 +119,12 @@ public class MineTogetherChat {
     }
 
     public static void init() {
-        CHAT_AUTH = new ChatAuthImpl(Minecraft.getMinecraft());
+        if (!Boolean.getBoolean("minetogether.ci.localChat") || CHAT_AUTH == null || CHAT_STATE == null) {
+            CHAT_AUTH = new ChatAuthImpl(Minecraft.getMinecraft());
+            File muted = new File(new File(MineTogether.getGameDir(), "local/minetogether"), "mutedusers.json");
+            CHAT_STATE = new ChatState(MineTogether.API, CHAT_AUTH, new MutedUserList(muted.toPath()), () -> ModPackInfo.getInfo().realName, false);
+        }
         LOGGER.info("MineTogether chat auth hash {} using fingerprint {}.", mask(CHAT_AUTH.getHash()), mask(CHAT_AUTH.getSignature()));
-        File muted = new File(new File(MineTogether.getGameDir(), "local/minetogether"), "mutedusers.json");
-        CHAT_STATE = new ChatState(MineTogether.API, CHAT_AUTH, new MutedUserList(muted.toPath()), () -> ModPackInfo.getInfo().realName, false);
         CHAT_STATE.logChatToConsole = Config.instance().logChatToConsole || Config.instance().debugMode;
         if (Config.instance().debugMode) {
             System.setProperty("net.covers1624.pircbot.logging.info", "INFO");
