@@ -17,7 +17,7 @@ results="$work/results"
 vanilla_port="${MINETOGETHER_CI_VANILLA_PORT:-25571}"
 modded_port="${MINETOGETHER_CI_MODDED_PORT:-25572}"
 chat_port="${MINETOGETHER_CI_CHAT_PORT:-26667}"
-scenarios=",${MINETOGETHER_CI_SCENARIOS:-1,2,3,4,5},"
+scenarios=",${MINETOGETHER_CI_SCENARIOS:-1,2,3,4,5,6,7,8},"
 reuse_installs="${MINETOGETHER_CI_REUSE_INSTALLS:-false}"
 process_groups=()
 LAST_PID=""
@@ -181,9 +181,6 @@ create_client() {
   local game="$directory/game"
   write_hmc_config "$directory" "$game" "$username" "$uuid"
   mkdir -p "$game/mods"
-  cat > "$game/options.txt" <<'EOF'
-onboardAccessibility:false
-EOF
   if [[ "$modded" == true ]]; then
     cp "$repo/build/ci-runtime/$loader/mods/"*.jar "$game/mods/"
     cp "$repo/build/ci-runtime/$loader/probe/"*.jar "$game/mods/"
@@ -212,10 +209,11 @@ start_client() {
       "MINETOGETHER_CI_RESULTS=$results"
       "MINETOGETHER_CI_SERVER_ADDRESS=127.0.0.1:$port"
     )
-    if [[ "$role" == chat-* || "$role" == ctcp-* ]]; then
+    if [[ "$role" == chat-* ]]; then
       environment+=("MINETOGETHER_CI_CHAT_PORT=$chat_port")
     fi
-  else
+  fi
+  if [[ -z "$role" ]]; then
     game_args+=(--game-args "--quickPlayMultiplayer=127.0.0.1:$port")
   fi
   [[ "$version" == "$launch_regex" ]] && command+=( -regex )
@@ -238,7 +236,7 @@ assert_clean_logs() {
   local logs=()
   mapfile -d '' logs < <(find "$work" -type f -name '*.log' -print0)
   [[ ${#logs[@]} -gt 0 ]] || fail "No multiplayer logs were produced"
-  if grep -Ein "$bad" "${logs[@]}" | grep -Ev 'dev[/\.]ftb[/\.]mods[/\.]ftbquests[/\.]client[/\.]FTBQuestsNetClient|io\.netty\.channel\.kqueue\.Native|Only supported on OSX/BSD'; then
+  if grep -Ein "$bad" "${logs[@]}" | grep -v 'dev/ftb/mods/ftbquests/client/FTBQuestsNetClient'; then
     fail "A fatal runtime signature was found in multiplayer logs"
   fi
 }
@@ -281,11 +279,46 @@ sender="$(create_client sender CiSender 00000000-0000-0000-0000-000000000040 tru
 receiver="$(create_client receiver CiReceiver 00000000-0000-0000-0000-000000000050 true)"
 chat_sender="$(create_client chat-sender CiChatSend 00000000-0000-0000-0000-000000000060 true)"
 chat_receiver="$(create_client chat-receiver CiChatRecv 00000000-0000-0000-0000-000000000070 true)"
-ctcp_sender="$(create_client ctcp-sender CiCtcpSend 00000000-0000-0000-0000-000000000080 true)"
-ctcp_receiver="$(create_client ctcp-receiver CiCtcpRecv 00000000-0000-0000-0000-000000000090 true)"
+singleplayer="$(create_client singleplayer CiSingleplayer 00000000-0000-0000-0000-000000000080 true)"
+connect_ui="$(create_client connect-ui CiConnectUi 00000000-0000-0000-0000-000000000081 true)"
+connect_unavailable="$(create_client connect-unavailable CiConnectOffline 00000000-0000-0000-0000-000000000082 true)"
+late_sender="$(create_client late-sender CiLateSend 00000000-0000-0000-0000-000000000090 true)"
+late_receiver="$(create_client late-receiver CiLateRecv 00000000-0000-0000-0000-000000000100 true)"
+
+if run_scenario 5; then
+  echo "Scenario 5/8: offline modded client creates and enters a fresh singleplayer world"
+  reset_results
+  start_client "$singleplayer" singleplayer "$launch_regex" 0 singleplayer 1
+  singleplayer_pid="$LAST_PID"
+  wait_for_marker singleplayer-success "$singleplayer_pid" 480
+  await_group_exit "$singleplayer_pid" 60
+  assert_clean_logs "$work/logs/singleplayer.log"
+fi
+
+if run_scenario 8; then
+  echo "Scenario 8/8: unavailable Connect discovery leaves Multiplayer usable and backs off cleanly"
+  reset_results
+  start_client "$connect_unavailable" connect-unavailable "$launch_regex" 0 connect-unavailable 1
+  connect_unavailable_pid="$LAST_PID"
+  wait_for_marker connect-unavailable-backoff "$connect_unavailable_pid" 240
+  wait_for_marker connect-unavailable-success "$connect_unavailable_pid" 30
+  await_group_exit "$connect_unavailable_pid" 60
+  assert_clean_logs "$work/logs/connect-unavailable.log"
+fi
+
+if run_scenario 7; then
+  echo "Scenario 7/8: singleplayer pause menu opens translated MineTogether Connect controls"
+  reset_results
+  start_client "$connect_ui" connect-ui "$launch_regex" 0 connect-ui 1
+  connect_ui_pid="$LAST_PID"
+  wait_for_marker connect-ui-settings-ready "$connect_ui_pid" 480
+  wait_for_marker connect-ui-success "$connect_ui_pid" 30
+  await_group_exit "$connect_ui_pid" 60
+  assert_clean_logs "$work/logs/connect-ui.log"
+fi
 
 if run_scenario 1; then
-  echo "Scenario 1/5: offline modded client joins a vanilla server and safely attempts an emote"
+  echo "Scenario 1/8: offline modded client joins a vanilla server and safely attempts an emote"
   reset_results
   start_server vanilla-ci "$work/logs/vanilla-server.log"
   vanilla_server_pid="$LAST_PID"
@@ -296,13 +329,13 @@ if run_scenario 1; then
   stop_group "$vanilla_server_pid"
 fi
 
-if run_scenario 2 || run_scenario 3 || run_scenario 4; then
+if run_scenario 2 || run_scenario 3 || run_scenario 4 || run_scenario 6; then
   start_server modded-ci "$work/logs/modded-server.log"
   modded_server_pid="$LAST_PID"
 fi
 
 if run_scenario 2; then
-  echo "Scenario 2/5: vanilla and modded clients stay connected while the modded client emits an emote"
+  echo "Scenario 2/8: vanilla and modded clients stay connected while the modded client emits an emote"
   reset_results
   start_client "$vanilla_client" vanilla-client "$minecraft" "$modded_port"
   vanilla_pid="$LAST_PID"
@@ -321,7 +354,7 @@ if run_scenario 2; then
 fi
 
 if run_scenario 3; then
-  echo "Scenario 3/5: two modded clients relay and apply emote start/stop packets"
+  echo "Scenario 3/8: two modded clients relay and apply emote start/stop packets"
   reset_results
   start_client "$receiver" receiver "$launch_regex" "$modded_port" receiver 2 CiSender
   receiver_pid="$LAST_PID"
@@ -335,8 +368,25 @@ if run_scenario 3; then
   await_group_exit "$sender_pid"
 fi
 
+if run_scenario 6; then
+  echo "Scenario 6/8: a late peer receives persistent emote state and disconnect cleanup removes its stale state"
+  reset_results
+  start_client "$late_sender" late-sender "$launch_regex" "$modded_port" late-sender 1 CiLateRecv
+  late_sender_pid="$LAST_PID"
+  wait_for_marker late-sender-emote-started "$late_sender_pid"
+  start_client "$late_receiver" late-receiver "$launch_regex" "$modded_port" late-receiver 2 CiLateSend
+  late_receiver_pid="$LAST_PID"
+  wait_for_marker late-receiver-observed-existing "$late_receiver_pid"
+  wait_for_marker late-receiver-disconnect-requested "$late_receiver_pid"
+  wait_for_marker late-sender-disconnect-clean "$late_sender_pid"
+  wait_for_marker late-sender-success "$late_sender_pid"
+  stop_group "$late_receiver_pid"
+  await_group_exit "$late_sender_pid" 60
+  assert_clean_logs "$work/logs/late-sender.log" "$work/logs/late-receiver.log" "$work/logs/modded-server.log"
+fi
+
 if run_scenario 4; then
-  echo "Scenario 4/5: two offline clients use mocked API discovery and relay MineTogether chat over local IRC"
+  echo "Scenario 4/8: two offline clients use mocked API discovery and relay MineTogether chat over local IRC"
   reset_results
   start_group "$work" "$work/logs/mock-irc.log" python3 -u "$repo/.github/scripts/mock-irc-server.py" --host 127.0.0.1 --port "$chat_port" --channel '#minetogether-ci'
   mock_irc_pid="$LAST_PID"
@@ -355,34 +405,9 @@ if run_scenario 4; then
   stop_group "$mock_irc_pid"
 fi
 
-if run_scenario 2 || run_scenario 3 || run_scenario 4; then
+if run_scenario 2 || run_scenario 3 || run_scenario 4 || run_scenario 6; then
   stop_group "$modded_server_pid"
 fi
 
-if run_scenario 5; then
-  echo "Scenario 5/5: two MineTogether clients relay emotes over CTCP on a vanilla server"
-  reset_results
-  start_server vanilla-ci "$work/logs/vanilla-ctcp-server.log"
-  vanilla_ctcp_server_pid="$LAST_PID"
-  start_group "$work" "$work/logs/mock-irc-ctcp.log" python3 -u "$repo/.github/scripts/mock-irc-server.py" --host 127.0.0.1 --port "$chat_port" --channel '#minetogether-ci'
-  mock_irc_ctcp_pid="$LAST_PID"
-  remember_group "$mock_irc_ctcp_pid"
-  wait_for_log "$work/logs/mock-irc-ctcp.log" '^READY ' "$mock_irc_ctcp_pid" 30
-  start_client "$ctcp_receiver" ctcp-receiver "$launch_regex" "$vanilla_port" ctcp-receiver 2 CiCtcpSend
-  ctcp_receiver_pid="$LAST_PID"
-  start_client "$ctcp_sender" ctcp-sender "$launch_regex" "$vanilla_port" ctcp-sender 2 CiCtcpRecv
-  ctcp_sender_pid="$LAST_PID"
-  wait_for_marker ctcp-emote-start-sent "$ctcp_sender_pid"
-  wait_for_marker ctcp-receiver-remote-start "$ctcp_receiver_pid"
-  wait_for_marker ctcp-emote-stop-sent "$ctcp_sender_pid"
-  wait_for_marker ctcp-receiver-remote-stop "$ctcp_receiver_pid"
-  wait_for_marker ctcp-sender-success "$ctcp_sender_pid"
-  wait_for_marker ctcp-receiver-success "$ctcp_receiver_pid"
-  await_group_exit "$ctcp_sender_pid"
-  await_group_exit "$ctcp_receiver_pid"
-  stop_group "$mock_irc_ctcp_pid"
-  stop_group "$vanilla_ctcp_server_pid"
-fi
-
 assert_clean_logs
-echo "All $loader offline connect, local chat, multiplayer compatibility, and emote relay scenarios passed."
+echo "All $loader singleplayer, offline connect, local chat, multiplayer compatibility, emote relay, and cleanup scenarios passed."

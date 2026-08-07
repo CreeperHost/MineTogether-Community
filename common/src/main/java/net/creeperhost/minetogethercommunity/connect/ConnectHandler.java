@@ -22,8 +22,10 @@ import org.jetbrains.annotations.Nullable;
 import java.io.IOException;
 import java.util.*;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.Callable;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.atomic.AtomicInteger;
 
 /**
  * Created by brandon3055 on 21/04/2023
@@ -34,6 +36,9 @@ public class ConnectHandler {
     private static final Map<RemoteServer, Profile> AVAILABLE_SERVER_MAP = new HashMap<>();
     private static final ExecutorService SEARCH_EXECUTOR = Executors.newSingleThreadExecutor(new ThreadFactoryBuilder().setDaemon(true).setNameFormat("MT Connect Friend Search Executor").build());
     private static final ExecutorService SHARE_EXECUTOR = Executors.newSingleThreadExecutor(new ThreadFactoryBuilder().setDaemon(true).setNameFormat("MT Connect Friend Share Executor").build());
+    private static final ConnectAvailability AVAILABILITY = new ConnectAvailability();
+    private static final AtomicInteger TEST_SEARCH_ATTEMPTS = new AtomicInteger();
+    private static volatile Callable<List<CFriendServers.ServerEntry>> friendSearch = ConnectHandler::requestFriendServers;
 
     private static long lastSearch = 0;
     private static CompletableFuture<?> activeSearch = null;
@@ -55,7 +60,7 @@ public class ConnectHandler {
     }
 
     public static boolean isEnabled() {
-        return true; //TODO v2
+        return AVAILABILITY.isAvailable();
     }
 
     public static void publishToFriends(GameType gameType, boolean cheats, int maxPlayers) {
@@ -148,18 +153,21 @@ public class ConnectHandler {
             return;
         }
 
-        if (System.currentTimeMillis() - lastSearch < 5000) {
+        long now = System.currentTimeMillis();
+        if (!AVAILABILITY.shouldAttempt(now) || now - lastSearch < 5000) {
             return;
         }
-        lastSearch = System.currentTimeMillis();
+        lastSearch = now;
 
         activeSearch = CompletableFuture.runAsync(() -> {
             searchResult = null;
             try {
-                JWebToken token = MineTogetherSession.getDefault().getTokenAsync().get();
-                searchResult = NettyClient.getFriendServers(getEndpoint(), token, getModpackKey()).servers;
+                searchResult = friendSearch.call();
+                AVAILABILITY.succeeded();
             } catch (Throwable e) {
-                LOGGER.error("An error occurred while searching for friend servers.", e);
+                if (AVAILABILITY.failed(System.currentTimeMillis(), e)) {
+                    LOGGER.error("MineTogether Connect discovery is unavailable; retrying in 30 seconds.", e);
+                }
             }
         }, SEARCH_EXECUTOR);
     }
@@ -180,6 +188,28 @@ public class ConnectHandler {
         }
         AVAILABLE_SERVER_MAP.clear();
         lastSearch = 0;
+    }
+
+    private static List<CFriendServers.ServerEntry> requestFriendServers() throws Exception {
+        JWebToken token = MineTogetherSession.getDefault().getTokenAsync().get();
+        return NettyClient.getFriendServers(getEndpoint(), token, getModpackKey()).servers;
+    }
+
+    /** CI-only seam: exercises unavailable discovery without contacting production services. */
+    public static void configureUnavailableForTesting() {
+        if (!"connect-unavailable".equals(System.getenv("MINETOGETHER_CI_ROLE"))) {
+            throw new IllegalStateException("Local Connect testing is only available to the CI probe");
+        }
+        TEST_SEARCH_ATTEMPTS.set(0);
+        AVAILABILITY.reset();
+        friendSearch = () -> {
+            TEST_SEARCH_ATTEMPTS.incrementAndGet();
+            throw new IOException("MineTogether CI forced discovery failure");
+        };
+    }
+
+    public static int getTestSearchAttempts() {
+        return TEST_SEARCH_ATTEMPTS.get();
     }
 
     private static @Nullable String getModpackKey() {
