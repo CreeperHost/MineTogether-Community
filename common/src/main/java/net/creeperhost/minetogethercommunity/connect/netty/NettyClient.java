@@ -4,7 +4,7 @@ import io.netty.bootstrap.Bootstrap;
 import io.netty.channel.*;
 import io.netty.handler.timeout.ReadTimeoutHandler;
 import net.covers1624.quack.util.SneakyUtils;
-import net.creeperhost.minetogethercommunity.MineTogetherPlatform;
+import net.creeperhost.minetogethercommunity.MineTogetherClientPlatform;
 import net.creeperhost.minetogethercommunity.config.Config;
 import net.creeperhost.minetogethercommunity.connect.ConnectHandler;
 import net.creeperhost.minetogethercommunity.connect.ConnectHost;
@@ -153,7 +153,7 @@ public class NettyClient {
                 super.channelReady();
                 sendPacket(new SUserConnect(session.toString(), serverToken, isQuery));
                 // Required for Forge to add channel attributes.
-                MineTogetherPlatform.prepareClientConnection(connection);
+                MineTogetherClientPlatform.prepareConnection(connection);
             }
 
             @Override

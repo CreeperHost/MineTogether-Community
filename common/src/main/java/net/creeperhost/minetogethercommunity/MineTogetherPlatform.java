@@ -3,8 +3,6 @@ package net.creeperhost.minetogethercommunity;
 import net.creeperhost.minetogethercommunity.platform.MineTogetherPlatformService;
 import net.creeperhost.minetogethercommunity.cosmetic.emote.EmoteNetworking;
 import net.minecraft.SharedConstants;
-import net.minecraft.client.KeyMapping;
-import net.minecraft.network.Connection;
 import net.minecraft.server.level.ServerPlayer;
 import org.jetbrains.annotations.Nullable;
 
@@ -55,26 +53,6 @@ public class MineTogetherPlatform {
 
     public static Path getConfigFolder() {
         return SERVICE.getConfigFolder();
-    }
-
-    public static void registerKeyMapping(KeyMapping keyMapping) {
-        SERVICE.registerKeyMapping(keyMapping);
-    }
-
-    public static void prepareClientConnection(Connection connection) {
-        SERVICE.prepareClientConnection(connection);
-    }
-
-    public static boolean canSendEmoteToServer() {
-        return SERVICE.canSendEmoteToServer();
-    }
-
-    public static void sendEmoteStartToServer(EmoteNetworking.StartEmoteC2S packet) {
-        SERVICE.sendEmoteStartToServer(packet);
-    }
-
-    public static void sendEmoteStopToServer(EmoteNetworking.StopEmoteC2S packet) {
-        SERVICE.sendEmoteStopToServer(packet);
     }
 
     public static void sendEmoteStartToClient(ServerPlayer player, EmoteNetworking.StartEmoteS2C packet) {

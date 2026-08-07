@@ -27,6 +27,18 @@ public final class FabricClientEmoteNetworking {
         }
     }
 
+    public static boolean canSendHelloToServer() {
+        try {
+            return ClientPlayNetworking.canSend(EmoteNetworking.HELLO_C2S_TYPE);
+        } catch (RuntimeException ignored) {
+            return false;
+        }
+    }
+
+    public static void sendToServer(EmoteNetworking.EmoteHelloC2S packet) {
+        ClientPlayNetworking.send(packet);
+    }
+
     public static void sendToServer(EmoteNetworking.StartEmoteC2S packet) {
         ClientPlayNetworking.send(packet);
     }

@@ -4,12 +4,9 @@ import net.creeperhost.minetogethercommunity.MineTogether;
 import net.creeperhost.minetogethercommunity.cosmetic.emote.EmoteNetworking;
 import net.creeperhost.minetogethercommunity.platform.MineTogetherPlatformService;
 import net.fabricmc.api.EnvType;
-import net.fabricmc.fabric.api.client.keymapping.v1.KeyMappingHelper;
 import net.fabricmc.loader.api.FabricLoader;
 import net.fabricmc.loader.api.ModContainer;
 import net.fabricmc.loader.api.metadata.ModOrigin;
-import net.minecraft.client.KeyMapping;
-import net.minecraft.network.Connection;
 import net.minecraft.server.level.ServerPlayer;
 import org.jetbrains.annotations.Nullable;
 
@@ -74,30 +71,6 @@ public class MineTogetherPlatformImpl implements MineTogetherPlatformService {
     @Override
     public Path getConfigFolder() {
         return FabricLoader.getInstance().getConfigDir();
-    }
-
-    @Override
-    public void registerKeyMapping(KeyMapping keyMapping) {
-        KeyMappingHelper.registerKeyMapping(keyMapping);
-    }
-
-    @Override
-    public void prepareClientConnection(Connection connection) {
-    }
-
-    @Override
-    public boolean canSendEmoteToServer() {
-        return isClient() && FabricClientEmoteNetworking.canSendToServer();
-    }
-
-    @Override
-    public void sendEmoteStartToServer(EmoteNetworking.StartEmoteC2S packet) {
-        FabricClientEmoteNetworking.sendToServer(packet);
-    }
-
-    @Override
-    public void sendEmoteStopToServer(EmoteNetworking.StopEmoteC2S packet) {
-        FabricClientEmoteNetworking.sendToServer(packet);
     }
 
     @Override

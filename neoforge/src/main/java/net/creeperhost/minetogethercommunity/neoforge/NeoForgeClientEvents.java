@@ -14,7 +14,7 @@ public class NeoForgeClientEvents {
     }
 
     private static void registerKeyMappings(RegisterKeyMappingsEvent event) {
-        MineTogetherPlatformImpl.getKeyMappings().forEach(event::register);
+        MineTogetherClientPlatformImpl.getKeyMappings().forEach(event::register);
     }
 
     private static void registerClientCommands(RegisterClientCommandsEvent event) {

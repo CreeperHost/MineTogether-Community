@@ -10,6 +10,12 @@ public final class NeoForgeEmoteNetworking {
 
     public static void registerPayloads(RegisterPayloadHandlersEvent event) {
         PayloadRegistrar registrar = event.registrar(MineTogether.MOD_ID).versioned("1");
+        registrar.playToServer(EmoteNetworking.HELLO_C2S_TYPE, EmoteNetworking.HELLO_C2S_CODEC, (payload, context) ->
+                context.enqueueWork(() -> {
+                    if (context.player() instanceof ServerPlayer serverPlayer) {
+                        EmoteNetworking.handleHelloFromClient(serverPlayer);
+                    }
+                }));
         registrar.playToServer(EmoteNetworking.START_C2S_TYPE, EmoteNetworking.START_C2S_CODEC, (payload, context) ->
                 context.enqueueWork(() -> {
                     if (context.player() instanceof ServerPlayer serverPlayer) {

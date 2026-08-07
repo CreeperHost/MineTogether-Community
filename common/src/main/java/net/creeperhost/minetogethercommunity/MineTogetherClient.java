@@ -19,6 +19,7 @@ import net.creeperhost.minetogethercommunity.cosmetic.CosmeticDownloader;
 import net.creeperhost.minetogethercommunity.cosmetic.CosmeticSelections;
 import net.creeperhost.minetogethercommunity.cosmetic.PlayerCosmeticCache;
 import net.creeperhost.minetogethercommunity.cosmetic.emote.EmotePlayer;
+import net.creeperhost.minetogethercommunity.cosmetic.emote.EmoteNetworking;
 import net.creeperhost.minetogethercommunity.gui.SettingGui;
 import net.creeperhost.minetogethercommunity.orderform.OrderGui;
 import net.creeperhost.minetogethercommunity.util.MTSessionProvider;
@@ -64,6 +65,7 @@ public class MineTogetherClient {
             ActivityTelemetry.authChanged(token);
         });
         Keybindings.init();
+        EmoteNetworking.initClient();
 
         PolyClientLifecycleEvents.CLIENT_STARTED.register(MineTogetherClient::onClientStarted);
         PolyScreenEvents.SCREEN_OPENED.register(MineTogetherClient::onScreenOpen);
