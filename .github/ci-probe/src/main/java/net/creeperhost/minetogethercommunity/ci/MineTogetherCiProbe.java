@@ -11,6 +11,8 @@ import net.creeperhost.minetogethercommunity.cosmetic.emote.EmotePlayer;
 import net.creeperhost.minetogethercommunity.cosmetic.emote.EmoteType;
 import net.creeperhost.minetogethercommunity.chat.MineTogetherChat;
 import net.creeperhost.minetogethercommunity.chat.ChatTarget;
+import net.creeperhost.minetogethercommunity.connect.MineTogetherConnect;
+import net.creeperhost.minetogethercommunity.connect.gui.GuiShareToFriends;
 import net.creeperhost.minetogether.lib.chat.irc.IrcChannel;
 import net.creeperhost.minetogether.lib.chat.irc.IrcState;
 import net.minecraft.client.Minecraft;
@@ -19,6 +21,7 @@ import net.minecraft.client.gui.components.EditBox;
 import net.minecraft.client.gui.components.events.GuiEventListener;
 import net.minecraft.client.gui.screens.ConnectScreen;
 import net.minecraft.client.gui.screens.ChatScreen;
+import net.minecraft.client.gui.screens.PauseScreen;
 import net.minecraft.client.gui.screens.worldselection.CreateWorldScreen;
 import net.minecraft.client.multiplayer.ServerData;
 import net.minecraft.client.multiplayer.resolver.ServerAddress;
@@ -86,6 +89,9 @@ public final class MineTogetherCiProbe {
                 if (chatPort <= 0) throw new IllegalStateException("Local chat test requires MINETOGETHER_CI_CHAT_PORT");
                 CiChatMock.install(chatPort, role, resultDirectory);
             }
+            if (role.equals("connect-ui")) {
+                GuiShareToFriends.configureLocalForTesting(8);
+            }
             activeEmotes = activeEmotes();
             installTestEmote();
             marker(role + "-started");
@@ -104,7 +110,7 @@ public final class MineTogetherCiProbe {
             return;
         }
 
-        if (role.equals("singleplayer")) {
+        if (role.equals("singleplayer") || role.equals("connect-ui")) {
             try {
                 tickSingleplayer(minecraft);
             } catch (Throwable throwable) {
@@ -193,10 +199,69 @@ public final class MineTogetherCiProbe {
             return;
         }
 
-        if (++stableTicks >= 100) {
+        if (++stableTicks < 100) return;
+
+        if (role.equals("singleplayer")) {
             marker("singleplayer-world-ready");
             success(minecraft);
+            return;
         }
+
+        tickConnectUi(minecraft);
+    }
+
+    private static void tickConnectUi(Minecraft minecraft) {
+        if (chatPhase == 0) {
+            if (!MineTogetherConnect.isInitted) {
+                fail("MineTogether Connect was not initialized in singleplayer");
+                return;
+            }
+            marker("connect-ui-world-ready");
+            minecraft.setScreen(new PauseScreen(true));
+            phaseTicks = ticks;
+            chatPhase = 1;
+            return;
+        }
+
+        if (chatPhase == 1) {
+            if (ticks - phaseTicks < 20 || !(minecraft.screen instanceof PauseScreen)) return;
+            String openLabel = translated("minetogether.connect.open");
+            Button openButton = minecraft.screen.children().stream()
+                    .filter(Button.class::isInstance)
+                    .map(Button.class::cast)
+                    .filter(button -> openLabel.equals(button.getMessage().getString()))
+                    .findFirst()
+                    .orElse(null);
+            if (openButton == null) {
+                fail("The singleplayer pause menu did not contain the Open to friends button");
+                return;
+            }
+            marker("connect-ui-pause-control");
+            openButton.onPress();
+            phaseTicks = ticks;
+            chatPhase = 2;
+            return;
+        }
+
+        if (chatPhase == 2 && ticks - phaseTicks >= 40) {
+            if (!(minecraft.screen instanceof GuiShareToFriends.Screen)) {
+                fail("Open to friends did not open its settings screen");
+                return;
+            }
+            translated("minetogether.connect.open.settings");
+            translated("minetogether.connect.open.max_players");
+            translated("minetogether.connect.open.start");
+            marker("connect-ui-settings-ready");
+            success(minecraft);
+        }
+    }
+
+    private static String translated(String key) {
+        String value = Component.translatable(key).getString();
+        if (key.equals(value)) {
+            fail("Missing translation for " + key);
+        }
+        return value;
     }
 
     private static void connectIfNeeded(Minecraft minecraft) {
