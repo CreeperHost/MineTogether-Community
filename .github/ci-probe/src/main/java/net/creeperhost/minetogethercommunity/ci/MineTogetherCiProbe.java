@@ -273,6 +273,7 @@ public final class MineTogetherCiProbe {
             stopped = true;
             marker("receiver-remote-stop");
             System.out.println(PREFIX + "Observed remote emote stop for " + peerId);
+        } else if (stopped && exists("sender-success")) {
             success(minecraft);
         }
     }
