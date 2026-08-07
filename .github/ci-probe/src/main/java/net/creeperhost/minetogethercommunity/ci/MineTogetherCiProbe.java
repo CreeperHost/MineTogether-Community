@@ -369,14 +369,42 @@ public final class MineTogetherCiProbe {
     private static void clickVanillaButton(GuiScreen screen, String translationKey) {
         String expected = I18n.format(translationKey);
         try {
-            Field field = GuiScreen.class.getDeclaredField("buttonList"); field.setAccessible(true);
-            for (GuiButton button : (Iterable<GuiButton>) field.get(screen)) {
+            for (GuiButton button : vanillaButtons(screen)) {
                 if (!expected.equals(button.displayString)) continue;
-                Method action = GuiScreen.class.getDeclaredMethod("actionPerformed", GuiButton.class);
+                Method action = vanillaButtonAction(screen.getClass());
                 action.setAccessible(true); action.invoke(screen, button); return;
             }
         } catch (Exception exception) { fail("Could not press vanilla button " + translationKey + ": " + exception); return; }
         fail("Could not find vanilla button " + translationKey);
+    }
+
+    @SuppressWarnings("unchecked")
+    private static Iterable<GuiButton> vanillaButtons(GuiScreen screen) throws IllegalAccessException {
+        Class<?> type = screen.getClass();
+        while (type != null) {
+            for (Field field : type.getDeclaredFields()) {
+                if (!java.util.List.class.isAssignableFrom(field.getType())) continue;
+                field.setAccessible(true);
+                Object value = field.get(screen);
+                if (!(value instanceof java.util.List)) continue;
+                java.util.List<?> list = (java.util.List<?>) value;
+                if (!list.isEmpty() && list.get(0) instanceof GuiButton) return (Iterable<GuiButton>) list;
+            }
+            type = type.getSuperclass();
+        }
+        throw new IllegalStateException("Could not find the vanilla button list by type");
+    }
+
+    private static Method vanillaButtonAction(Class<?> type) {
+        while (type != null) {
+            for (Method method : type.getDeclaredMethods()) {
+                Class<?>[] parameters = method.getParameterTypes();
+                if (parameters.length == 1 && GuiButton.class.isAssignableFrom(parameters[0])
+                        && method.getReturnType() == Void.TYPE) return method;
+            }
+            type = type.getSuperclass();
+        }
+        throw new IllegalStateException("Could not find the vanilla button action by signature");
     }
 
     private static void clickModularButton(ModularGuiScreen screen, String translationKey) throws IOException {
