@@ -1,5 +1,12 @@
 package net.creeperhost.minetogethercommunity.chat;
 
+import net.covers1624.quack.net.httpapi.AbstractEngineRequest;
+import net.covers1624.quack.net.httpapi.EngineRequest;
+import net.covers1624.quack.net.httpapi.EngineResponse;
+import net.covers1624.quack.net.httpapi.HeaderList;
+import net.covers1624.quack.net.httpapi.HttpEngine;
+import net.covers1624.quack.net.httpapi.WebBody;
+import net.creeperhost.minetogether.lib.chat.ChatAuth;
 import net.creeperhost.minetogether.lib.chat.ChatState;
 import net.creeperhost.minetogether.lib.chat.MutedUserList;
 import net.creeperhost.minetogether.lib.chat.irc.IrcChannel;
@@ -16,30 +23,103 @@ import net.creeperhost.minetogethercommunity.cosmetic.CosmeticSelections;
 import net.creeperhost.minetogethercommunity.cosmetic.PlayerCosmeticCache;
 import net.creeperhost.minetogethercommunity.gui.chat.PlayerIconElement;
 import net.creeperhost.minetogethercommunity.util.ModPackInfo;
+import net.creeperhost.minetogether.session.JWebToken;
 import net.minecraft.client.Minecraft;
 import net.minecraft.entity.player.EntityPlayer;
 import net.minecraft.util.text.TextComponentString;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
+import java.io.IOException;
 import java.io.File;
+import java.nio.file.Path;
 import java.util.Locale;
+import java.util.UUID;
+import java.util.concurrent.CompletableFuture;
 
 public class MineTogetherChat {
 
     private static final Logger LOGGER = LogManager.getLogger("MineTogether Chat");
 
-    public static ChatAuthImpl CHAT_AUTH;
+    public static ChatAuth CHAT_AUTH;
     public static ChatState CHAT_STATE;
     private static boolean attached;
     private static Object profileListener;
     private static boolean minecraftChatAllowed = true;
 
+    /** Replaces external chat discovery for the isolated offline runtime test. */
+    public static void configureLocalChatForTesting(int port, final String hash, final UUID uuid, Path mutedUsersFile) {
+        if (!Boolean.getBoolean("minetogether.ci.localChat")) {
+            throw new IllegalStateException("The local chat override is only available to the CI runtime probe");
+        }
+        CHAT_AUTH = new ChatAuth() {
+            @Override public String getSignature() { return "ci-offline-signature"; }
+            @Override public UUID getUUID() { return uuid; }
+            @Override public String getHash() { return hash; }
+            @Override public void resetSessionToken() { }
+            @Override public CompletableFuture<JWebToken> getSessionTokenAsync() {
+                return CompletableFuture.completedFuture(null);
+            }
+        };
+        String serverResponse = "{\"status\":\"success\",\"channel\":\"#minetogether-ci\","
+                + "\"server\":{\"address\":\"127.0.0.1\",\"port\":" + port + ",\"ssl\":false}}";
+        HttpEngine engine = new HttpEngine() {
+            @Override
+            public EngineRequest newRequest() {
+                return new LocalChatRequest(serverResponse);
+            }
+        };
+        CHAT_STATE = new ChatState(
+                net.creeperhost.minetogether.lib.web.ApiClient.builder()
+                        .httpEngine(engine)
+                        .addUserAgentSegment("MineTogether-CI")
+                        .build(),
+                CHAT_AUTH,
+                new MutedUserList(mutedUsersFile),
+                () -> "MineTogether CI",
+                true
+        );
+    }
+
+    private static final class LocalChatRequest extends AbstractEngineRequest {
+        private static final String ERROR_RESPONSE =
+                "{\"status\":\"error\",\"message\":\"Profile request already ongoing (CI mock)\"}";
+        private final String serverResponse;
+
+        private LocalChatRequest(String serverResponse) {
+            this.serverResponse = serverResponse;
+        }
+
+        @Override
+        public EngineRequest method(String method, WebBody body) {
+            assertState();
+            return this;
+        }
+
+        @Override
+        public EngineResponse execute() {
+            assertState();
+            String response = getUrl().endsWith("/serverlist") ? serverResponse : ERROR_RESPONSE;
+            final WebBody body = WebBody.string(response, "application/json");
+            final HeaderList headers = new HeaderList();
+            return new EngineResponse() {
+                @Override public EngineRequest request() { return LocalChatRequest.this; }
+                @Override public int statusCode() { return 200; }
+                @Override public String message() { return "OK"; }
+                @Override public HeaderList headers() { return headers; }
+                @Override public WebBody body() { return body; }
+                @Override public void close() throws IOException { }
+            };
+        }
+    }
+
     public static void init() {
-        CHAT_AUTH = new ChatAuthImpl(Minecraft.getMinecraft());
+        if (CHAT_STATE == null) {
+            CHAT_AUTH = new ChatAuthImpl(Minecraft.getMinecraft());
+            File muted = new File(new File(MineTogether.getGameDir(), "local/minetogether"), "mutedusers.json");
+            CHAT_STATE = new ChatState(MineTogether.API, CHAT_AUTH, new MutedUserList(muted.toPath()), () -> ModPackInfo.getInfo().realName, false);
+        }
         LOGGER.info("MineTogether chat auth hash {} using fingerprint {}.", mask(CHAT_AUTH.getHash()), mask(CHAT_AUTH.getSignature()));
-        File muted = new File(new File(MineTogether.getGameDir(), "local/minetogether"), "mutedusers.json");
-        CHAT_STATE = new ChatState(MineTogether.API, CHAT_AUTH, new MutedUserList(muted.toPath()), () -> ModPackInfo.getInfo().realName, false);
         CHAT_STATE.logChatToConsole = Config.instance().logChatToConsole || Config.instance().debugMode;
         if (Config.instance().debugMode) {
             System.setProperty("net.covers1624.pircbot.logging.info", "INFO");
