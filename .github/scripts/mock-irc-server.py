@@ -59,6 +59,8 @@ class IrcHandler(socketserver.StreamRequestHandler):
         self.send(f":minetogether-ci 003 {self.nick} :This server was created for CI")
         self.send(f":minetogether-ci 004 {self.nick} minetogether-ci 0.1 o o")
         self.send(f":minetogether-ci 005 {self.nick} CHANTYPES=# PREFIX=(ov)@+ :are supported")
+        self.send(f":minetogether-ci 375 {self.nick} :- minetogether-ci Message of the Day -")
+        self.send(f":minetogether-ci 372 {self.nick} :- MineTogether CI")
         self.send(f":minetogether-ci 376 {self.nick} :End of MOTD")
 
     def handle_join(self, channel):
@@ -70,14 +72,30 @@ class IrcHandler(socketserver.StreamRequestHandler):
         self.send(f":minetogether-ci 366 {self.nick} {channel} :End of NAMES list")
         self.server.state.broadcast(f":minetogether-ci MODE {channel} +v {self.nick}")
 
+    def handle_who(self, channel):
+        channel = channel.lstrip(":")
+        with self.server.state.lock:
+            clients = [client for client in self.server.state.clients if client.nick]
+        for client in clients:
+            self.send(
+                f":minetogether-ci 352 {self.nick} {channel} MineTogether 127.0.0.1 "
+                f"minetogether-ci {client.nick} H+ :0 {client.realname}"
+            )
+        self.send(f":minetogether-ci 315 {self.nick} {channel} :End of WHO list")
+
     def handle(self):
         for raw in self.rfile:
             line = raw.decode("utf-8", errors="replace").rstrip("\r\n")
             if not line:
                 continue
+            print(f"RECV {self.nick or '-'} {line}", flush=True)
             command, _, rest = line.partition(" ")
             command = command.upper()
-            if command == "NICK":
+            if command == "CAP":
+                subcommand = rest.split()[0].upper() if rest else ""
+                if subcommand == "LS":
+                    self.send(f":minetogether-ci CAP {self.nick or '*'} LS :")
+            elif command == "NICK":
                 self.nick = rest.lstrip(":").split()[0]
                 self.maybe_register()
             elif command == "USER":
@@ -87,6 +105,8 @@ class IrcHandler(socketserver.StreamRequestHandler):
                 self.maybe_register()
             elif command == "JOIN":
                 self.handle_join(rest.split()[0])
+            elif command == "WHO":
+                self.handle_who(rest.split()[0])
             elif command == "PRIVMSG":
                 target, _, message = rest.partition(" :")
                 self.server.state.broadcast(f":{self.mask} PRIVMSG {target} :{message}", exclude=self)
