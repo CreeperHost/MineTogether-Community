@@ -1,5 +1,6 @@
 package net.creeperhost.minetogethercommunity.ci;
 
+import com.google.common.hash.Hashing;
 import dev.architectury.event.events.client.ClientTickEvent;
 import dev.architectury.networking.NetworkManager;
 import dev.architectury.networking.simple.MessageType;
@@ -50,6 +51,8 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.Map;
+import java.util.Locale;
+import java.util.Set;
 import java.util.UUID;
 
 /**
@@ -106,7 +109,7 @@ public final class MineTogetherCiProbe {
 
         try {
             Files.createDirectories(resultDirectory);
-            if (role.equals("chat-sender") || role.equals("chat-receiver")) {
+            if (role.startsWith("chat-") || role.startsWith("ctcp-")) {
                 if (chatPort <= 0) throw new IllegalStateException("Local chat test requires MINETOGETHER_CI_CHAT_PORT");
                 CiChatMock.install(chatPort, role, resultDirectory);
             }
@@ -179,6 +182,11 @@ public final class MineTogetherCiProbe {
             return;
         }
 
+        if (role.equals("ctcp-receiver") && stopped && exists("ctcp-sender-success")) {
+            success(minecraft);
+            return;
+        }
+
         if (minecraft.player == null || minecraft.level == null || minecraft.getConnection() == null) {
             connectIfNeeded(minecraft);
             stableTicks = 0;
@@ -211,6 +219,8 @@ public final class MineTogetherCiProbe {
                 case "late-receiver" -> tickLateReceiver(minecraft);
                 case "chat-sender" -> tickChatSender(minecraft);
                 case "chat-receiver" -> tickChatReceiver(minecraft);
+                case "ctcp-sender" -> tickCtcpSender(minecraft);
+                case "ctcp-receiver" -> tickCtcpReceiver(minecraft);
                 default -> fail("Unknown CI probe role: " + role);
             }
         } catch (Throwable throwable) {
@@ -591,7 +601,7 @@ public final class MineTogetherCiProbe {
     }
 
     private static void connectIfNeeded(Minecraft minecraft) {
-        if (connectionStarted || serverAddress.isEmpty() || minecraft.screen == null || ticks < 40) return;
+        if (connectionStarted || serverAddress.isEmpty() || minecraft.screen == null || ticks < 200) return;
 
         connectionStarted = true;
         marker(role + "-connecting");
@@ -698,6 +708,90 @@ public final class MineTogetherCiProbe {
             marker("chat-receiver-ui-ready");
             if (exists("chat-sender-ui-ready")) success(minecraft);
         }
+    }
+
+    private static void tickCtcpSender(Minecraft minecraft) throws ReflectiveOperationException {
+        if (!preparePeerProfile(minecraft)
+                || !chatReady(MineTogetherChat.CHAT_STATE.ircClient.getPrimaryChannel())) return;
+        if (!started && stableTicks >= 60 && exists("ctcp-receiver-ready")) {
+            if (canSendEmoteToServer()) {
+                fail("Vanilla server unexpectedly accepted MineTogether emote packets");
+                return;
+            }
+            EmoteNetworking.tryBroadcastStart(TEST_EMOTE, true);
+            started = true;
+            marker("ctcp-emote-start-sent");
+            System.out.println(PREFIX + "Sent emote start through MineTogether CTCP");
+        } else if (started && !stopped && exists("ctcp-receiver-remote-start")) {
+            EmoteNetworking.tryBroadcastStop();
+            stopped = true;
+            marker("ctcp-emote-stop-sent");
+            System.out.println(PREFIX + "Sent emote stop through MineTogether CTCP");
+        } else if (stopped && exists("ctcp-receiver-remote-stop")) {
+            success(minecraft);
+        }
+    }
+
+    private static void tickCtcpReceiver(Minecraft minecraft) throws ReflectiveOperationException {
+        installTestEmote();
+        if (!preparePeerProfile(minecraft)
+                || !chatReady(MineTogetherChat.CHAT_STATE.ircClient.getPrimaryChannel())) return;
+        if (!exists("ctcp-receiver-ready")) marker("ctcp-receiver-ready");
+        if (!started && activeEmotes.containsKey(peerId)) {
+            started = true;
+            marker("ctcp-receiver-remote-start");
+            System.out.println(PREFIX + "Observed CTCP emote start for " + peerId);
+        } else if (started && !stopped && !activeEmotes.containsKey(peerId)) {
+            stopped = true;
+            marker("ctcp-receiver-remote-stop");
+            System.out.println(PREFIX + "Observed CTCP emote stop for " + peerId);
+        } else if (stopped && exists("ctcp-sender-success")) {
+            success(minecraft);
+        }
+    }
+
+    private static boolean preparePeerProfile(Minecraft minecraft) throws ReflectiveOperationException {
+        if (peerId == null) {
+            for (Player player : minecraft.level.players()) {
+                if (peerName.equals(player.getName().getString())) {
+                    peerId = player.getUUID();
+                    break;
+                }
+            }
+        }
+        if (peerId == null) return false;
+
+        String fullHash = profileHash(peerId);
+        Object chatState = MineTogetherChat.class.getField("CHAT_STATE").get(null);
+        Object profileManager = chatState.getClass().getField("profileManager").get(chatState);
+        Object knownProfiles = profileManager.getClass().getMethod("getKnownProfiles").invoke(profileManager);
+        if (!(knownProfiles instanceof Iterable<?> profiles)) return false;
+        for (Object profile : profiles) {
+            Object aliasesValue = profile.getClass().getMethod("getAliases").invoke(profile);
+            if (!(aliasesValue instanceof Set<?> aliases)) continue;
+            boolean matches = aliases.stream()
+                    .map(Object::toString)
+                    .map(alias -> alias.startsWith("MT") ? alias.substring(2) : alias)
+                    .anyMatch(fullHash::startsWith);
+            boolean online = (boolean) profile.getClass().getMethod("isOnline").invoke(profile);
+            if (!online || !matches) continue;
+            boolean hasFullHash = (boolean) profile.getClass().getMethod("hasFullHash").invoke(profile);
+            if (!hasFullHash) {
+                Field field = profile.getClass().getDeclaredField("fullHash");
+                field.setAccessible(true);
+                field.set(profile, fullHash);
+            }
+            return true;
+        }
+        return false;
+    }
+
+    @SuppressWarnings("deprecation")
+    private static String profileHash(UUID playerId) {
+        return Hashing.sha256()
+                .hashString(playerId.toString(), StandardCharsets.UTF_8)
+                .toString()
+                .toUpperCase(Locale.ROOT);
     }
 
     private static boolean chatReady(IrcChannel channel) {

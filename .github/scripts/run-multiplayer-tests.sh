@@ -20,7 +20,7 @@ chat_port="${MINETOGETHER_CI_CHAT_PORT:-26667}"
 connect_proxy_port="${MINETOGETHER_CI_CONNECT_PROXY_PORT:-27777}"
 connect_control_port="${MINETOGETHER_CI_CONNECT_CONTROL_PORT:-27778}"
 connect_node_file="$work/connect-service/connect-nodes.json"
-scenarios=",${MINETOGETHER_CI_SCENARIOS:-1,2,3,4,5,6,7,8,9},"
+scenarios=",${MINETOGETHER_CI_SCENARIOS:-1,2,3,4,5,6,7,8,9,10},"
 reuse_installs="${MINETOGETHER_CI_REUSE_INSTALLS:-false}"
 process_groups=()
 LAST_PID=""
@@ -225,7 +225,7 @@ start_client() {
       "MINETOGETHER_CI_RESULTS=$results"
       "MINETOGETHER_CI_SERVER_ADDRESS=127.0.0.1:$port"
     )
-    if [[ "$role" == chat-* ]]; then
+    if [[ "$role" == chat-* || "$role" == ctcp-* ]]; then
       environment+=("MINETOGETHER_CI_CHAT_PORT=$chat_port")
     fi
     if [[ "$role" == connect-* && -n "$connect_uuid" ]]; then
@@ -312,6 +312,8 @@ sender="$(create_client sender CiSender 00000000-0000-0000-0000-000000000040 tru
 receiver="$(create_client receiver CiReceiver 00000000-0000-0000-0000-000000000050 true)"
 chat_sender="$(create_client chat-sender CiChatSend 00000000-0000-0000-0000-000000000060 true)"
 chat_receiver="$(create_client chat-receiver CiChatRecv 00000000-0000-0000-0000-000000000070 true)"
+ctcp_sender="$(create_client ctcp-sender CiCtcpSend 00000000-0000-0000-0000-000000000110 true)"
+ctcp_receiver="$(create_client ctcp-receiver CiCtcpRecv 00000000-0000-0000-0000-000000000120 true)"
 singleplayer="$(create_client singleplayer CiSingleplayer 00000000-0000-0000-0000-000000000080 true)"
 connect_ui="$(create_client connect-ui CiConnectUi 00000000-0000-0000-0000-000000000081 true)"
 connect_unavailable="$(create_client connect-unavailable CiConnectOffline 00000000-0000-0000-0000-000000000082 true)"
@@ -328,7 +330,7 @@ connect_extra="$(create_client connect-extra CiConnectExtra "$connect_extra_uuid
 connect_outsider="$(create_client connect-outsider CiConnectOutsider "$connect_outsider_uuid" true)"
 
 if run_scenario 5; then
-  echo "Scenario 5/9: offline modded client creates and enters a fresh singleplayer world"
+  echo "Scenario 5/10: offline modded client creates and enters a fresh singleplayer world"
   reset_results
   start_client "$singleplayer" singleplayer "$launch_regex" 0 singleplayer 1
   singleplayer_pid="$LAST_PID"
@@ -338,7 +340,7 @@ if run_scenario 5; then
 fi
 
 if run_scenario 8; then
-  echo "Scenario 8/9: unavailable Connect discovery leaves Multiplayer usable and backs off cleanly"
+  echo "Scenario 8/10: unavailable Connect discovery leaves Multiplayer usable and backs off cleanly"
   reset_results
   start_client "$connect_unavailable" connect-unavailable "$launch_regex" 0 connect-unavailable 1
   connect_unavailable_pid="$LAST_PID"
@@ -349,7 +351,7 @@ if run_scenario 8; then
 fi
 
 if run_scenario 9; then
-  echo "Scenario 9/9: local Connect publish, discovery, relay admission, rejection, limits, and lifecycle"
+  echo "Scenario 9/10: local Connect publish, discovery, relay admission, rejection, limits, and lifecycle"
   reset_results
   connect_service_jar="$(find "$repo/build/ci-runtime/connect-service" -maxdepth 1 -type f -name '*.jar' -print -quit)"
   [[ -n "$connect_service_jar" ]] || fail "Staged local MTConnect service jar was not found"
@@ -437,7 +439,7 @@ if run_scenario 9; then
 fi
 
 if run_scenario 7; then
-  echo "Scenario 7/9: singleplayer pause menu opens translated MineTogether Connect controls"
+  echo "Scenario 7/10: singleplayer pause menu opens translated MineTogether Connect controls"
   reset_results
   start_client "$connect_ui" connect-ui "$launch_regex" 0 connect-ui 1
   connect_ui_pid="$LAST_PID"
@@ -448,7 +450,7 @@ if run_scenario 7; then
 fi
 
 if run_scenario 1; then
-  echo "Scenario 1/9: offline modded client joins a vanilla server and safely attempts an emote"
+  echo "Scenario 1/10: offline modded client joins a vanilla server and safely attempts an emote"
   reset_results
   start_server vanilla-ci "$work/logs/vanilla-server.log"
   vanilla_server_pid="$LAST_PID"
@@ -465,7 +467,7 @@ if run_scenario 2 || run_scenario 3 || run_scenario 4 || run_scenario 6; then
 fi
 
 if run_scenario 2; then
-  echo "Scenario 2/9: vanilla and modded clients stay connected while the modded client emits an emote"
+  echo "Scenario 2/10: vanilla and modded clients stay connected while the modded client emits an emote"
   reset_results
   start_client "$vanilla_client" vanilla-client "$minecraft" "$modded_port"
   vanilla_pid="$LAST_PID"
@@ -484,7 +486,7 @@ if run_scenario 2; then
 fi
 
 if run_scenario 3; then
-  echo "Scenario 3/9: two modded clients relay and apply emote start/stop packets"
+  echo "Scenario 3/10: two modded clients relay and apply emote start/stop packets"
   reset_results
   start_client "$receiver" receiver "$launch_regex" "$modded_port" receiver 2 CiSender
   receiver_pid="$LAST_PID"
@@ -499,7 +501,7 @@ if run_scenario 3; then
 fi
 
 if run_scenario 6; then
-  echo "Scenario 6/9: a late peer receives persistent emote state and disconnect cleanup removes its stale state"
+  echo "Scenario 6/10: a late peer receives persistent emote state and disconnect cleanup removes its stale state"
   reset_results
   start_client "$late_sender" late-sender "$launch_regex" "$modded_port" late-sender 1 CiLateRecv
   late_sender_pid="$LAST_PID"
@@ -516,7 +518,7 @@ if run_scenario 6; then
 fi
 
 if run_scenario 4; then
-  echo "Scenario 4/9: two offline clients use mocked API discovery and relay MineTogether chat over local IRC"
+  echo "Scenario 4/10: two offline clients use mocked API discovery and relay MineTogether chat over local IRC"
   reset_results
   start_group "$work" "$work/logs/mock-irc.log" python3 -u "$repo/.github/scripts/mock-irc-server.py" --host 127.0.0.1 --port "$chat_port" --channel '#minetogether-ci'
   mock_irc_pid="$LAST_PID"
@@ -537,6 +539,31 @@ fi
 
 if run_scenario 2 || run_scenario 3 || run_scenario 4 || run_scenario 6; then
   stop_group "$modded_server_pid"
+fi
+
+if run_scenario 10; then
+  echo "Scenario 10/10: two MineTogether clients relay emotes over CTCP on a vanilla server"
+  reset_results
+  start_server vanilla-ci "$work/logs/vanilla-ctcp-server.log"
+  vanilla_ctcp_server_pid="$LAST_PID"
+  start_group "$work" "$work/logs/mock-irc-ctcp.log" python3 -u "$repo/.github/scripts/mock-irc-server.py" --host 127.0.0.1 --port "$chat_port" --channel '#minetogether-ci'
+  mock_irc_ctcp_pid="$LAST_PID"
+  remember_group "$mock_irc_ctcp_pid"
+  wait_for_log "$work/logs/mock-irc-ctcp.log" '^READY ' "$mock_irc_ctcp_pid" 30
+  start_client "$ctcp_receiver" ctcp-receiver "$launch_regex" "$vanilla_port" ctcp-receiver 2 CiCtcpSend
+  ctcp_receiver_pid="$LAST_PID"
+  start_client "$ctcp_sender" ctcp-sender "$launch_regex" "$vanilla_port" ctcp-sender 2 CiCtcpRecv
+  ctcp_sender_pid="$LAST_PID"
+  wait_for_marker ctcp-emote-start-sent "$ctcp_sender_pid"
+  wait_for_marker ctcp-receiver-remote-start "$ctcp_receiver_pid"
+  wait_for_marker ctcp-emote-stop-sent "$ctcp_sender_pid"
+  wait_for_marker ctcp-receiver-remote-stop "$ctcp_receiver_pid"
+  wait_for_marker ctcp-sender-success "$ctcp_sender_pid"
+  wait_for_marker ctcp-receiver-success "$ctcp_receiver_pid"
+  await_group_exit "$ctcp_sender_pid"
+  await_group_exit "$ctcp_receiver_pid"
+  stop_group "$mock_irc_ctcp_pid"
+  stop_group "$vanilla_ctcp_server_pid"
 fi
 
 assert_clean_logs
