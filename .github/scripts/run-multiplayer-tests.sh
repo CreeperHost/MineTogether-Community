@@ -189,9 +189,16 @@ onboardAccessibility:false
 renderDistance:2
 simulationDistance:5
 graphicsMode:0
-maxFps:10
+  maxFps:10
 EOF
   if [[ "$modded" == true ]]; then
+    mkdir -p "$game/local/minetogether"
+    cat > "$game/local/minetogether/minetogethercommunity.json" <<'EOF'
+{
+  "connectPackPrompted": true,
+  "connectPackBypass": true
+}
+EOF
     cp "$repo/build/ci-runtime/$loader/mods/"*.jar "$game/mods/"
     cp "$repo/build/ci-runtime/$loader/probe/"*.jar "$game/mods/"
   fi
