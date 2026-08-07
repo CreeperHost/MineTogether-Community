@@ -99,6 +99,10 @@ public class MineTogetherChat {
                 () -> "MineTogether CI",
                 true
         );
+        registerCtcpListener();
+        LocalConfig.instance().chatEnabled = true;
+        LocalConfig.instance().selectedTab = ChatTarget.PUBLIC;
+        LocalConfig.instance().firstConnect.add(hash.toLowerCase(Locale.ROOT));
     }
 
     private static final class LocalChatRequest extends AbstractEngineRequest {
@@ -144,10 +148,7 @@ public class MineTogetherChat {
             );
             CHAT_STATE = new ChatState(MineTogether.API, CHAT_AUTH, MUTED_USER_LIST, () -> ModPackInfo.getInfo().realName, false);
         }
-
-        CHAT_STATE.ircClient.addCTCPListener((user, request) ->
-                user != null && EmoteNetworking.handleCtcp(user.getProfile(), request)
-        );
+        registerCtcpListener();
         CHAT_STATE.logChatToConsole = Config.instance().logChatToConsole | Config.instance().debugMode;
 
         if (Config.instance().debugMode) {
@@ -163,6 +164,12 @@ public class MineTogetherChat {
             }
         });
         ChatStatistics.pollStats();
+    }
+
+    private static void registerCtcpListener() {
+        CHAT_STATE.ircClient.addCTCPListener((user, request) ->
+                user != null && EmoteNetworking.handleCtcp(user.getProfile(), request)
+        );
     }
 
     public static void initChat(Gui gui) {
