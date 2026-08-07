@@ -3,6 +3,7 @@ package net.creeperhost.minetogethercommunity.forge;
 import net.creeperhost.minetogethercommunity.MineTogether;
 import net.minecraft.network.Connection;
 import net.minecraftforge.fml.ModList;
+import net.minecraftforge.network.NetworkHooks;
 import net.minecraftforge.forgespi.language.IModFileInfo;
 import org.jetbrains.annotations.Nullable;
 
@@ -32,6 +33,6 @@ public class MineTogetherPlatformImpl {
     }
 
     public static void prepareClientConnection(Connection connection) {
-        // Not required on Forge.
+        NetworkHooks.registerClientLoginChannel(connection);
     }
 }
