@@ -58,7 +58,7 @@ public class MineTogetherChat {
 
     private static final Logger LOGGER = LogManager.getLogger();
 
-    public static ChatAuthImpl CHAT_AUTH;
+    public static ChatAuth CHAT_AUTH;
     private static MutedUserList MUTED_USER_LIST;
 
     public static ChatState CHAT_STATE;
@@ -86,13 +86,15 @@ public class MineTogetherChat {
         String serverResponse = "{\"status\":\"success\",\"channel\":\"#minetogether-ci\","
                 + "\"server\":{\"address\":\"127.0.0.1\",\"port\":" + port + ",\"ssl\":false}}";
         HttpEngine engine = () -> new LocalChatRequest(serverResponse);
+        CHAT_AUTH = auth;
+        MUTED_USER_LIST = new MutedUserList(mutedUsersFile);
         CHAT_STATE = new ChatState(
                 net.creeperhost.minetogether.lib.web.ApiClient.builder()
                         .httpEngine(engine)
                         .addUserAgentSegment("MineTogether-CI")
                         .build(),
-                auth,
-                new MutedUserList(mutedUsersFile),
+                CHAT_AUTH,
+                MUTED_USER_LIST,
                 () -> "MineTogether CI",
                 true
         );
