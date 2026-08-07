@@ -15,6 +15,7 @@ import net.creeperhost.minetogether.lib.chat.irc.IrcChannel;
 import net.creeperhost.minetogether.lib.chat.irc.IrcState;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.components.Button;
+import net.minecraft.client.gui.components.EditBox;
 import net.minecraft.client.gui.components.events.GuiEventListener;
 import net.minecraft.client.gui.screens.ConnectScreen;
 import net.minecraft.client.gui.screens.ChatScreen;
@@ -22,6 +23,7 @@ import net.minecraft.client.gui.screens.worldselection.CreateWorldScreen;
 import net.minecraft.client.multiplayer.ServerData;
 import net.minecraft.client.multiplayer.resolver.ServerAddress;
 import net.minecraft.network.chat.Component;
+import net.minecraft.world.entity.player.ChatVisiblity;
 import net.minecraft.world.entity.player.Player;
 
 import java.io.IOException;
@@ -61,6 +63,7 @@ public final class MineTogetherCiProbe {
     private static UUID peerId;
     private static Map<UUID, ?> activeEmotes;
     private static int chatPort;
+    private static int chatPhase;
 
     public static synchronized void init() {
         if (initialized) return;
@@ -224,19 +227,64 @@ public final class MineTogetherCiProbe {
 
     private static void tickChatSender(Minecraft minecraft) {
         IrcChannel channel = MineTogetherChat.CHAT_STATE.ircClient.getPrimaryChannel();
-        if (!started && chatReady(channel) && exists("chat-receiver-ready")) {
-            channel.sendMessage(TEST_CHAT_MESSAGE);
-            started = true;
-            marker("chat-message-sent");
-            System.out.println(PREFIX + "Sent local IRC message through MineTogether");
-        } else if (started && !stopped && exists("chat-message-received")) {
-            openPublicChat(minecraft);
-            stopped = true;
-            phaseTicks = ticks;
-        } else if (stopped && ticks - phaseTicks >= 20) {
-            assertChatScreen(minecraft);
-            marker("chat-sender-ui-ready");
-            if (exists("chat-receiver-ui-ready")) success(minecraft);
+        switch (chatPhase) {
+            case 0 -> {
+                if (!chatReady(channel) || !exists("chat-receiver-ready")) return;
+                openPublicChat(minecraft);
+                phaseTicks = ticks;
+                chatPhase = 1;
+            }
+            case 1 -> {
+                if (ticks - phaseTicks < 20) return;
+                assertChatScreen(minecraft);
+                assertMineTogetherChatControls(minecraft, true);
+                marker("chat-controls-visible");
+                minecraft.options.chatVisibility().set(ChatVisiblity.HIDDEN);
+                phaseTicks = ticks;
+                chatPhase = 2;
+            }
+            case 2 -> {
+                if (MineTogetherChat.isChatEnabled()
+                        || MineTogetherChat.CHAT_STATE.ircClient.getState() != IrcState.DISCONNECTED) return;
+                minecraft.setScreen(new ChatScreen(""));
+                phaseTicks = ticks;
+                chatPhase = 3;
+            }
+            case 3 -> {
+                if (ticks - phaseTicks < 20) return;
+                assertChatScreen(minecraft);
+                assertMineTogetherChatControls(minecraft, false);
+                marker("chat-hidden-blocked");
+                minecraft.options.chatVisibility().set(ChatVisiblity.FULL);
+                phaseTicks = ticks;
+                chatPhase = 4;
+            }
+            case 4 -> {
+                if (!chatReady(channel) || !MineTogetherChat.isChatEnabled()) return;
+                openPublicChat(minecraft);
+                phaseTicks = ticks;
+                chatPhase = 5;
+            }
+            case 5 -> {
+                if (ticks - phaseTicks < 20) return;
+                assertMineTogetherChatControls(minecraft, true);
+                submitChatThroughUi(minecraft, TEST_CHAT_MESSAGE);
+                marker("chat-message-sent");
+                System.out.println(PREFIX + "Submitted local IRC message through the real chat input");
+                chatPhase = 6;
+            }
+            case 6 -> {
+                if (!exists("chat-message-received")) return;
+                openPublicChat(minecraft);
+                phaseTicks = ticks;
+                chatPhase = 7;
+            }
+            case 7 -> {
+                if (ticks - phaseTicks < 20) return;
+                assertChatScreen(minecraft);
+                marker("chat-sender-ui-ready");
+                if (exists("chat-receiver-ui-ready")) success(minecraft);
+            }
         }
     }
 
@@ -274,6 +322,43 @@ public final class MineTogetherCiProbe {
     private static void assertChatScreen(Minecraft minecraft) {
         if (!(minecraft.screen instanceof ChatScreen)) {
             fail("MineTogether chat screen did not remain open during the local IRC test");
+        }
+    }
+
+    private static void assertMineTogetherChatControls(Minecraft minecraft, boolean expected) {
+        long radioButtons = minecraft.screen.children().stream()
+                .filter(child -> child.getClass().getName().endsWith(".RadioButton"))
+                .count();
+        long sliders = minecraft.screen.children().stream()
+                .filter(child -> child.getClass().getName().endsWith(".SlideButton"))
+                .count();
+        long iconButtons = minecraft.screen.children().stream()
+                .filter(child -> child.getClass().getName().endsWith(".IconButton"))
+                .count();
+        boolean present = radioButtons >= 2 && sliders >= 3 && iconButtons >= 1;
+        if (present != expected) {
+            fail("MineTogether chat controls " + (expected ? "were missing" : "remained visible")
+                    + " (radio=" + radioButtons + ", sliders=" + sliders + ", icons=" + iconButtons + ")");
+        }
+    }
+
+    private static void submitChatThroughUi(Minecraft minecraft, String message) {
+        if (!(minecraft.screen instanceof ChatScreen screen)) {
+            fail("Cannot submit chat because the vanilla ChatScreen is not open");
+            return;
+        }
+        EditBox input = screen.children().stream()
+                .filter(EditBox.class::isInstance)
+                .map(EditBox.class::cast)
+                .findFirst()
+                .orElse(null);
+        if (input == null) {
+            fail("The vanilla chat input was not present");
+            return;
+        }
+        input.setValue(message);
+        if (!screen.keyPressed(257, 0, 0)) { // GLFW_KEY_ENTER
+            fail("The vanilla ChatScreen did not handle the Enter key");
         }
     }
 
