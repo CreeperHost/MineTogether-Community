@@ -230,7 +230,7 @@ public final class MineTogetherCiProbe {
 
     private static void tickSingleplayer(Minecraft minecraft) throws ReflectiveOperationException {
         if (!started) {
-            if (minecraft.screen == null || ticks < 40) return;
+            if (minecraft.screen == null || minecraft.getOverlay() != null || ticks < 200) return;
             CreateWorldScreen.openFresh(minecraft, minecraft.screen);
             started = true;
             phaseTicks = ticks;
@@ -240,7 +240,18 @@ public final class MineTogetherCiProbe {
         }
 
         if (!stopped) {
-            if (!(minecraft.screen instanceof CreateWorldScreen) || ticks - phaseTicks < 20) return;
+            if (!(minecraft.screen instanceof CreateWorldScreen)) {
+                if ((ticks - phaseTicks) % 100 == 0) {
+                    System.out.println(PREFIX + "Waiting for CreateWorldScreen; current="
+                            + (minecraft.screen == null ? "null" : minecraft.screen.getClass().getName()));
+                }
+                if (ticks - phaseTicks > 400) {
+                    fail("Create-world flow did not reach CreateWorldScreen; current screen="
+                            + (minecraft.screen == null ? "null" : minecraft.screen.getClass().getName()));
+                }
+                return;
+            }
+            if (ticks - phaseTicks < 20) return;
             String createLabel = Component.translatable("selectWorld.create").getString();
             Button createButton = null;
             for (GuiEventListener child : minecraft.screen.children()) {
@@ -433,7 +444,7 @@ public final class MineTogetherCiProbe {
 
     private static void tickConnectFriend(Minecraft minecraft) throws ReflectiveOperationException {
         if (chatPhase == 0) {
-            if (minecraft.screen == null || ticks < 40) return;
+            if (!startupReady(minecraft)) return;
             minecraft.setScreen(new JoinMultiplayerScreen(minecraft.screen));
             phaseTicks = ticks;
             chatPhase = 1;
@@ -483,7 +494,7 @@ public final class MineTogetherCiProbe {
 
     private static void tickConnectRejected(Minecraft minecraft, String expectedMessage) throws ReflectiveOperationException {
         if (!started) {
-            if (minecraft.screen == null || ticks < 40) return;
+            if (!startupReady(minecraft)) return;
             RemoteServer remote = new RemoteServer(connectHostHash, connectServerToken, null);
             FriendConnectScreen.startConnecting(
                     minecraft.screen,
@@ -553,6 +564,8 @@ public final class MineTogetherCiProbe {
     }
 
     private static boolean screenContains(Screen screen, String expected) throws IllegalAccessException {
+        Component narration = screen.getNarrationMessage();
+        if (narration != null && narration.getString().contains(expected)) return true;
         Class<?> type = screen.getClass();
         while (type != null) {
             for (Field field : type.getDeclaredFields()) {
@@ -576,7 +589,7 @@ public final class MineTogetherCiProbe {
 
     private static void tickConnectUnavailable(Minecraft minecraft) {
         if (!started) {
-            if (minecraft.screen == null || ticks < 40) return;
+            if (!startupReady(minecraft)) return;
             minecraft.setScreen(new JoinMultiplayerScreen(minecraft.screen));
             started = true;
             phaseTicks = ticks;
@@ -600,7 +613,7 @@ public final class MineTogetherCiProbe {
     }
 
     private static void connectIfNeeded(Minecraft minecraft) {
-        if (connectionStarted || serverAddress.isEmpty() || minecraft.screen == null || ticks < 40) return;
+        if (connectionStarted || serverAddress.isEmpty() || !startupReady(minecraft)) return;
 
         connectionStarted = true;
         marker(role + "-connecting");
@@ -609,9 +622,14 @@ public final class MineTogetherCiProbe {
                 minecraft.screen,
                 minecraft,
                 ServerAddress.parseString(serverAddress),
-                new ServerData("MineTogether CI", serverAddress, false),
-                true
+                new ServerData("MineTogether CI", serverAddress, ServerData.Type.OTHER),
+                true,
+                null
         );
+    }
+
+    private static boolean startupReady(Minecraft minecraft) {
+        return minecraft.screen != null && minecraft.getOverlay() == null && ticks >= 200;
     }
 
     private static void tickConnect(Minecraft minecraft) {
