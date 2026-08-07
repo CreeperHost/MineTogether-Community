@@ -28,6 +28,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.Callable;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
@@ -38,6 +39,7 @@ import static net.minecraft.ChatFormatting.*;
 public class GuiShareToFriends implements GuiProvider {
     private static final ExecutorService EXECUTOR = Executors.newFixedThreadPool(1, new ThreadFactoryBuilder().setNameFormat("MT Connect Requests Thread %d").setDaemon(true).build());
     private static final Logger LOGGER = LogManager.getLogger();
+    private static volatile Callable<Integer> maxPlayersLookup = GuiShareToFriends::requestMaxPlayers;
     private GameType gameMode = GameType.SURVIVAL;
     private boolean commands = false;
     private int maxPlayers = 2;
@@ -229,8 +231,7 @@ public class GuiShareToFriends implements GuiProvider {
     private void startPlayersCheck() {
         getPlayersTask = CompletableFuture.runAsync(() -> {
             try {
-                JWebToken token = MineTogetherSession.getDefault().getTokenAsync().get();
-                maxPlayers = NettyClient.getMaxPlayers(ConnectHandler.getEndpoint(), token);
+                maxPlayers = maxPlayersLookup.call();
                 if (maxPlayers == -1) {
                     noPlayerLimit = true;
                     maxPlayers = 100;
@@ -244,6 +245,19 @@ public class GuiShareToFriends implements GuiProvider {
                 LOGGER.error("An error occurred while attempting to check max players", e);
             }
         }, EXECUTOR);
+    }
+
+    private static int requestMaxPlayers() throws Exception {
+        JWebToken token = MineTogetherSession.getDefault().getTokenAsync().get();
+        return NettyClient.getMaxPlayers(ConnectHandler.getEndpoint(), token);
+    }
+
+    /** CI-only seam: prevents an offline UI test from contacting production Connect services. */
+    public static void configureLocalForTesting(int availablePlayers) {
+        if (!"connect-ui".equals(System.getenv("MINETOGETHER_CI_ROLE"))) {
+            throw new IllegalStateException("Local Connect testing is only available to the CI probe");
+        }
+        maxPlayersLookup = () -> availablePlayers;
     }
 
     private void openLink(ModularGui gui, String url) {
