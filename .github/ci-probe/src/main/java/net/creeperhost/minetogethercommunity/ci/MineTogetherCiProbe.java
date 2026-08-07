@@ -102,6 +102,13 @@ public final class MineTogetherCiProbe {
             return;
         }
 
+        // The sender exits immediately after acknowledging the receiver's stop marker.
+        // Complete before the shared player-count guard treats that expected teardown as a failure.
+        if ("ctcp-receiver".equals(role) && stopped && exists("ctcp-sender-success")) {
+            success(minecraft);
+            return;
+        }
+
         int players = minecraft.level.players().size();
         if (players < expectedPlayers) {
             if (joined) {
