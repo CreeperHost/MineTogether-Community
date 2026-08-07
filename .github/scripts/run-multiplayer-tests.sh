@@ -17,7 +17,7 @@ results="$work/results"
 vanilla_port="${MINETOGETHER_CI_VANILLA_PORT:-25571}"
 modded_port="${MINETOGETHER_CI_MODDED_PORT:-25572}"
 chat_port="${MINETOGETHER_CI_CHAT_PORT:-26667}"
-scenarios=",${MINETOGETHER_CI_SCENARIOS:-1,2,3,4,5},"
+scenarios=",${MINETOGETHER_CI_SCENARIOS:-1,2,3,4,5,6},"
 reuse_installs="${MINETOGETHER_CI_REUSE_INSTALLS:-false}"
 process_groups=()
 LAST_PID=""
@@ -280,9 +280,11 @@ receiver="$(create_client receiver CiReceiver 00000000-0000-0000-0000-0000000000
 chat_sender="$(create_client chat-sender CiChatSend 00000000-0000-0000-0000-000000000060 true)"
 chat_receiver="$(create_client chat-receiver CiChatRecv 00000000-0000-0000-0000-000000000070 true)"
 singleplayer="$(create_client singleplayer CiSingleplayer 00000000-0000-0000-0000-000000000080 true)"
+late_sender="$(create_client late-sender CiLateSend 00000000-0000-0000-0000-000000000090 true)"
+late_receiver="$(create_client late-receiver CiLateRecv 00000000-0000-0000-0000-000000000100 true)"
 
 if run_scenario 5; then
-  echo "Scenario 5/5: offline modded client creates and enters a fresh singleplayer world"
+  echo "Scenario 5/6: offline modded client creates and enters a fresh singleplayer world"
   reset_results
   start_client "$singleplayer" singleplayer "$launch_regex" 0 singleplayer 1
   singleplayer_pid="$LAST_PID"
@@ -292,7 +294,7 @@ if run_scenario 5; then
 fi
 
 if run_scenario 1; then
-  echo "Scenario 1/5: offline modded client joins a vanilla server and safely attempts an emote"
+  echo "Scenario 1/6: offline modded client joins a vanilla server and safely attempts an emote"
   reset_results
   start_server vanilla-ci "$work/logs/vanilla-server.log"
   vanilla_server_pid="$LAST_PID"
@@ -303,13 +305,13 @@ if run_scenario 1; then
   stop_group "$vanilla_server_pid"
 fi
 
-if run_scenario 2 || run_scenario 3 || run_scenario 4; then
+if run_scenario 2 || run_scenario 3 || run_scenario 4 || run_scenario 6; then
   start_server modded-ci "$work/logs/modded-server.log"
   modded_server_pid="$LAST_PID"
 fi
 
 if run_scenario 2; then
-  echo "Scenario 2/5: vanilla and modded clients stay connected while the modded client emits an emote"
+  echo "Scenario 2/6: vanilla and modded clients stay connected while the modded client emits an emote"
   reset_results
   start_client "$vanilla_client" vanilla-client "$minecraft" "$modded_port"
   vanilla_pid="$LAST_PID"
@@ -328,7 +330,7 @@ if run_scenario 2; then
 fi
 
 if run_scenario 3; then
-  echo "Scenario 3/5: two modded clients relay and apply emote start/stop packets"
+  echo "Scenario 3/6: two modded clients relay and apply emote start/stop packets"
   reset_results
   start_client "$receiver" receiver "$launch_regex" "$modded_port" receiver 2 CiSender
   receiver_pid="$LAST_PID"
@@ -342,8 +344,25 @@ if run_scenario 3; then
   await_group_exit "$sender_pid"
 fi
 
+if run_scenario 6; then
+  echo "Scenario 6/6: a late peer receives persistent emote state and disconnect cleanup removes its stale state"
+  reset_results
+  start_client "$late_sender" late-sender "$launch_regex" "$modded_port" late-sender 1 CiLateRecv
+  late_sender_pid="$LAST_PID"
+  wait_for_marker late-sender-emote-started "$late_sender_pid"
+  start_client "$late_receiver" late-receiver "$launch_regex" "$modded_port" late-receiver 2 CiLateSend
+  late_receiver_pid="$LAST_PID"
+  wait_for_marker late-receiver-observed-existing "$late_receiver_pid"
+  wait_for_marker late-receiver-disconnect-requested "$late_receiver_pid"
+  wait_for_marker late-sender-disconnect-clean "$late_sender_pid"
+  wait_for_marker late-sender-success "$late_sender_pid"
+  stop_group "$late_receiver_pid"
+  await_group_exit "$late_sender_pid" 60
+  assert_clean_logs "$work/logs/late-sender.log" "$work/logs/late-receiver.log" "$work/logs/modded-server.log"
+fi
+
 if run_scenario 4; then
-  echo "Scenario 4/5: two offline clients use mocked API discovery and relay MineTogether chat over local IRC"
+  echo "Scenario 4/6: two offline clients use mocked API discovery and relay MineTogether chat over local IRC"
   reset_results
   start_group "$work" "$work/logs/mock-irc.log" python3 -u "$repo/.github/scripts/mock-irc-server.py" --host 127.0.0.1 --port "$chat_port" --channel '#minetogether-ci'
   mock_irc_pid="$LAST_PID"
@@ -362,9 +381,9 @@ if run_scenario 4; then
   stop_group "$mock_irc_pid"
 fi
 
-if run_scenario 2 || run_scenario 3 || run_scenario 4; then
+if run_scenario 2 || run_scenario 3 || run_scenario 4 || run_scenario 6; then
   stop_group "$modded_server_pid"
 fi
 
 assert_clean_logs
-echo "All $loader singleplayer, offline connect, local chat, multiplayer compatibility, and emote relay scenarios passed."
+echo "All $loader singleplayer, offline connect, local chat, multiplayer compatibility, emote relay, and cleanup scenarios passed."

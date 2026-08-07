@@ -139,6 +139,8 @@ public final class MineTogetherCiProbe {
                 case "mixed-sender" -> tickMixedSender(minecraft);
                 case "sender" -> tickSender(minecraft);
                 case "receiver" -> tickReceiver(minecraft);
+                case "late-sender" -> tickLateSender(minecraft);
+                case "late-receiver" -> tickLateReceiver(minecraft);
                 case "chat-sender" -> tickChatSender(minecraft);
                 case "chat-receiver" -> tickChatReceiver(minecraft);
                 default -> fail("Unknown CI probe role: " + role);
@@ -334,6 +336,68 @@ public final class MineTogetherCiProbe {
             System.out.println(PREFIX + "Observed remote emote stop for " + peerId);
         } else if (stopped && exists("sender-success")) {
             success(minecraft);
+        }
+    }
+
+    private static void tickLateSender(Minecraft minecraft) throws ReflectiveOperationException {
+        if (!started && stableTicks >= 60 && canSendEmoteToServer()) {
+            EmoteNetworking.tryBroadcastStart(TEST_EMOTE, true);
+            started = true;
+            marker("late-sender-emote-started");
+            System.out.println(PREFIX + "Started persistent emote before the late peer joined");
+        }
+
+        findPeer(minecraft);
+        if (!started || peerId == null) return;
+
+        if (!stopped && activeEmotes.containsKey(peerId)) {
+            stopped = true;
+            marker("late-sender-observed-receiver");
+            System.out.println(PREFIX + "Observed the late peer's persistent emote");
+            return;
+        }
+
+        if (!stopped || !exists("late-receiver-disconnect-requested")) return;
+        boolean peerPresent = minecraft.level.getPlayerByUUID(peerId) != null;
+        boolean staleEmote = activeEmotes.containsKey(peerId);
+        if (peerPresent || staleEmote) {
+            phaseTicks = 0;
+            return;
+        }
+
+        if (++phaseTicks >= 40) {
+            EmoteNetworking.tryBroadcastStop();
+            marker("late-sender-disconnect-clean");
+            success(minecraft);
+        }
+    }
+
+    private static void tickLateReceiver(Minecraft minecraft) throws ReflectiveOperationException {
+        findPeer(minecraft);
+        if (peerId == null) return;
+
+        if (!started && activeEmotes.containsKey(peerId)) {
+            marker("late-receiver-observed-existing");
+            EmoteNetworking.tryBroadcastStart(TEST_EMOTE, true);
+            started = true;
+            marker("late-receiver-emote-started");
+            System.out.println(PREFIX + "Late peer received existing emote state and started its own emote");
+        } else if (started && exists("late-sender-observed-receiver")) {
+            marker("late-receiver-disconnect-requested");
+            minecraft.getConnection().getConnection().disconnect(Component.literal("MineTogether CI disconnect cleanup"));
+            role = "";
+            System.out.println(PREFIX + "Disconnected without sending an emote stop packet");
+        }
+    }
+
+    private static void findPeer(Minecraft minecraft) {
+        if (peerId != null) return;
+        for (Player player : minecraft.level.players()) {
+            if (peerName.equals(player.getName().getString())) {
+                peerId = player.getUUID();
+                marker(role + "-peer-found");
+                break;
+            }
         }
     }
 
