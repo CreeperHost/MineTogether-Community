@@ -132,7 +132,11 @@ public final class MineTogetherCiProbe {
     }
 
     private static void connectIfNeeded(Minecraft minecraft) {
-        if (connectionStarted || serverAddress.isEmpty() || minecraft.screen == null || ticks < 40) return;
+        // HeadlessMC can make the title screen visible before Minecraft's initial
+        // resource reload has finished. Joining during that window races model
+        // initialization and can crash while the login packet is applied.
+        if (connectionStarted || serverAddress.isEmpty() || minecraft.screen == null
+                || minecraft.getOverlay() != null || ticks < 200) return;
 
         connectionStarted = true;
         marker(role + "-connecting");
