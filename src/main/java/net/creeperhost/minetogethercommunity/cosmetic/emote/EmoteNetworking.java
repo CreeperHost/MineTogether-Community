@@ -5,12 +5,14 @@ import net.creeperhost.minetogethercommunity.cosmetic.CosmeticDownloader;
 import net.creeperhost.minetogethercommunity.cosmetic.CosmeticIdValidator;
 import net.minecraft.client.Minecraft;
 import net.minecraft.entity.player.EntityPlayerMP;
+import net.minecraft.network.NetHandlerPlayServer;
 import net.minecraft.server.MinecraftServer;
 import net.minecraftforge.fml.common.FMLCommonHandler;
 import net.minecraftforge.common.MinecraftForge;
 import net.minecraftforge.fml.common.eventhandler.SubscribeEvent;
 import net.minecraftforge.fml.common.gameevent.PlayerEvent;
 import net.minecraftforge.fml.common.network.ByteBufUtils;
+import net.minecraftforge.fml.common.network.FMLNetworkEvent;
 import net.minecraftforge.fml.common.network.NetworkRegistry;
 import net.minecraftforge.fml.common.network.simpleimpl.IMessage;
 import net.minecraftforge.fml.common.network.simpleimpl.IMessageHandler;
@@ -20,6 +22,8 @@ import net.minecraftforge.fml.relauncher.Side;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
+import java.util.Collections;
+import java.util.Set;
 import java.util.UUID;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
@@ -27,10 +31,13 @@ import java.util.concurrent.ConcurrentHashMap;
 public final class EmoteNetworking {
 
     private static final Logger LOGGER = LogManager.getLogger();
-    private static final SimpleNetworkWrapper CHANNEL = NetworkRegistry.INSTANCE.newSimpleChannel("mtcommunity");
+    private static final String CHANNEL_NAME = "mtcommunity";
+    private static final SimpleNetworkWrapper CHANNEL = NetworkRegistry.INSTANCE.newSimpleChannel(CHANNEL_NAME);
     private static final int MAX_EMOTE_ID_LENGTH = 128;
     private static boolean initialized;
     private static final Map<UUID, String> ACTIVE_PERSISTENT_EMOTES = new ConcurrentHashMap<UUID, String>();
+    private static final Set<UUID> CAPABLE_CLIENTS = Collections.newSetFromMap(new ConcurrentHashMap<UUID, Boolean>());
+    private static volatile boolean capableServer;
 
     private EmoteNetworking() {
     }
@@ -47,7 +54,7 @@ public final class EmoteNetworking {
     }
 
     public static void tryBroadcastStart(String emoteId, boolean persistent) {
-        if (emoteId == null || emoteId.isEmpty() || !initialized) return;
+        if (emoteId == null || emoteId.isEmpty() || !initialized || !capableServer) return;
         try {
             CHANNEL.sendToServer(new StartEmoteC2S(emoteId, persistent));
         } catch (RuntimeException e) {
@@ -56,7 +63,7 @@ public final class EmoteNetworking {
     }
 
     public static void tryBroadcastStop() {
-        if (!initialized) return;
+        if (!initialized || !capableServer) return;
         try {
             CHANNEL.sendToServer(new StopEmoteC2S());
         } catch (RuntimeException e) {
@@ -66,6 +73,16 @@ public final class EmoteNetworking {
 
     private static boolean validEmoteId(String emoteId) {
         return CosmeticIdValidator.isValid(emoteId);
+    }
+
+    public static boolean canSendToServer() {
+        return initialized && capableServer;
+    }
+
+    private static void sendToCapableClient(IMessage message, EntityPlayerMP target) {
+        if (CAPABLE_CLIENTS.contains(target.getUniqueID())) {
+            CHANNEL.sendTo(message, target);
+        }
     }
 
     public static class StartEmoteC2S implements IMessage {
@@ -168,7 +185,7 @@ public final class EmoteNetworking {
                     StartEmoteS2C packet = new StartEmoteS2C(sender.getUniqueID(), message.emoteId);
                     for (EntityPlayerMP target : FMLCommonHandler.instance().getMinecraftServerInstance().getPlayerList().getPlayers()) {
                         if (target == sender) continue;
-                        CHANNEL.sendTo(packet, target);
+                        sendToCapableClient(packet, target);
                     }
                 }
             });
@@ -189,7 +206,7 @@ public final class EmoteNetworking {
                     StopEmoteS2C packet = new StopEmoteS2C(sender.getUniqueID());
                     for (EntityPlayerMP target : FMLCommonHandler.instance().getMinecraftServerInstance().getPlayerList().getPlayers()) {
                         if (target == sender) continue;
-                        CHANNEL.sendTo(packet, target);
+                        sendToCapableClient(packet, target);
                     }
                 }
             });
@@ -199,12 +216,33 @@ public final class EmoteNetworking {
 
     public static class PlayerLifecycleHandler {
         @SubscribeEvent
+        public void onChannelRegistration(FMLNetworkEvent.CustomPacketRegistrationEvent<?> event) {
+            if (!event.getRegistrations().contains(CHANNEL_NAME)) return;
+            boolean registered = "REGISTER".equals(event.getOperation());
+            if (event.getSide() == Side.CLIENT) {
+                capableServer = registered;
+            } else if (event.getHandler() instanceof NetHandlerPlayServer) {
+                UUID playerId = ((NetHandlerPlayServer) event.getHandler()).player.getUniqueID();
+                if (registered) {
+                    CAPABLE_CLIENTS.add(playerId);
+                } else {
+                    CAPABLE_CLIENTS.remove(playerId);
+                }
+            }
+        }
+
+        @SubscribeEvent
+        public void onClientDisconnect(FMLNetworkEvent.ClientDisconnectionFromServerEvent event) {
+            capableServer = false;
+        }
+
+        @SubscribeEvent
         public void onPlayerLogin(PlayerEvent.PlayerLoggedInEvent event) {
             if (!(event.player instanceof EntityPlayerMP)) return;
             EntityPlayerMP target = (EntityPlayerMP) event.player;
             for (Map.Entry<UUID, String> active : ACTIVE_PERSISTENT_EMOTES.entrySet()) {
                 if (!active.getKey().equals(target.getUniqueID())) {
-                    CHANNEL.sendTo(new StartEmoteS2C(active.getKey(), active.getValue()), target);
+                    sendToCapableClient(new StartEmoteS2C(active.getKey(), active.getValue()), target);
                 }
             }
         }
@@ -212,6 +250,7 @@ public final class EmoteNetworking {
         @SubscribeEvent
         public void onPlayerLogout(PlayerEvent.PlayerLoggedOutEvent event) {
             ACTIVE_PERSISTENT_EMOTES.remove(event.player.getUniqueID());
+            CAPABLE_CLIENTS.remove(event.player.getUniqueID());
         }
     }
 
