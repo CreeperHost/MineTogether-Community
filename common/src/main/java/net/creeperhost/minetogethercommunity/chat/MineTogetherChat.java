@@ -24,6 +24,7 @@ import net.creeperhost.minetogethercommunity.chat.ingame.MTChatComponent;
 import net.creeperhost.minetogethercommunity.config.Config;
 import net.creeperhost.minetogethercommunity.config.LocalConfig;
 import net.creeperhost.minetogethercommunity.cosmetic.CosmeticApiClient;
+import net.creeperhost.minetogethercommunity.cosmetic.emote.EmoteNetworking;
 import net.creeperhost.minetogethercommunity.gui.SettingGui;
 import net.creeperhost.minetogethercommunity.polylib.gui.IconButton;
 import net.creeperhost.minetogethercommunity.util.ModPackInfo;
@@ -144,6 +145,9 @@ public class MineTogetherChat {
             CHAT_STATE = new ChatState(MineTogether.API, CHAT_AUTH, MUTED_USER_LIST, () -> ModPackInfo.getInfo().realName, false);
         }
 
+        CHAT_STATE.ircClient.addCTCPListener((user, request) ->
+                user != null && EmoteNetworking.handleCtcp(user.getProfile(), request)
+        );
         CHAT_STATE.logChatToConsole = Config.instance().logChatToConsole | Config.instance().debugMode;
 
         if (Config.instance().debugMode) {
