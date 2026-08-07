@@ -237,10 +237,13 @@ run_scenario() {
 
 assert_clean_logs() {
   local bad='Mixin apply failed|Mixin transformation of .* failed|InvalidMixinException|NoClassDefFoundError|ClassNotFoundException|ExceptionInInitializerError|Connection refused|Failed to connect to the server|Connection Lost|Internal Exception|The game crashed|A fatal error has been detected'
+  # HeadlessMC deliberately has no BSD kqueue native or dedicated-server classes in its client runtime.
+  # NeoForge 26.2.0.49-beta can log these exact probe/shutdown failures after a successful client run.
+  local known_nonfatal='dev[/\.]ftb[/\.]mods[/\.]ftbquests[/\.]client[/\.]FTBQuestsNetClient|io\.netty\.channel\.kqueue\.Native|Only supported on OSX/BSD.*(Server Connector #[0-9]+|Server thread)|Client shutdown watchdog.*net/minecraft/server/dedicated/ServerWatchdog|ClassNotFoundException: net\.minecraft\.server\.dedicated\.ServerWatchdog'
   local logs=()
   mapfile -d '' logs < <(find "$work" -type f -name '*.log' -print0)
   [[ ${#logs[@]} -gt 0 ]] || fail "No multiplayer logs were produced"
-  if grep -Ein "$bad" "${logs[@]}" | grep -Ev 'dev[/\.]ftb[/\.]mods[/\.]ftbquests[/\.]client[/\.]FTBQuestsNetClient'; then
+  if grep -Ein "$bad" "${logs[@]}" | grep -Ev "$known_nonfatal"; then
     fail "A fatal runtime signature was found in multiplayer logs"
   fi
 }
