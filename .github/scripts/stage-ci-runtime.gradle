@@ -1,5 +1,93 @@
 gradle.projectsEvaluated {
     def root = gradle.rootProject
+    if (!root.file(".github/connect-service/src/main/java").isDirectory()) {
+        return
+    }
+    def commonProject = root.findProject(":common")
+    if (commonProject == null) {
+        throw new GradleException("The local MTConnect CI service requires project ':common'")
+    }
+
+    def commonSourceSets = commonProject.extensions.getByType(org.gradle.api.tasks.SourceSetContainer)
+    def serviceSourceSet = commonSourceSets.maybeCreate("ciConnectService")
+    serviceSourceSet.java.srcDir(root.file(".github/connect-service/src/main/java"))
+
+    def serviceTestSourceSet = commonSourceSets.maybeCreate("ciConnectServiceTest")
+    serviceTestSourceSet.java.srcDir(root.file(".github/connect-service/src/test/java"))
+    serviceTestSourceSet.compileClasspath += serviceSourceSet.output + serviceSourceSet.compileClasspath
+    serviceTestSourceSet.runtimeClasspath += serviceSourceSet.output + serviceSourceSet.runtimeClasspath
+
+    def addServiceDependency = { String configuration, String coordinate, boolean transitive = true ->
+        def dependency = commonProject.dependencies.create(coordinate)
+        dependency.transitive = transitive
+        commonProject.dependencies.add(configuration, dependency)
+    }
+    addServiceDependency(serviceSourceSet.implementationConfigurationName,
+            "net.creeperhost:MTConnectProxyCommon:${root.property('mtproxy_version')}", false)
+    addServiceDependency(serviceSourceSet.implementationConfigurationName, "net.covers1624:Quack:0.4.10.101", false)
+    addServiceDependency(serviceSourceSet.implementationConfigurationName, "io.netty:netty-handler:4.1.82.Final")
+    addServiceDependency(serviceSourceSet.implementationConfigurationName, "com.google.guava:guava:31.1-jre")
+    addServiceDependency(serviceSourceSet.implementationConfigurationName, "org.apache.logging.log4j:log4j-core:2.19.0")
+    addServiceDependency(serviceSourceSet.compileOnlyConfigurationName, "org.jetbrains:annotations:23.1.0")
+    addServiceDependency(serviceTestSourceSet.implementationConfigurationName, "org.junit.jupiter:junit-jupiter-api:5.8.2")
+    addServiceDependency(serviceTestSourceSet.runtimeOnlyConfigurationName, "org.junit.jupiter:junit-jupiter-engine:5.8.2")
+    addServiceDependency(serviceTestSourceSet.runtimeOnlyConfigurationName, "org.junit.platform:junit-platform-launcher:1.8.2")
+
+    def serviceTest = commonProject.tasks.register("ciConnectServiceTest", Test) {
+        group = "verification"
+        description = "Runs focused tests for the standalone local MTConnect service."
+        dependsOn(commonProject.tasks.named(serviceTestSourceSet.classesTaskName))
+        testClassesDirs = serviceTestSourceSet.output.classesDirs
+        classpath = serviceTestSourceSet.runtimeClasspath
+        useJUnitPlatform()
+    }
+
+    def serviceJar = commonProject.tasks.register("ciConnectServiceJar", Jar) {
+        group = "verification"
+        description = "Builds the standalone local MTConnect service used by runtime tests."
+        dependsOn(commonProject.tasks.named(serviceSourceSet.classesTaskName))
+        archiveBaseName.set("minetogether-local-connect-service")
+        archiveClassifier.set("all")
+        duplicatesStrategy = DuplicatesStrategy.EXCLUDE
+        from {
+            def core = serviceSourceSet.runtimeClasspath.find { it.name.startsWith("log4j-core-") && it.name.endsWith(".jar") }
+            core == null ? [] : zipTree(core).matching {
+                include("META-INF/org/apache/logging/log4j/core/config/plugins/Log4j2Plugins.dat")
+            }
+        }
+        from(serviceSourceSet.output)
+        from({
+            serviceSourceSet.runtimeClasspath
+                    .filter { it.isFile() && it.name.endsWith(".jar") }
+                    .collect { zipTree(it) }
+        }) {
+            exclude("META-INF/org/apache/logging/log4j/core/config/plugins/Log4j2Plugins.dat")
+        }
+        exclude("META-INF/*.SF", "META-INF/*.DSA", "META-INF/*.RSA")
+        manifest {
+            attributes(
+                    "Main-Class": "net.creeperhost.minetogethercommunity.ci.connectservice.LocalConnectService",
+                    "Multi-Release": "true"
+            )
+        }
+    }
+
+    def stageService = root.tasks.register("stageCiConnectService") {
+        group = "verification"
+        description = "Tests and stages the standalone local MTConnect service."
+        dependsOn(serviceTest, serviceJar)
+        doLast {
+            def outputDir = root.layout.buildDirectory.dir("ci-runtime/connect-service").get().asFile
+            root.delete(outputDir)
+            outputDir.mkdirs()
+            root.copy {
+                from(serviceJar.flatMap { it.archiveFile })
+                into(outputDir)
+            }
+            logger.lifecycle("Staged local MTConnect service in ${outputDir}")
+        }
+    }
+
     def enabledPlatforms = root.findProperty("enabled_platforms")
     def loaders = enabledPlatforms
             ? enabledPlatforms.toString().split(",").collect { it.trim() }.findAll { !it.isEmpty() }
@@ -8,6 +96,7 @@ gradle.projectsEvaluated {
     def stageAll = root.tasks.register("stageCiRuntime") {
         group = "verification"
         description = "Stages production jars and required runtime dependencies for CI client launches."
+        dependsOn(stageService)
     }
 
     loaders.each { loader ->
