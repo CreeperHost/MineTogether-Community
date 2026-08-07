@@ -1,0 +1,69 @@
+gradle.projectsEvaluated {
+    def root = gradle.rootProject
+    def sourceSets = root.sourceSets
+    def main = sourceSets.main
+    def probe = sourceSets.findByName("ciProbe") ?: sourceSets.create("ciProbe")
+    probe.java.srcDir(root.file(".github/ci-probe/src/main/java"))
+    probe.resources.srcDir(root.file(".github/ci-probe/src/main/resources"))
+    // ForgeGradle 2.3 adds the deobfuscated Minecraft/Forge classpath directly to
+    // compileJava, so configurations.compile alone is incomplete for extra source sets.
+    probe.compileClasspath = main.output + root.tasks.compileJava.classpath
+    probe.runtimeClasspath = probe.output + probe.compileClasspath
+
+    def probeJar = root.tasks.findByName("ciProbeJar") ?: root.task("ciProbeJar", type: Jar) {
+        group = "verification"
+        description = "Builds the Forge 1.12.2 CI-only runtime probe."
+        dependsOn probe.classesTaskName
+        from probe.output
+        baseName = "minetogether-ci-probe-forge-${root.property('minecraft_version')}"
+        classifier = "dev"
+    }
+
+    root.reobf {
+        ciProbeJar {}
+    }
+
+    def stage = root.tasks.findByName("stageCiRuntime") ?: root.task("stageCiRuntime") {
+        group = "verification"
+        description = "Stages the reobfuscated Forge 1.12.2 production and CI probe jars."
+        dependsOn root.tasks.reobfShadowJar, root.tasks.reobfCiProbeJar
+
+        doLast {
+            File outputRoot = new File(root.buildDir, "ci-runtime/forge")
+            root.delete(outputRoot)
+            File mods = new File(outputRoot, "mods")
+            File probes = new File(outputRoot, "probe")
+            mods.mkdirs()
+            probes.mkdirs()
+
+            root.copy {
+                from root.tasks.shadowJar.archivePath
+                into mods
+            }
+            root.copy {
+                from probeJar.archivePath
+                into probes
+            }
+
+            [root.tasks.shadowJar.archivePath, probeJar.archivePath].each { jarFile ->
+                new java.util.zip.ZipFile(jarFile).withCloseable { zip ->
+                    zip.entries().each { entry ->
+                        if (!entry.name.endsWith(".class")) return
+                        zip.getInputStream(entry).withCloseable { stream ->
+                            byte[] header = new byte[8]
+                            if (stream.read(header) != 8) {
+                                throw new GradleException("Could not read class header for ${entry.name} in ${jarFile}")
+                            }
+                            int major = ((header[6] & 0xFF) << 8) | (header[7] & 0xFF)
+                            if (major > 52) {
+                                throw new GradleException("Class ${entry.name} in ${jarFile} has major ${major}; expected Java 8")
+                            }
+                        }
+                    }
+                }
+            }
+
+            logger.lifecycle("Staged Forge 1.12.2 runtime in ${outputRoot}")
+        }
+    }
+}

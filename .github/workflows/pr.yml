@@ -1,22 +1,159 @@
-name: PR Compile Check
+name: Commit Tests
 
 on:
+  push:
   pull_request:
-    branches:
-      - '1.12.2'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: commit-tests-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
+  metadata:
+    name: Detect branch test matrix
+    runs-on: ubuntu-latest
+    outputs:
+      java: ${{ steps.detect.outputs.java }}
+      minecraft: ${{ steps.detect.outputs.minecraft }}
+      runtime-matrix: ${{ steps.detect.outputs.runtime-matrix }}
+      multiplayer-matrix: ${{ steps.detect.outputs.multiplayer-matrix }}
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - name: Detect Java, Minecraft and loader
+        id: detect
+        shell: bash
+        run: bash .github/scripts/detect-test-matrix.sh
+
   build:
+    name: Build, unit tests and staging
+    needs: metadata
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
-      - uses: actions/checkout@v2
-      - name: Set up JDK 8
-        uses: actions/setup-java@v2
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - name: Set up JDK ${{ needs.metadata.outputs.java }}
+        uses: actions/setup-java@b6effb05e454b25005698d916606bdc6ffcbf961 # v5
         with:
-          distribution: 'temurin'
-          java-version: '8'
-      - name: Build with Gradle
+          distribution: temurin
+          java-version: ${{ needs.metadata.outputs.java }}
+      - name: Build, test and stage production client
+        shell: bash
         run: |
+          sed -i 's/\r$//' ./gradlew
           chmod +x ./gradlew
-          ./gradlew build --stacktrace --no-daemon
+          ./gradlew clean build stageCiRuntime \
+            --init-script .github/scripts/stage-ci-runtime.gradle \
+            --stacktrace --no-daemon --console=plain
+      - name: Verify production artifacts
+        shell: bash
+        run: bash .github/scripts/verify-staged-runtime.sh
+
+  runtime:
+    name: Runtime (${{ matrix.loader }}, ${{ matrix.compatibility }})
+    needs: metadata
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    strategy:
+      fail-fast: false
+      matrix:
+        include: ${{ fromJSON(needs.metadata.outputs.runtime-matrix) }}
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - name: Set up JDK ${{ needs.metadata.outputs.java }}
+        uses: actions/setup-java@b6effb05e454b25005698d916606bdc6ffcbf961 # v5
+        with:
+          distribution: temurin
+          java-version: ${{ needs.metadata.outputs.java }}
+      - name: Build and stage runtime client
+        shell: bash
+        run: |
+          sed -i 's/\r$//' ./gradlew
+          chmod +x ./gradlew
+          ./gradlew build stageCiRuntime \
+            --init-script .github/scripts/stage-ci-runtime.gradle \
+            --stacktrace --no-daemon --console=plain
+          bash .github/scripts/verify-staged-runtime.sh
+          mkdir -p run/mods
+          cp -v build/ci-runtime/${{ matrix.loader }}/mods/*.jar run/mods/
+      - name: Install No Chat Reports
+        if: matrix.compatibility == 'no-chat-reports'
+        id: compatibility
+        shell: bash
+        run: >-
+          python3 .github/scripts/install-modrinth-mod.py
+          no-chat-reports
+          "${{ needs.metadata.outputs.minecraft }}"
+          "${{ matrix.loader }}"
+          run/mods/no-chat-reports.jar
+      - name: Note unavailable compatibility build
+        if: matrix.compatibility == 'no-chat-reports' && steps.compatibility.outputs.available != 'true'
+        shell: bash
+        run: echo "::warning::No compatible No Chat Reports build exists for this legacy Minecraft row; runtime launch skipped."
+      - name: Launch production client
+        id: minecraft
+        if: matrix.compatibility == 'none' || steps.compatibility.outputs.available == 'true'
+        uses: headlesshq/mc-runtime-test@fbafe02f89f4f13682e7b16dbcee6b6a43f4faca # 4.5.1
+        with:
+          mc: ${{ needs.metadata.outputs.minecraft }}
+          modloader: ${{ matrix.loader }}
+          regex: ${{ matrix.regex }}
+          mc-runtime-test: ${{ matrix.runtime-test }}
+          java: ${{ needs.metadata.outputs.java }}
+          fabric-api: none
+          cache-mc: none
+      - name: Check runtime log
+        if: always() && steps.minecraft.outcome != 'skipped'
+        shell: bash
+        run: bash .github/scripts/check-runtime-log.sh "${{ matrix.compatibility }}"
+
+  multiplayer:
+    name: Autonomous compatibility matrix (${{ matrix.loader }})
+    needs: metadata
+    if: github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    timeout-minutes: 55
+    strategy:
+      fail-fast: false
+      matrix:
+        include: ${{ fromJSON(needs.metadata.outputs.multiplayer-matrix) }}
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - name: Set up JDK ${{ needs.metadata.outputs.java }}
+        uses: actions/setup-java@b6effb05e454b25005698d916606bdc6ffcbf961 # v5
+        with:
+          distribution: temurin
+          java-version: ${{ needs.metadata.outputs.java }}
+      - name: Build and stage runtime clients
+        shell: bash
+        run: |
+          sed -i 's/\r$//' ./gradlew
+          chmod +x ./gradlew
+          ./gradlew build stageCiRuntime \
+            --init-script .github/scripts/stage-ci-runtime.gradle \
+            --stacktrace --no-daemon --console=plain
+          bash .github/scripts/verify-staged-runtime.sh
+      - name: Install HeadlessMC 2.10.0
+        shell: bash
+        run: |
+          mkdir -p build/tools
+          curl --fail --location --retry 3 \
+            https://github.com/headlesshq/headlessmc/releases/download/2.10.0/headlessmc-launcher-wrapper-2.10.0.jar \
+            --output build/tools/headlessmc-launcher-wrapper.jar
+          echo 'bf80d84516eeeb9a51fa35894c4466b146d55d0146cd6d2adc49fdd231654536  build/tools/headlessmc-launcher-wrapper.jar' \
+            | sha256sum --check --strict
+      - name: Run singleplayer, compatibility, packet relay and local chat scenarios
+        shell: bash
+        env:
+          MINETOGETHER_CI_MINECRAFT_CACHE: build/ci-multiplayer-cache/minecraft
+        run: >-
+          bash .github/scripts/run-multiplayer-tests.sh
+          "${{ matrix.loader }}"
+          "${{ needs.metadata.outputs.minecraft }}"
+          "${{ matrix['loader-version'] }}"
+          "${{ needs.metadata.outputs.java }}"
+          "${{ matrix.regex }}"
+          build/tools/headlessmc-launcher-wrapper.jar
