@@ -225,6 +225,7 @@ public class ModPackInfo {
 
     public static class VersionInfo {
         private final boolean allowManualOverride;
+        private final boolean readDebugConfig;
         private PackIdentity identity = PackIdentity.unknown();
 
         // Legacy fields retained while callers migrate to PackIdentity.
@@ -237,11 +238,16 @@ public class ModPackInfo {
         public String realName = "{\"p\":\"-1\"}";
 
         public VersionInfo() {
-            this(true);
+            this(true, true);
         }
 
         private VersionInfo(boolean allowManualOverride) {
+            this(allowManualOverride, true);
+        }
+
+        VersionInfo(boolean allowManualOverride, boolean readDebugConfig) {
             this.allowManualOverride = allowManualOverride;
+            this.readDebugConfig = readDebugConfig;
         }
 
         public VersionInfo init() {
@@ -266,32 +272,35 @@ public class ModPackInfo {
         }
 
         private @Nullable PackIdentity detectLauncherIdentity() {
+            return detectLauncherIdentity(Platform.getGameFolder(), Platform.getConfigFolder());
+        }
+
+        @Nullable PackIdentity detectLauncherIdentity(Path gameFolder, Path configFolder) {
             PackIdentity detected;
 
-            detected = readAuxiliumMetadata();
+            detected = readAuxiliumMetadata(configFolder.resolve("metadata.json"));
             if (detected != null) return detected;
 
-            detected = readFTBVersionJson(Platform.getGameFolder().resolve("version.json"));
+            detected = readFTBVersionJson(gameFolder.resolve("version.json"));
             if (detected != null) return detected;
 
-            detected = readInstanceJson(Platform.getGameFolder().resolve("instance.json"));
+            detected = readInstanceJson(gameFolder.resolve("instance.json"));
             if (detected != null) return detected;
 
-            detected = readCurseInstance(Platform.getGameFolder().resolve("minecraftinstance.json"));
+            detected = readCurseInstance(gameFolder.resolve("minecraftinstance.json"));
             if (detected != null) return detected;
 
-            detected = readMultiMc();
+            detected = readMultiMc(gameFolder);
             if (detected != null) return detected;
 
-            detected = readModrinthApp();
+            detected = readModrinthApp(gameFolder);
             if (detected != null) return detected;
 
             debugInfo("no supported launcher modpack identity found");
             return null;
         }
 
-        private @Nullable PackIdentity readAuxiliumMetadata() {
-            Path path = Platform.getConfigFolder().resolve("metadata.json");
+        private @Nullable PackIdentity readAuxiliumMetadata(Path path) {
             if (!Files.exists(path)) return null;
             try {
                 Auxilium aux = JsonUtils.parse(GSON, path, Auxilium.class);
@@ -349,8 +358,8 @@ public class ModPackInfo {
             }
         }
 
-        private @Nullable PackIdentity readMultiMc() {
-            Path parent = Platform.getGameFolder().getParent();
+        private @Nullable PackIdentity readMultiMc(Path gameFolder) {
+            Path parent = gameFolder.getParent();
             if (parent == null) return null;
             Path path = parent.resolve("instance.cfg");
             if (!Files.exists(path)) return null;
@@ -374,8 +383,7 @@ public class ModPackInfo {
             }
         }
 
-        private @Nullable PackIdentity readModrinthApp() {
-            Path gameDir = Platform.getGameFolder();
+        private @Nullable PackIdentity readModrinthApp(Path gameDir) {
             Path profilesDir = gameDir.getParent();
             if (profilesDir == null || !"profiles".equalsIgnoreCase(profilesDir.getFileName().toString())) return null;
             Path root = profilesDir.getParent();
@@ -515,6 +523,12 @@ public class ModPackInfo {
             websiteID = identity.websiteId();
             realName = identity.identifierJson();
         }
+
+        private void debugInfo(String message, Object... args) {
+            if (readDebugConfig && Config.instance().debugMode) {
+                LOGGER.info("[MT-PACK-DEBUG] " + message, args);
+            }
+        }
     }
 
     static @Nullable PackIdentity identityFromMultiMcValues(Map<String, String> values) {
@@ -617,12 +631,6 @@ public class ModPackInfo {
 
     private static String encodeFTB(Object projectId, Object versionId) {
         return Base64.getEncoder().encodeToString((String.valueOf(projectId) + versionId).getBytes(StandardCharsets.UTF_8));
-    }
-
-    private static void debugInfo(String message, Object... args) {
-        if (Config.instance().debugMode) {
-            LOGGER.info("[MT-PACK-DEBUG] " + message, args);
-        }
     }
 
 }
