@@ -447,29 +447,47 @@ public final class MineTogetherCiProbe {
     @SuppressWarnings("unchecked")
     private static void clickVanillaButton(GuiScreen screen, String translationKey) {
         String expected = I18n.format(translationKey);
-        Iterable<GuiButton> buttons;
         try {
-            Field field = GuiScreen.class.getDeclaredField("buttonList");
-            field.setAccessible(true);
-            buttons = (Iterable<GuiButton>) field.get(screen);
+            for (Field field : GuiScreen.class.getDeclaredFields()) {
+                if (!Iterable.class.isAssignableFrom(field.getType())) continue;
+                field.setAccessible(true);
+                Object value = field.get(screen);
+                if (!(value instanceof Iterable)) continue;
+                for (Object candidate : (Iterable<?>) value) {
+                    if (!(candidate instanceof GuiButton)) continue;
+                    GuiButton button = (GuiButton) candidate;
+                    if (!expected.equals(button.displayString)) continue;
+                    invokeVanillaClick(screen, button.x + button.width / 2, button.y + button.height / 2);
+                    return;
+                }
+            }
         } catch (Exception exception) {
             fail("Could not inspect vanilla buttons: " + exception);
             return;
         }
-        for (GuiButton button : buttons) {
-            if (expected.equals(button.displayString)) {
-                button.playPressSound(Minecraft.getMinecraft().getSoundHandler());
-                try {
-                    java.lang.reflect.Method action = GuiScreen.class.getDeclaredMethod("actionPerformed", GuiButton.class);
-                    action.setAccessible(true);
-                    action.invoke(screen, button);
-                } catch (Exception exception) {
-                    fail("Could not press vanilla button " + translationKey + ": " + exception);
-                }
+        fail("Could not find vanilla button " + translationKey);
+    }
+
+    private static void invokeVanillaClick(GuiScreen screen, int x, int y) throws ReflectiveOperationException {
+        for (String name : new String[]{"mouseClicked", "func_73864_a"}) {
+            try {
+                java.lang.reflect.Method method = GuiScreen.class.getDeclaredMethod(name, Integer.TYPE, Integer.TYPE, Integer.TYPE);
+                method.setAccessible(true);
+                method.invoke(screen, x, y, 0);
                 return;
+            } catch (NoSuchMethodException ignored) {
             }
         }
-        fail("Could not find vanilla button " + translationKey);
+        for (java.lang.reflect.Method method : GuiScreen.class.getDeclaredMethods()) {
+            Class<?>[] parameters = method.getParameterTypes();
+            if (!java.lang.reflect.Modifier.isProtected(method.getModifiers()) || parameters.length != 3
+                    || parameters[0] != Integer.TYPE || parameters[1] != Integer.TYPE || parameters[2] != Integer.TYPE
+                    || method.getReturnType() != Void.TYPE) continue;
+            method.setAccessible(true);
+            method.invoke(screen, x, y, 0);
+            return;
+        }
+        throw new NoSuchMethodException("GuiScreen mouse click");
     }
 
     private static void clickModularButton(ModularGuiScreen screen, String translationKey) throws IOException {
