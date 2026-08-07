@@ -227,6 +227,10 @@ public final class EmoteNetworking {
         if (target == null || target.playerNetServerHandler == null || target.playerNetServerHandler.netManager == null) {
             return false;
         }
+        Boolean hasFml = target.playerNetServerHandler.netManager.channel().attr(NetworkRegistry.FML_MARKER).get();
+        if (!Boolean.TRUE.equals(hasFml)) {
+            return false;
+        }
         NetworkDispatcher dispatcher = NetworkDispatcher.get(target.playerNetServerHandler.netManager);
         return dispatcher != null && dispatcher.getModList().containsKey(MineTogether.MOD_ID);
     }
