@@ -44,10 +44,7 @@ public class EmoteNetworking {
         STOP_C2S = NETWORK.registerC2S("emote_stop_c2s", StopEmoteC2S::new);
         STOP_S2C = NETWORK.registerS2C("emote_stop_s2c", StopEmoteS2C::new);
         PlayerEvent.PLAYER_JOIN.register(EmoteNetworking::syncPersistentEmotes);
-        PlayerEvent.PLAYER_QUIT.register(player -> {
-            ACTIVE_PERSISTENT_EMOTES.remove(player.getUUID());
-            EMOTE_CAPABLE_CLIENTS.remove(player.getUUID());
-        });
+        PlayerEvent.PLAYER_QUIT.register(EmoteNetworking::onPlayerQuit);
         LOGGER.debug("Emote networking initialized");
     }
 
@@ -165,6 +162,20 @@ public class EmoteNetworking {
             syncPersistentEmotes(serverPlayer);
             LOGGER.debug("Registered emote packet support for {}", serverPlayer.getGameProfile().getName());
         }
+    }
+
+    private static void onPlayerQuit(Player player) {
+        UUID playerId = player.getUUID();
+        boolean wasActive = ACTIVE_PERSISTENT_EMOTES.remove(playerId) != null;
+        EMOTE_CAPABLE_CLIENTS.remove(playerId);
+        if (!wasActive || STOP_S2C == null || !(player instanceof ServerPlayer serverPlayer)) return;
+
+        StopEmoteS2C packet = new StopEmoteS2C(playerId);
+        for (ServerPlayer target : serverPlayer.server.getPlayerList().getPlayers()) {
+            if (target == serverPlayer || !EMOTE_CAPABLE_CLIENTS.contains(target.getUUID())) continue;
+            packet.sendTo(target);
+        }
+        LOGGER.debug("Cleared persistent emote state for disconnected player {}", serverPlayer.getGameProfile().getName());
     }
 
     private static class StartEmoteS2C extends BaseS2CMessage {
