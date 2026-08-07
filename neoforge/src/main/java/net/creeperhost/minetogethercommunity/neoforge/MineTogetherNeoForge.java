@@ -20,7 +20,6 @@ import net.neoforged.neoforge.event.server.ServerStoppingEvent;
 public class MineTogetherNeoForge {
 
     public MineTogetherNeoForge(IEventBus eventBus) {
-        eventBus.addListener(NeoForgeEmoteNetworking::registerPayloads);
         MineTogether.init();
         DataGenEventHandler.init(eventBus);
 

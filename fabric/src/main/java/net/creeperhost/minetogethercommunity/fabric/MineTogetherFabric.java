@@ -17,8 +17,6 @@ public class MineTogetherFabric implements ModInitializer {
     @Override
     public void onInitialize() {
         MineTogether.init();
-        FabricEmoteNetworking.init();
-
         if (FabricLoader.getInstance().getEnvironmentType() == EnvType.SERVER) {
             serverInit();
         }

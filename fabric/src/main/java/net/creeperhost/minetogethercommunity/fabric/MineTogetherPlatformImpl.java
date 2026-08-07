@@ -1,13 +1,11 @@
 package net.creeperhost.minetogethercommunity.fabric;
 
 import net.creeperhost.minetogethercommunity.MineTogether;
-import net.creeperhost.minetogethercommunity.cosmetic.emote.EmoteNetworking;
 import net.creeperhost.minetogethercommunity.platform.MineTogetherPlatformService;
 import net.fabricmc.api.EnvType;
 import net.fabricmc.loader.api.FabricLoader;
 import net.fabricmc.loader.api.ModContainer;
 import net.fabricmc.loader.api.metadata.ModOrigin;
-import net.minecraft.server.level.ServerPlayer;
 import org.jetbrains.annotations.Nullable;
 
 import java.nio.file.Path;
@@ -73,13 +71,4 @@ public class MineTogetherPlatformImpl implements MineTogetherPlatformService {
         return FabricLoader.getInstance().getConfigDir();
     }
 
-    @Override
-    public void sendEmoteStartToClient(ServerPlayer player, EmoteNetworking.StartEmoteS2C packet) {
-        FabricEmoteNetworking.sendToPlayer(player, packet);
-    }
-
-    @Override
-    public void sendEmoteStopToClient(ServerPlayer player, EmoteNetworking.StopEmoteS2C packet) {
-        FabricEmoteNetworking.sendToPlayer(player, packet);
-    }
 }

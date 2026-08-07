@@ -1,9 +1,7 @@
 package net.creeperhost.minetogethercommunity;
 
 import net.creeperhost.minetogethercommunity.platform.MineTogetherPlatformService;
-import net.creeperhost.minetogethercommunity.cosmetic.emote.EmoteNetworking;
 import net.minecraft.SharedConstants;
-import net.minecraft.server.level.ServerPlayer;
 import org.jetbrains.annotations.Nullable;
 
 import java.nio.file.Path;
@@ -55,11 +53,4 @@ public class MineTogetherPlatform {
         return SERVICE.getConfigFolder();
     }
 
-    public static void sendEmoteStartToClient(ServerPlayer player, EmoteNetworking.StartEmoteS2C packet) {
-        SERVICE.sendEmoteStartToClient(player, packet);
-    }
-
-    public static void sendEmoteStopToClient(ServerPlayer player, EmoteNetworking.StopEmoteS2C packet) {
-        SERVICE.sendEmoteStopToClient(player, packet);
-    }
 }

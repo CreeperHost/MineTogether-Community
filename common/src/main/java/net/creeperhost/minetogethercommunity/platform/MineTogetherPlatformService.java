@@ -1,7 +1,5 @@
 package net.creeperhost.minetogethercommunity.platform;
 
-import net.creeperhost.minetogethercommunity.cosmetic.emote.EmoteNetworking;
-import net.minecraft.server.level.ServerPlayer;
 import org.jetbrains.annotations.Nullable;
 
 import java.nio.file.Path;
@@ -25,7 +23,4 @@ public interface MineTogetherPlatformService {
 
     Path getConfigFolder();
 
-    void sendEmoteStartToClient(ServerPlayer player, EmoteNetworking.StartEmoteS2C packet);
-
-    void sendEmoteStopToClient(ServerPlayer player, EmoteNetworking.StopEmoteS2C packet);
 }

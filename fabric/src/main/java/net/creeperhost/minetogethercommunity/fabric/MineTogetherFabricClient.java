@@ -12,7 +12,6 @@ public final class MineTogetherFabricClient implements ClientModInitializer {
 
     @Override
     public void onInitializeClient() {
-        FabricClientEmoteNetworking.init();
         Integration.runOptional("ftbquests", () -> FTBQuestsCompat::registerFabricEvents);
         ClientCommandRegistrationCallback.EVENT.register((dispatcher, registryAccess) -> MineTogetherClient.registerClientCommands(dispatcher));
         ScreenEvents.AFTER_INIT.register((client, screen, scaledWidth, scaledHeight) -> MineTogetherChat.onScreenPostInit(screen));

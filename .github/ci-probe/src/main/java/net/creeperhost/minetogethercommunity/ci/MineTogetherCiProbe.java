@@ -268,7 +268,7 @@ public final class MineTogetherCiProbe {
 
     private static void tickReceiver(Minecraft minecraft) throws ReflectiveOperationException {
         installTestEmote();
-        if (stableTicks >= 60 && EmoteNetworking.isClientSupportAnnounced() && !exists("receiver-network-ready")) {
+        if (stableTicks >= 60 && EmoteNetworking.canSendToServer() && !exists("receiver-network-ready")) {
             marker("receiver-network-ready");
         }
         if (peerId == null) {
@@ -349,7 +349,7 @@ public final class MineTogetherCiProbe {
     }
 
     private static boolean canSendEmoteToServer() {
-        return EmoteNetworking.isClientSupportAnnounced();
+        return EmoteNetworking.canSendToServer();
     }
 
     @SuppressWarnings("unchecked")

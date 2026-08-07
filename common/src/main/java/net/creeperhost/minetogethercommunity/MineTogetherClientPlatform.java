@@ -1,6 +1,5 @@
 package net.creeperhost.minetogethercommunity;
 
-import net.creeperhost.minetogethercommunity.cosmetic.emote.EmoteNetworking;
 import net.creeperhost.minetogethercommunity.platform.MineTogetherClientPlatformService;
 import net.minecraft.client.KeyMapping;
 import net.minecraft.network.Connection;
@@ -22,26 +21,6 @@ public final class MineTogetherClientPlatform {
 
     public static void prepareConnection(Connection connection) {
         SERVICE.prepareConnection(connection);
-    }
-
-    public static boolean canSendEmoteToServer() {
-        return SERVICE.canSendEmoteToServer();
-    }
-
-    public static boolean canSendEmoteHelloToServer() {
-        return SERVICE.canSendEmoteHelloToServer();
-    }
-
-    public static void sendEmoteHelloToServer(EmoteNetworking.EmoteHelloC2S packet) {
-        SERVICE.sendEmoteHelloToServer(packet);
-    }
-
-    public static void sendEmoteStartToServer(EmoteNetworking.StartEmoteC2S packet) {
-        SERVICE.sendEmoteStartToServer(packet);
-    }
-
-    public static void sendEmoteStopToServer(EmoteNetworking.StopEmoteC2S packet) {
-        SERVICE.sendEmoteStopToServer(packet);
     }
 
     private MineTogetherClientPlatform() {
