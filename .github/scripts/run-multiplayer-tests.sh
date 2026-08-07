@@ -19,7 +19,7 @@ results="$work/results"
 vanilla_port="${MINETOGETHER_CI_VANILLA_PORT:-25571}"
 modded_port="${MINETOGETHER_CI_MODDED_PORT:-25572}"
 chat_port="${MINETOGETHER_CI_CHAT_PORT:-26667}"
-scenarios=",${MINETOGETHER_CI_SCENARIOS:-1,2,3,4},"
+scenarios=",${MINETOGETHER_CI_SCENARIOS:-1,2,3,4,5,6},"
 reuse_installs="${MINETOGETHER_CI_REUSE_INSTALLS:-false}"
 process_groups=()
 LAST_PID=""
@@ -178,13 +178,19 @@ fi
 assert_clean_logs() {
   local bad='NoClassDefFoundError|ClassNotFoundException|ExceptionInInitializerError|Caught exception from|Connection refused|Failed to connect to the server|Connection Lost|The game crashed|A fatal error has been detected'
   local logs=()
-  mapfile -d '' logs < <(find "$work" -type f -name '*.log' -print0)
+  if (( $# > 0 )); then
+    logs=("$@")
+  else
+    mapfile -d '' logs < <(find "$work" -type f -name '*.log' -print0)
+  fi
+  local log
+  for log in "${logs[@]}"; do [[ -f "$log" ]] || fail "Expected runtime log was not produced: $log"; done
   [[ ${#logs[@]} -gt 0 ]] || fail "No multiplayer logs were produced"
   if grep -Ein "$bad" "${logs[@]}"; then fail "A fatal runtime signature was found in multiplayer logs"; fi
 
   local internal_errors
   internal_errors="$(grep -Hin 'Internal Exception' "${logs[@]}" || true)"
-  if [[ -n "$internal_errors" ]] && echo "$internal_errors" | grep -Ev 'Ci(Connect|Vanilla|Mixed|Sender|Receiver|ChatSend|ChatRecv) lost connection:.*Internal Exception: java\.io\.IOException: Connection reset by peer'; then
+  if [[ -n "$internal_errors" ]] && echo "$internal_errors" | grep -Ev 'Ci(Connect|Vanilla|Mixed|Sender|Receiver|ChatSend|ChatRecv|LateSend|LateRecv) lost connection:.*Internal Exception: java\.io\.IOException: Connection reset by peer'; then
     fail "An unexpected internal connection error was found in multiplayer logs"
   fi
 
@@ -232,22 +238,34 @@ sender="$(create_client sender CiSender 00000000-0000-0000-0000-000000000040 tru
 receiver="$(create_client receiver CiReceiver 00000000-0000-0000-0000-000000000050 true)"
 chat_sender="$(create_client chat-sender CiChatSend 00000000-0000-0000-0000-000000000060 true)"
 chat_receiver="$(create_client chat-receiver CiChatRecv 00000000-0000-0000-0000-000000000070 true)"
+singleplayer="$(create_client singleplayer CiSingleplayer 00000000-0000-0000-0000-000000000080 true)"
+late_sender="$(create_client late-sender CiLateSend 00000000-0000-0000-0000-000000000090 true)"
+late_receiver="$(create_client late-receiver CiLateRecv 00000000-0000-0000-0000-000000000100 true)"
+
+if run_scenario 5; then
+  echo "Scenario 5/6: fresh offline client creates and enters a singleplayer world"
+  reset_results
+  start_client "$singleplayer" singleplayer "$launch_regex" "$modded_port" singleplayer 1; singleplayer_pid="$LAST_PID"
+  wait_for_marker singleplayer-success "$singleplayer_pid" 480
+  await_group_exit "$singleplayer_pid" 60
+  assert_clean_logs "$work/logs/singleplayer.log"
+fi
 
 if run_scenario 1; then
-  echo "Scenario 1/4: offline modded client joins a vanilla server and safely attempts an emote"
+  echo "Scenario 1/6: offline modded client joins a vanilla server and safely attempts an emote"
   reset_results; start_server vanilla-ci "$work/logs/vanilla-server.log"; vanilla_server_pid="$LAST_PID"
   start_client "$modded_connect" modded-connect "$launch_regex" "$vanilla_port" connect 1; connect_pid="$LAST_PID"
   wait_for_marker connect-success "$connect_pid"; await_group_exit "$connect_pid"; stop_group "$vanilla_server_pid"
 fi
 
-if run_scenario 3 || run_scenario 4; then start_server modded-ci "$work/logs/modded-server.log"; modded_server_pid="$LAST_PID"; fi
+if run_scenario 3 || run_scenario 4 || run_scenario 6; then start_server modded-ci "$work/logs/modded-server.log"; modded_server_pid="$LAST_PID"; fi
 
 if run_scenario 2; then
   echo "::notice::Scenario 2 is unsupported on Forge 1.7.10: its server handshake waits ten hours for an FML response and then rejects a vanilla client before any mod can participate."
 fi
 
 if run_scenario 3; then
-  echo "Scenario 3/4: two modded clients relay and apply emote start/stop packets"
+  echo "Scenario 3/6: two modded clients relay and apply emote start/stop packets"
   reset_results; start_client "$receiver" receiver "$launch_regex" "$modded_port" receiver 2 CiSender; receiver_pid="$LAST_PID"
   start_client "$sender" sender "$launch_regex" "$modded_port" sender 2 CiReceiver; sender_pid="$LAST_PID"
   wait_for_marker receiver-remote-start "$receiver_pid"; wait_for_marker receiver-remote-stop "$receiver_pid"
@@ -256,7 +274,7 @@ if run_scenario 3; then
 fi
 
 if run_scenario 4; then
-  echo "Scenario 4/4: two offline clients use mocked API discovery and relay MineTogether chat over local IRC"
+  echo "Scenario 4/6: two offline clients use mocked API discovery and relay MineTogether chat over local IRC"
   reset_results; start_group "$work" "$work/logs/mock-irc.log" python3 -u "$repo/.github/scripts/mock-irc-server.py" --host 127.0.0.1 --port "$chat_port" --channel '#minetogether-ci'; mock_irc_pid="$LAST_PID"
   remember_group "$mock_irc_pid"; wait_for_log "$work/logs/mock-irc.log" '^READY ' "$mock_irc_pid" 30
   start_client "$chat_receiver" chat-receiver "$launch_regex" "$modded_port" chat-receiver 2 CiChatSend; chat_receiver_pid="$LAST_PID"
@@ -266,6 +284,21 @@ if run_scenario 4; then
   await_group_exit "$chat_sender_pid"; await_group_exit "$chat_receiver_pid"; stop_group "$mock_irc_pid"
 fi
 
-if run_scenario 3 || run_scenario 4; then stop_group "$modded_server_pid"; fi
+if run_scenario 6; then
+  echo "Scenario 6/6: persistent emotes sync to a late joiner and clear after disconnect"
+  reset_results
+  start_client "$late_sender" late-sender "$launch_regex" "$modded_port" late-sender 1 CiLateRecv; late_sender_pid="$LAST_PID"
+  wait_for_marker late-sender-emote-started "$late_sender_pid"
+  start_client "$late_receiver" late-receiver "$launch_regex" "$modded_port" late-receiver 2 CiLateSend; late_receiver_pid="$LAST_PID"
+  wait_for_marker late-receiver-observed-existing "$late_receiver_pid"
+  wait_for_marker late-receiver-disconnect-requested "$late_receiver_pid"
+  wait_for_marker late-sender-disconnect-clean "$late_sender_pid"
+  wait_for_marker late-sender-success "$late_sender_pid"
+  stop_group "$late_receiver_pid"
+  await_group_exit "$late_sender_pid" 60
+  assert_clean_logs "$work/logs/late-sender.log" "$work/logs/late-receiver.log" "$work/logs/modded-server.log"
+fi
+
+if run_scenario 3 || run_scenario 4 || run_scenario 6; then stop_group "$modded_server_pid"; fi
 assert_clean_logs
-echo "All selected technically supported Forge 1.7.10 offline connect, local chat, and emote relay scenarios passed."
+echo "All selected technically supported Forge 1.7.10 offline connect, singleplayer, local chat, and emote lifecycle scenarios passed."
