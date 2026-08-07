@@ -3,6 +3,7 @@ package net.creeperhost.minetogethercommunity.cosmetic.emote;
 import io.netty.buffer.ByteBuf;
 import net.creeperhost.minetogethercommunity.cosmetic.CosmeticDownloader;
 import net.creeperhost.minetogethercommunity.cosmetic.CosmeticIdValidator;
+import net.creeperhost.minetogethercommunity.MineTogether;
 import net.creeperhost.minetogethercommunity.util.ClientTaskRunner;
 import net.creeperhost.minetogethercommunity.util.ServerTaskRunner;
 import net.minecraft.client.Minecraft;
@@ -14,6 +15,7 @@ import net.minecraftforge.fml.common.eventhandler.SubscribeEvent;
 import net.minecraftforge.fml.common.gameevent.PlayerEvent;
 import net.minecraftforge.fml.common.network.ByteBufUtils;
 import net.minecraftforge.fml.common.network.NetworkRegistry;
+import net.minecraftforge.fml.common.network.handshake.NetworkDispatcher;
 import net.minecraftforge.fml.common.network.simpleimpl.IMessage;
 import net.minecraftforge.fml.common.network.simpleimpl.IMessageHandler;
 import net.minecraftforge.fml.common.network.simpleimpl.MessageContext;
@@ -171,7 +173,7 @@ public final class EmoteNetworking {
                     StartEmoteS2C packet = new StartEmoteS2C(sender.getUniqueID(), message.emoteId);
                     List<EntityPlayerMP> players = server.getConfigurationManager().playerEntityList;
                     for (EntityPlayerMP target : players) {
-                        if (target == sender) continue;
+                        if (target == sender || !canReceiveEmotePackets(target)) continue;
                         CHANNEL.sendTo(packet, target);
                     }
                 }
@@ -193,7 +195,7 @@ public final class EmoteNetworking {
                     StopEmoteS2C packet = new StopEmoteS2C(sender.getUniqueID());
                     List<EntityPlayerMP> players = server.getConfigurationManager().playerEntityList;
                     for (EntityPlayerMP target : players) {
-                        if (target == sender) continue;
+                        if (target == sender || !canReceiveEmotePackets(target)) continue;
                         CHANNEL.sendTo(packet, target);
                     }
                 }
@@ -207,6 +209,7 @@ public final class EmoteNetworking {
         public void onPlayerLogin(PlayerEvent.PlayerLoggedInEvent event) {
             if (!(event.player instanceof EntityPlayerMP)) return;
             EntityPlayerMP target = (EntityPlayerMP) event.player;
+            if (!canReceiveEmotePackets(target)) return;
             for (Map.Entry<UUID, String> active : ACTIVE_PERSISTENT_EMOTES.entrySet()) {
                 if (!active.getKey().equals(target.getUniqueID())) {
                     CHANNEL.sendTo(new StartEmoteS2C(active.getKey(), active.getValue()), target);
@@ -218,6 +221,14 @@ public final class EmoteNetworking {
         public void onPlayerLogout(PlayerEvent.PlayerLoggedOutEvent event) {
             ACTIVE_PERSISTENT_EMOTES.remove(event.player.getUniqueID());
         }
+    }
+
+    private static boolean canReceiveEmotePackets(EntityPlayerMP target) {
+        if (target == null || target.playerNetServerHandler == null || target.playerNetServerHandler.netManager == null) {
+            return false;
+        }
+        NetworkDispatcher dispatcher = NetworkDispatcher.get(target.playerNetServerHandler.netManager);
+        return dispatcher != null && dispatcher.getModList().containsKey(MineTogether.MOD_ID);
     }
 
     public static class StartClientHandler implements IMessageHandler<StartEmoteS2C, IMessage> {

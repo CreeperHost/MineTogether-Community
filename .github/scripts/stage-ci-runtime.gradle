@@ -1,0 +1,75 @@
+gradle.projectsEvaluated {
+    def root = gradle.rootProject
+    def enabled = root.findProperty("enabled_platforms")
+    def loaders = enabled
+            ? enabled.toString().split(",").collect { it.trim() }.findAll { !it.isEmpty() }
+            : ["forge"]
+
+    if (loaders != ["forge"] || root.findProject(":forge") != null) {
+        throw new GradleException("This legacy staging adapter expects the single-project Forge layout")
+    }
+
+    def sourceSets = root.convention.getPlugin(org.gradle.api.plugins.JavaPluginConvention).sourceSets
+    def mainSourceSet = sourceSets.getByName("main")
+    def probeSourceSet = sourceSets.maybeCreate("ciProbe")
+    probeSourceSet.java.srcDirs(
+            root.file(".github/ci-probe/src/main/java"),
+            root.file(".github/ci-probe/src/forge/java")
+    )
+    probeSourceSet.resources.srcDir(root.file(".github/ci-probe/src/forge/resources"))
+    probeSourceSet.compileClasspath += mainSourceSet.output + root.configurations.compile
+    probeSourceSet.runtimeClasspath += probeSourceSet.output + probeSourceSet.compileClasspath
+
+    def probeJar = root.tasks.create(name: "ciProbeJar", type: Jar) {
+        group = "verification"
+        description = "Builds the Forge 1.8.9 CI-only multiplayer probe."
+        dependsOn(probeSourceSet.classesTaskName)
+        from(probeSourceSet.output)
+        baseName = "minetogether-ci-probe-forge-${root.property('minecraft_version')}"
+        version = root.version
+        classifier = null
+    }
+
+    root.reobf {
+        ciProbeJar {
+            mappingType = "SEARGE"
+        }
+    }
+
+    def reobfProbe = root.tasks.getByName("reobfCiProbeJar")
+    def productionTask = root.tasks.getByName("reobfShadowJar")
+    def shadowTask = root.tasks.getByName("shadowJar")
+    def stageAll = root.tasks.create(name: "stageCiRuntime") {
+        group = "verification"
+        description = "Stages the production jar and CI probe for legacy runtime tests."
+        dependsOn(productionTask, reobfProbe)
+
+        doLast {
+            def runtimeRoot = new File(root.buildDir, "ci-runtime/forge")
+            def modsDir = new File(runtimeRoot, "mods")
+            def probeDir = new File(runtimeRoot, "probe")
+            root.delete(modsDir, probeDir)
+            modsDir.mkdirs()
+            probeDir.mkdirs()
+
+            def productionJar = shadowTask.archivePath
+            def probeOutput = probeJar.archivePath
+            if (!productionJar.isFile()) {
+                throw new GradleException("Could not find the reobfuscated production shadow jar")
+            }
+            if (!probeOutput.isFile()) {
+                throw new GradleException("Could not find the reobfuscated legacy CI probe jar")
+            }
+
+            root.copy {
+                from productionJar
+                into modsDir
+            }
+            root.copy {
+                from probeOutput
+                into probeDir
+            }
+            logger.lifecycle("Staged legacy Forge runtime in ${runtimeRoot}")
+        }
+    }
+}
