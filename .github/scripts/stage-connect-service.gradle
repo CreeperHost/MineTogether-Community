@@ -83,8 +83,8 @@ gradle.projectsEvaluated {
         group = "verification"
         description = "Builds the standalone local MTConnect service used by runtime tests."
         dependsOn compileService
-        baseName = "minetogether-local-connect-service"
-        classifier = "all"
+        archiveBaseName.set("minetogether-local-connect-service")
+        archiveClassifier.set("all")
         duplicatesStrategy = DuplicatesStrategy.EXCLUDE
         from(serviceClasses)
         from {
@@ -108,11 +108,12 @@ gradle.projectsEvaluated {
         description = "Tests and stages the standalone local MTConnect service."
         dependsOn serviceTest, serviceJar
         doLast {
+            File serviceJarFile = serviceJar.archiveFile.get().asFile
             File outputDir = new File(root.buildDir, "ci-runtime/connect-service")
             root.delete(outputDir)
             outputDir.mkdirs()
             root.copy {
-                from serviceJar.archivePath
+                from serviceJarFile
                 into outputDir
             }
             logger.lifecycle("Staged local MTConnect service in ${outputDir}")
