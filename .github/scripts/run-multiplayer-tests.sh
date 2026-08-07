@@ -220,7 +220,7 @@ start_client() {
   fi
   [[ "$version" == "$launch_regex" ]] && command+=( -regex )
 
-  start_group "$directory" "$log" "${environment[@]}" xvfb-run -a java -jar "$hmc_jar" --command "${command[@]}" --jvm "\"$jvm\"" "${game_args[@]}"
+  start_group "$directory" "$log" "${environment[@]}" java -jar "$hmc_jar" --command "${command[@]}" --jvm "\"$jvm\"" "${game_args[@]}"
   remember_group "$LAST_PID"
 }
 

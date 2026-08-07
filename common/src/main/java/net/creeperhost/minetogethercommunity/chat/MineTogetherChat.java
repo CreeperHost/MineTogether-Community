@@ -57,7 +57,7 @@ public class MineTogetherChat {
 
     private static final Logger LOGGER = LogManager.getLogger();
 
-    public static ChatAuthImpl CHAT_AUTH;
+    public static ChatAuth CHAT_AUTH;
     private static MutedUserList MUTED_USER_LIST;
 
     public static ChatState CHAT_STATE;
@@ -82,6 +82,8 @@ public class MineTogetherChat {
                 return CompletableFuture.completedFuture(null);
             }
         };
+        CHAT_AUTH = auth;
+        MUTED_USER_LIST = new MutedUserList(mutedUsersFile);
         String serverResponse = "{\"status\":\"success\",\"channel\":\"#minetogether-ci\","
                 + "\"server\":{\"address\":\"127.0.0.1\",\"port\":" + port + ",\"ssl\":false}}";
         HttpEngine engine = () -> new LocalChatRequest(serverResponse);
@@ -90,8 +92,8 @@ public class MineTogetherChat {
                         .httpEngine(engine)
                         .addUserAgentSegment("MineTogether-CI")
                         .build(),
-                auth,
-                new MutedUserList(mutedUsersFile),
+                CHAT_AUTH,
+                MUTED_USER_LIST,
                 () -> "MineTogether CI",
                 true
         );
