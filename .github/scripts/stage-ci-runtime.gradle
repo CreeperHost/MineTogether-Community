@@ -1,3 +1,5 @@
+apply from: new File(System.getProperty("user.dir"), ".github/scripts/stage-connect-service.gradle")
+
 gradle.projectsEvaluated {
     def root = gradle.rootProject
     def sourceSets = root.sourceSets
@@ -26,7 +28,7 @@ gradle.projectsEvaluated {
     def stage = root.tasks.findByName("stageCiRuntime") ?: root.task("stageCiRuntime") {
         group = "verification"
         description = "Stages the reobfuscated Forge 1.12.2 production and CI probe jars."
-        dependsOn root.tasks.reobfShadowJar, root.tasks.reobfCiProbeJar
+        dependsOn root.tasks.reobfShadowJar, root.tasks.reobfCiProbeJar, root.tasks.stageCiConnectService
 
         doLast {
             File outputRoot = new File(root.buildDir, "ci-runtime/forge")
