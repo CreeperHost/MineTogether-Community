@@ -14,10 +14,14 @@ import net.creeperhost.minetogethercommunity.chat.ChatTarget;
 import net.creeperhost.minetogether.lib.chat.irc.IrcChannel;
 import net.creeperhost.minetogether.lib.chat.irc.IrcState;
 import net.minecraft.client.Minecraft;
+import net.minecraft.client.gui.components.Button;
+import net.minecraft.client.gui.components.events.GuiEventListener;
 import net.minecraft.client.gui.screens.ConnectScreen;
 import net.minecraft.client.gui.screens.ChatScreen;
+import net.minecraft.client.gui.screens.worldselection.CreateWorldScreen;
 import net.minecraft.client.multiplayer.ServerData;
 import net.minecraft.client.multiplayer.resolver.ServerAddress;
+import net.minecraft.network.chat.Component;
 import net.minecraft.world.entity.player.Player;
 
 import java.io.IOException;
@@ -97,6 +101,16 @@ public final class MineTogetherCiProbe {
             return;
         }
 
+        if (role.equals("singleplayer")) {
+            try {
+                tickSingleplayer(minecraft);
+            } catch (Throwable throwable) {
+                throwable.printStackTrace();
+                fail("Role " + role + " failed: " + throwable);
+            }
+            return;
+        }
+
         if (minecraft.player == null || minecraft.level == null || minecraft.getConnection() == null) {
             connectIfNeeded(minecraft);
             stableTicks = 0;
@@ -132,6 +146,51 @@ public final class MineTogetherCiProbe {
         } catch (Throwable throwable) {
             throwable.printStackTrace();
             fail("Role " + role + " failed: " + throwable);
+        }
+    }
+
+    private static void tickSingleplayer(Minecraft minecraft) throws ReflectiveOperationException {
+        if (!started) {
+            if (minecraft.screen == null || ticks < 40) return;
+            CreateWorldScreen.openFresh(minecraft, minecraft.screen);
+            started = true;
+            phaseTicks = ticks;
+            marker("singleplayer-create-screen");
+            System.out.println(PREFIX + "Opened the vanilla create-world screen");
+            return;
+        }
+
+        if (!stopped) {
+            if (!(minecraft.screen instanceof CreateWorldScreen) || ticks - phaseTicks < 20) return;
+            String createLabel = Component.translatable("selectWorld.create").getString();
+            Button createButton = null;
+            for (GuiEventListener child : minecraft.screen.children()) {
+                if (child instanceof Button button && createLabel.equals(button.getMessage().getString())) {
+                    createButton = button;
+                    break;
+                }
+            }
+            if (createButton == null) {
+                if (ticks - phaseTicks > 200) fail("Could not find the vanilla create-world button");
+                return;
+            }
+            createButton.onPress();
+            stopped = true;
+            stableTicks = 0;
+            marker("singleplayer-create-submitted");
+            System.out.println(PREFIX + "Submitted world creation through the vanilla screen");
+            return;
+        }
+
+        if (minecraft.player == null || minecraft.level == null || !minecraft.hasSingleplayerServer()
+                || minecraft.getSingleplayerServer() == null || !minecraft.getSingleplayerServer().isRunning()) {
+            stableTicks = 0;
+            return;
+        }
+
+        if (++stableTicks >= 100) {
+            marker("singleplayer-world-ready");
+            success(minecraft);
         }
     }
 
