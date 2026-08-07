@@ -1,0 +1,121 @@
+gradle.projectsEvaluated {
+    def root = gradle.rootProject
+    def java17Home = System.getenv("MINETOGETHER_CI_JAVA17_HOME")
+    def java17Executable = { String name ->
+        if (java17Home == null || java17Home.trim().isEmpty()) {
+            throw new GradleException("MINETOGETHER_CI_JAVA17_HOME must point to a JDK 17 installation")
+        }
+        def executable = new File(java17Home, "bin/${name}${org.gradle.internal.os.OperatingSystem.current().isWindows() ? '.exe' : ''}")
+        if (!executable.isFile()) {
+            throw new GradleException("JDK 17 executable does not exist: ${executable}")
+        }
+        executable.absolutePath
+    }
+
+    def serviceDependencies = root.configurations.findByName("ciConnectServiceDependencies")
+            ?: root.configurations.create("ciConnectServiceDependencies")
+    def serviceTestDependencies = root.configurations.findByName("ciConnectServiceTestDependencies")
+            ?: root.configurations.create("ciConnectServiceTestDependencies")
+
+    def addDependency = { String configuration, String coordinate, boolean transitive = true ->
+        def dependency = root.dependencies.create(coordinate)
+        dependency.transitive = transitive
+        root.dependencies.add(configuration, dependency)
+    }
+    addDependency(serviceDependencies.name,
+            "net.creeperhost:MTConnectProxyCommon:${root.property('mtproxy_version')}", false)
+    addDependency(serviceDependencies.name, "net.covers1624:Quack:0.4.10.101", false)
+    addDependency(serviceDependencies.name, "io.netty:netty-handler:4.1.82.Final")
+    addDependency(serviceDependencies.name, "com.google.guava:guava:31.1-jre")
+    addDependency(serviceDependencies.name, "org.apache.logging.log4j:log4j-core:2.19.0")
+    addDependency(serviceDependencies.name, "org.jetbrains:annotations:23.1.0")
+    addDependency(serviceTestDependencies.name, "org.junit.platform:junit-platform-console-standalone:1.8.2")
+
+    File serviceClasses = new File(root.buildDir, "ci-connect-service/classes")
+    File serviceTestClasses = new File(root.buildDir, "ci-connect-service/test-classes")
+    def serviceSources = root.fileTree(".github/connect-service/src/main/java") { include "**/*.java" }
+    def serviceTestSources = root.fileTree(".github/connect-service/src/test/java") { include "**/*.java" }
+
+    def compileService = root.task("compileCiConnectService", type: Exec) {
+        group = "verification"
+        description = "Compiles the standalone local MTConnect service with JDK 17."
+        inputs.files(serviceSources)
+        outputs.dir(serviceClasses)
+        doFirst {
+            root.delete(serviceClasses)
+            serviceClasses.mkdirs()
+            commandLine(([java17Executable("javac"), "--release", "17", "-encoding", "UTF-8",
+                          "-classpath", serviceDependencies.asPath, "-d", serviceClasses.absolutePath]
+                    + serviceSources.files.collect { it.absolutePath }) as Object[])
+        }
+    }
+
+    def compileServiceTests = root.task("compileCiConnectServiceTests", type: Exec) {
+        group = "verification"
+        dependsOn compileService
+        inputs.files(serviceTestSources)
+        outputs.dir(serviceTestClasses)
+        doFirst {
+            root.delete(serviceTestClasses)
+            serviceTestClasses.mkdirs()
+            def classpath = ([serviceClasses.absolutePath, serviceDependencies.asPath,
+                              serviceTestDependencies.asPath]).join(File.pathSeparator)
+            commandLine(([java17Executable("javac"), "--release", "17", "-encoding", "UTF-8",
+                          "-classpath", classpath, "-d", serviceTestClasses.absolutePath]
+                    + serviceTestSources.files.collect { it.absolutePath }) as Object[])
+        }
+    }
+
+    def serviceTest = root.task("ciConnectServiceTest", type: Exec) {
+        group = "verification"
+        description = "Runs focused tests for the standalone local MTConnect service."
+        dependsOn compileServiceTests
+        doFirst {
+            def classpath = ([serviceClasses.absolutePath, serviceTestClasses.absolutePath,
+                              serviceDependencies.asPath, serviceTestDependencies.asPath]).join(File.pathSeparator)
+            commandLine java17Executable("java"), "-cp", classpath,
+                    "org.junit.platform.console.ConsoleLauncher", "--scan-class-path", serviceTestClasses.absolutePath,
+                    "--disable-ansi-colors"
+        }
+    }
+
+    def serviceJar = root.task("ciConnectServiceJar", type: Jar) {
+        group = "verification"
+        description = "Builds the standalone local MTConnect service used by runtime tests."
+        dependsOn compileService
+        baseName = "minetogether-local-connect-service"
+        classifier = "all"
+        duplicatesStrategy = DuplicatesStrategy.EXCLUDE
+        from(serviceClasses)
+        from {
+            def core = serviceDependencies.find { it.name.startsWith("log4j-core-") && it.name.endsWith(".jar") }
+            core == null ? [] : root.zipTree(core).matching {
+                include "META-INF/org/apache/logging/log4j/core/config/plugins/Log4j2Plugins.dat"
+            }
+        }
+        from({ serviceDependencies.collect { root.zipTree(it) } }) {
+            exclude "META-INF/org/apache/logging/log4j/core/config/plugins/Log4j2Plugins.dat"
+        }
+        exclude "META-INF/*.SF", "META-INF/*.DSA", "META-INF/*.RSA"
+        manifest {
+            attributes "Main-Class": "net.creeperhost.minetogethercommunity.ci.connectservice.LocalConnectService",
+                    "Multi-Release": "true"
+        }
+    }
+
+    root.task("stageCiConnectService") {
+        group = "verification"
+        description = "Tests and stages the standalone local MTConnect service."
+        dependsOn serviceTest, serviceJar
+        doLast {
+            File outputDir = new File(root.buildDir, "ci-runtime/connect-service")
+            root.delete(outputDir)
+            outputDir.mkdirs()
+            root.copy {
+                from serviceJar.archivePath
+                into outputDir
+            }
+            logger.lifecycle("Staged local MTConnect service in ${outputDir}")
+        }
+    }
+}
