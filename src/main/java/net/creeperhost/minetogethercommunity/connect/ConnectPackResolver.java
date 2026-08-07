@@ -3,6 +3,7 @@ package net.creeperhost.minetogethercommunity.connect;
 import com.google.common.util.concurrent.ThreadFactoryBuilder;
 import net.creeperhost.minetogether.lib.web.ApiRequest;
 import net.creeperhost.minetogethercommunity.MineTogether;
+import net.creeperhost.minetogethercommunity.util.ModrinthPackLookup;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.commons.lang3.math.NumberUtils;
 import org.apache.logging.log4j.LogManager;
@@ -95,6 +96,15 @@ public class ConnectPackResolver {
 
     private static String resolveName(String key) {
         try {
+            if (StringUtils.startsWithIgnoreCase(key, "mr:")) {
+                ModrinthPackLookup.Result result = ModrinthPackLookup.lookup(key.substring(3));
+                if (result.isNotFound()) return UNKNOWN_MODPACK;
+                if (!result.isSuccessful()) {
+                    LOGGER.warn("Connect Modrinth name lookup for {} returned HTTP {}", key, result.getStatusCode());
+                    return UNKNOWN_MODPACK;
+                }
+                return StringUtils.isBlank(result.getName()) ? UNKNOWN_MODPACK : result.getName();
+            }
             LookupResponse response;
             if (NumberUtils.isParsable(key)) {
                 response = MineTogether.API.execute(new CurseForgeLookupRequest(key)).apiResponse();
@@ -120,6 +130,17 @@ public class ConnectPackResolver {
         if ("curseforge".equals(type)) {
             return new ManualSelection(
                     detail.meta.projectId,
+                    type,
+                    detail.meta.projectId,
+                    StringUtils.stripToEmpty(detail.meta.projectVersion),
+                    displayName,
+                    StringUtils.stripToEmpty(detail.meta.versionFor),
+                    detail.id
+            );
+        }
+        if ("modrinth".equals(type)) {
+            return new ManualSelection(
+                    "mr:" + detail.meta.projectId,
                     type,
                     detail.meta.projectId,
                     StringUtils.stripToEmpty(detail.meta.projectVersion),
