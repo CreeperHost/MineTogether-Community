@@ -25,23 +25,48 @@ public class EmoteNetworking {
     private static final Logger LOGGER = LogManager.getLogger();
     private static final SimpleNetworkManager NETWORK = SimpleNetworkManager.create(MineTogether.MOD_ID);
     private static final Map<UUID, String> ACTIVE_PERSISTENT_EMOTES = new ConcurrentHashMap<>();
+    private static final java.util.Set<UUID> EMOTE_CAPABLE_CLIENTS = ConcurrentHashMap.newKeySet();
 
+    private static MessageType HELLO_C2S;
     private static MessageType START_C2S;
     private static MessageType START_S2C;
     private static MessageType STOP_C2S;
     private static MessageType STOP_S2C;
     private static boolean initialized;
+    private static boolean clientSupportAnnounced;
 
     public static void init() {
         if (initialized) return;
         initialized = true;
+        HELLO_C2S = NETWORK.registerC2S("emote_hello_c2s", EmoteHelloC2S::new);
         START_C2S = NETWORK.registerC2S("emote_start_c2s", StartEmoteC2S::new);
         START_S2C = NETWORK.registerS2C("emote_start_s2c", StartEmoteS2C::new);
         STOP_C2S = NETWORK.registerC2S("emote_stop_c2s", StopEmoteC2S::new);
         STOP_S2C = NETWORK.registerS2C("emote_stop_s2c", StopEmoteS2C::new);
         PlayerEvent.PLAYER_JOIN.register(EmoteNetworking::syncPersistentEmotes);
-        PlayerEvent.PLAYER_QUIT.register(player -> ACTIVE_PERSISTENT_EMOTES.remove(player.getUUID()));
+        PlayerEvent.PLAYER_QUIT.register(player -> {
+            ACTIVE_PERSISTENT_EMOTES.remove(player.getUUID());
+            EMOTE_CAPABLE_CLIENTS.remove(player.getUUID());
+        });
         LOGGER.debug("Emote networking initialized");
+    }
+
+    /** Called from the client entrypoint; retries until the server's C2S channel is ready. */
+    public static void initClient() {
+        dev.architectury.event.events.client.ClientTickEvent.CLIENT_POST.register(mc -> {
+            if (mc.player == null || mc.getConnection() == null) {
+                clientSupportAnnounced = false;
+                return;
+            }
+            if (!clientSupportAnnounced && HELLO_C2S != null && NetworkManager.canServerReceive(HELLO_C2S.getId())) {
+                new EmoteHelloC2S().sendToServer();
+                clientSupportAnnounced = true;
+            }
+        });
+    }
+
+    public static boolean isClientSupportAnnounced() {
+        return clientSupportAnnounced;
     }
 
     public static void tryBroadcastStart(String emoteId, boolean persistent) {
@@ -60,7 +85,7 @@ public class EmoteNetworking {
     }
 
     private static void syncPersistentEmotes(ServerPlayer target) {
-        if (START_S2C == null || !NetworkManager.canPlayerReceive(target, START_S2C.getId())) return;
+        if (START_S2C == null || !EMOTE_CAPABLE_CLIENTS.contains(target.getUUID())) return;
         for (Map.Entry<UUID, String> active : ACTIVE_PERSISTENT_EMOTES.entrySet()) {
             if (!active.getKey().equals(target.getUUID())) {
                 new StartEmoteS2C(active.getKey(), active.getValue()).sendTo(target);
@@ -108,11 +133,37 @@ public class EmoteNetworking {
             int recipients = 0;
             for (ServerPlayer target : serverPlayer.server.getPlayerList().getPlayers()) {
                 if (target == serverPlayer) continue;
-                if (!NetworkManager.canPlayerReceive(target, START_S2C.getId())) continue;
+                if (!EMOTE_CAPABLE_CLIENTS.contains(target.getUUID())) continue;
                 packet.sendTo(target);
                 recipients++;
             }
             LOGGER.debug("Relayed emote '{}' from {} to {} client(s)", emoteId, serverPlayer.getGameProfile().getName(), recipients);
+        }
+    }
+
+    private static class EmoteHelloC2S extends BaseC2SMessage {
+        private EmoteHelloC2S() {
+        }
+
+        private EmoteHelloC2S(FriendlyByteBuf buf) {
+        }
+
+        @Override
+        public MessageType getType() {
+            return HELLO_C2S;
+        }
+
+        @Override
+        public void write(FriendlyByteBuf buf) {
+        }
+
+        @Override
+        public void handle(NetworkManager.PacketContext context) {
+            Player sender = context.getPlayer();
+            if (!(sender instanceof ServerPlayer serverPlayer)) return;
+            EMOTE_CAPABLE_CLIENTS.add(serverPlayer.getUUID());
+            syncPersistentEmotes(serverPlayer);
+            LOGGER.debug("Registered emote packet support for {}", serverPlayer.getGameProfile().getName());
         }
     }
 
@@ -177,7 +228,7 @@ public class EmoteNetworking {
             int recipients = 0;
             for (ServerPlayer target : serverPlayer.server.getPlayerList().getPlayers()) {
                 if (target == serverPlayer) continue;
-                if (!NetworkManager.canPlayerReceive(target, STOP_S2C.getId())) continue;
+                if (!EMOTE_CAPABLE_CLIENTS.contains(target.getUUID())) continue;
                 packet.sendTo(target);
                 recipients++;
             }
