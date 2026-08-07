@@ -128,7 +128,7 @@ public class ConnectPackResolver {
         return UNKNOWN_MODPACK;
     }
 
-    private static @Nullable ManualSelection fromMeta(DetailResponse detail, @Nullable String fallbackName) {
+    static @Nullable ManualSelection fromMeta(DetailResponse detail, @Nullable String fallbackName) {
         if (detail.meta == null || StringUtils.isBlank(detail.meta.projectType) || StringUtils.isBlank(detail.meta.projectId)) {
             return null;
         }

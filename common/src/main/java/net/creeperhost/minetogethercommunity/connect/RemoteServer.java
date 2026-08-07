@@ -48,6 +48,10 @@ public final class RemoteServer {
     }
 
     public boolean shouldWarnBeforeJoin() {
+        return shouldWarnBeforeJoin(compatibility);
+    }
+
+    static boolean shouldWarnBeforeJoin(PackCompatibility compatibility) {
         return compatibility != PackCompatibility.SAME;
     }
 
