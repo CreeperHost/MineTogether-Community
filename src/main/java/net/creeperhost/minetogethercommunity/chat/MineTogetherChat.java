@@ -22,6 +22,7 @@ import net.creeperhost.minetogethercommunity.config.Config;
 import net.creeperhost.minetogethercommunity.config.LocalConfig;
 import net.creeperhost.minetogethercommunity.cosmetic.CosmeticApiClient;
 import net.creeperhost.minetogethercommunity.cosmetic.CosmeticDownloader;
+import net.creeperhost.minetogethercommunity.cosmetic.emote.EmoteNetworking;
 import net.creeperhost.minetogethercommunity.cosmetic.CosmeticSelections;
 import net.creeperhost.minetogethercommunity.cosmetic.PlayerCosmeticCache;
 import net.creeperhost.minetogethercommunity.gui.chat.PlayerIconElement;
@@ -125,6 +126,9 @@ public class MineTogetherChat {
         LOGGER.info("MineTogether chat auth hash {} using fingerprint {}.", mask(CHAT_AUTH.getHash()), mask(CHAT_AUTH.getSignature()));
         File muted = new File(new File(MineTogether.getGameDir(), "local/minetogether"), "mutedusers.json");
         CHAT_STATE = new ChatState(MineTogether.API, CHAT_AUTH, new MutedUserList(muted.toPath()), () -> ModPackInfo.getInfo().realName, false);
+        CHAT_STATE.ircClient.addCTCPListener((user, request) ->
+                user != null && EmoteNetworking.handleCtcp(user.getProfile(), request)
+        );
         CHAT_STATE.logChatToConsole = Config.instance().logChatToConsole || Config.instance().debugMode;
         if (Config.instance().debugMode) {
             System.setProperty("net.covers1624.pircbot.logging.info", "INFO");
