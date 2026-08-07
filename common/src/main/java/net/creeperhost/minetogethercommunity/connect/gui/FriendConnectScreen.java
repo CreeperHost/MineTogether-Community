@@ -2,11 +2,11 @@ package net.creeperhost.minetogethercommunity.connect.gui;
 
 import com.mojang.logging.LogUtils;
 import net.creeperhost.minetogethercommunity.connect.ConnectHandler;
+import net.creeperhost.minetogethercommunity.connect.ConnectCredentials;
 import net.creeperhost.minetogethercommunity.connect.ConnectHost;
 import net.creeperhost.minetogethercommunity.connect.RemoteServer;
 import net.creeperhost.minetogethercommunity.connect.netty.NettyClient;
 import net.creeperhost.minetogether.session.JWebToken;
-import net.creeperhost.minetogether.session.MineTogetherSession;
 import net.minecraft.DefaultUncaughtExceptionHandler;
 import net.minecraft.util.Util;
 import net.minecraft.client.Minecraft;
@@ -63,7 +63,7 @@ public class FriendConnectScreen extends ConnectScreen {
 
                     synchronized (FriendConnectScreen.this) {
                         ConnectHost endpoint = ConnectHandler.getSpecificEndpoint(server.node);
-                        JWebToken token = MineTogetherSession.getDefault().getTokenAsync().get();
+                        JWebToken token = ConnectCredentials.get();
                         connection = NettyClient.connect(endpoint, token, server.serverToken, minecraft.getDebugOverlay().getBandwidthLogger(), false);
                         connection.initiateServerboundPlayConnection(
                                 endpoint.address(),

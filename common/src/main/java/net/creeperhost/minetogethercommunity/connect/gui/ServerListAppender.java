@@ -1,13 +1,13 @@
 package net.creeperhost.minetogethercommunity.connect.gui;
 
 import com.google.common.collect.Lists;
+import net.creeperhost.minetogethercommunity.connect.ConnectCredentials;
 import net.creeperhost.minetogethercommunity.connect.ConnectHandler;
 import net.creeperhost.minetogethercommunity.connect.ConnectHost;
 import net.creeperhost.minetogethercommunity.connect.RemoteServer;
 import net.creeperhost.minetogethercommunity.connect.netty.NettyClient;
 import net.creeperhost.minetogether.lib.chat.profile.Profile;
 import net.creeperhost.minetogether.session.JWebToken;
-import net.creeperhost.minetogether.session.MineTogetherSession;
 import net.minecraft.ChatFormatting;
 import net.minecraft.util.Util;
 import net.minecraft.client.Minecraft;
@@ -130,7 +130,7 @@ public class ServerListAppender {
     }
 
     public void pingServer(RemoteServer server, Profile profile) throws Exception {
-        JWebToken token = MineTogetherSession.getDefault().getTokenAsync().get();
+        JWebToken token = ConnectCredentials.get();
         Connection connection = NettyClient.connect(ConnectHandler.getSpecificEndpoint(server.node), token, server.serverToken, Minecraft.getInstance().getDebugOverlay().getBandwidthLogger(), true);
         connections.add(connection);
         server.motd = Component.translatable("multiplayer.status.pinging");
@@ -254,7 +254,6 @@ public class ServerListAppender {
         return serverList;
     }
 }
-
 
 
 

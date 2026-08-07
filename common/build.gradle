@@ -37,6 +37,9 @@ dependencies {
     compileOnly 'com.github.scribejava:scribejava-core:6.9.0'
 
     testImplementation 'org.junit.jupiter:junit-jupiter-api:5.8.2'
+    testImplementation("net.creeperhost:MineTogetherSessions:${mtsession_version}") {
+        transitive = false
+    }
     testRuntimeOnly "com.google.code.gson:gson:2.10.1"
     testRuntimeOnly "com.google.guava:guava:32.1.3-jre"
     testRuntimeOnly "org.apache.commons:commons-lang3:3.12.0"
