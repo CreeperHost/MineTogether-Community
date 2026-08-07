@@ -238,7 +238,7 @@ assert_clean_logs() {
   local logs=()
   mapfile -d '' logs < <(find "$work" -type f -name '*.log' -print0)
   [[ ${#logs[@]} -gt 0 ]] || fail "No multiplayer logs were produced"
-  if grep -Ein "$bad" "${logs[@]}" | grep -Ev 'dev[/\.]ftb[/\.]mods[/\.]ftbquests[/\.]client[/\.]FTBQuestsNetClient'; then
+  if grep -Ein "$bad" "${logs[@]}" | grep -Ev 'dev[/\.]ftb[/\.]mods[/\.]ftbquests[/\.]client[/\.]FTBQuestsNetClient|io\.netty\.channel\.kqueue\.Native|Only supported on OSX/BSD'; then
     fail "A fatal runtime signature was found in multiplayer logs"
   fi
 }
