@@ -267,11 +267,14 @@ run_scenario() {
 
 assert_clean_logs() {
   local bad='Mixin apply failed|Mixin transformation of .* failed|InvalidMixinException|NoClassDefFoundError|ClassNotFoundException|ExceptionInInitializerError|Connection refused|Failed to connect to the server|Connection Lost|Internal Exception|The game crashed|A fatal error has been detected'
+  # NeoForge probes BSD kqueue availability on Linux from the active Connect worker thread.
+  # Log4j expands that expected availability failure into these exact class-init signatures.
+  local known_nonfatal='dev[/\.]ftb[/\.]mods[/\.]ftbquests[/\.]client[/\.]FTBQuestsNetClient|io\.netty\.channel\.kqueue\.Native|Only supported on OSX/BSD.*(MT Connect Friend Search Executor|MT Connect Friend Share Executor|MT Server Connector #[0-9]+|Server thread)'
   local logs=()
   mapfile -d '' logs < <(find "$work/clients" "$work/logs" -type f -name '*.log' -print0)
   [[ ${#logs[@]} -gt 0 ]] || fail "No multiplayer logs were produced"
   local matches
-  matches="$(grep -Ein "$bad" "${logs[@]}" | grep -v 'dev/ftb/mods/ftbquests/client/FTBQuestsNetClient' || true)"
+  matches="$(grep -Ein "$bad" "${logs[@]}" | grep -Ev "$known_nonfatal" || true)"
   if run_scenario 9; then
     matches="$(printf '%s\n' "$matches" | grep -vF 'MineTogether connection lost. Your world is no longer shared to friends.' || true)"
   fi

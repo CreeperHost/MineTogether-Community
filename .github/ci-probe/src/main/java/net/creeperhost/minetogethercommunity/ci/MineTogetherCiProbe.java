@@ -12,6 +12,7 @@ import net.creeperhost.minetogethercommunity.chat.ChatTarget;
 import net.creeperhost.minetogethercommunity.connect.MineTogetherConnect;
 import net.creeperhost.minetogethercommunity.connect.ConnectHandler;
 import net.creeperhost.minetogethercommunity.connect.RemoteServer;
+import net.creeperhost.minetogethercommunity.connect.gui.ConnectPackSelectionScreen;
 import net.creeperhost.minetogethercommunity.connect.gui.ConnectPackWarningScreen;
 import net.creeperhost.minetogethercommunity.connect.gui.FriendConnectScreen;
 import net.creeperhost.minetogethercommunity.connect.gui.FriendServerEntry;
@@ -32,6 +33,7 @@ import net.minecraft.client.gui.screens.ChatScreen;
 import net.minecraft.client.gui.screens.DisconnectedScreen;
 import net.minecraft.client.gui.screens.PauseScreen;
 import net.minecraft.client.gui.screens.Screen;
+import net.minecraft.client.gui.screens.TitleScreen;
 import net.minecraft.client.gui.screens.multiplayer.JoinMultiplayerScreen;
 import net.minecraft.client.gui.screens.worldselection.CreateWorldScreen;
 import net.minecraft.client.input.KeyEvent;
@@ -41,6 +43,7 @@ import net.minecraft.client.multiplayer.ServerData;
 import net.minecraft.client.multiplayer.resolver.ServerAddress;
 import net.minecraft.client.server.LanServer;
 import net.minecraft.network.chat.Component;
+import net.minecraft.network.DisconnectionDetails;
 import net.minecraft.world.entity.player.ChatVisiblity;
 import net.minecraft.world.entity.player.Player;
 
@@ -140,6 +143,15 @@ public final class MineTogetherCiProbe {
         if (role == null || role.isEmpty()) return;
         if (++ticks > timeoutTicks) {
             fail("Timed out in role " + role + " after " + ticks + " ticks");
+            return;
+        }
+
+        if (minecraft.screen instanceof ConnectPackSelectionScreen.Screen) {
+            minecraft.screen.onClose();
+            if (role.equals("singleplayer") || role.equals("connect-ui") || role.equals("connect-host")) {
+                started = false;
+                phaseTicks = ticks;
+            }
             return;
         }
 
@@ -243,6 +255,11 @@ public final class MineTogetherCiProbe {
         }
 
         if (!stopped) {
+            if (minecraft.screen instanceof TitleScreen && ticks - phaseTicks > 100) {
+                started = false;
+                phaseTicks = ticks;
+                return;
+            }
             if (!(minecraft.screen instanceof CreateWorldScreen) || ticks - phaseTicks < 20) return;
             String createLabel = Component.translatable("selectWorld.create").getString();
             Button createButton = null;
@@ -444,6 +461,10 @@ public final class MineTogetherCiProbe {
         }
 
         if (chatPhase == 1) {
+            if (minecraft.screen instanceof TitleScreen title) {
+                minecraft.setScreen(new JoinMultiplayerScreen(title));
+                return;
+            }
             if (!(minecraft.screen instanceof JoinMultiplayerScreen multiplayer)) return;
             Map<?, ?> entries = friendServerEntries();
             if (entries.isEmpty()) return;
@@ -559,10 +580,11 @@ public final class MineTogetherCiProbe {
         Class<?> type = screen.getClass();
         while (type != null) {
             for (Field field : type.getDeclaredFields()) {
-                if (Modifier.isStatic(field.getModifiers()) || !Component.class.isAssignableFrom(field.getType())) continue;
+                if (Modifier.isStatic(field.getModifiers())) continue;
                 field.setAccessible(true);
-                Component component = (Component) field.get(screen);
-                if (component != null && component.getString().contains(expected)) return true;
+                Object value = field.get(screen);
+                if (value instanceof Component component && component.getString().contains(expected)) return true;
+                if (value instanceof DisconnectionDetails details && details.reason().getString().contains(expected)) return true;
             }
             type = type.getSuperclass();
         }
