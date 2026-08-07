@@ -99,6 +99,10 @@ public class MineTogetherChat {
                 () -> "MineTogether CI",
                 true
         );
+        // Client initialization may already have attached listeners to the state being replaced.
+        CHAT_STATE.ircClient.addCTCPListener((user, request) ->
+                user != null && EmoteNetworking.handleCtcp(user.getProfile(), request)
+        );
     }
 
     private static final class LocalChatRequest extends AbstractEngineRequest {
