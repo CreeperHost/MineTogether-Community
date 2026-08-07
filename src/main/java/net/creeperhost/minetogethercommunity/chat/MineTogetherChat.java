@@ -99,7 +99,10 @@ public class MineTogetherChat {
         @Override
         public EngineResponse execute() {
             assertState();
-            String response = getUrl().endsWith("/serverlist") ? serverResponse : ERROR_RESPONSE;
+            String url = getUrl();
+            String response = url.endsWith("/serverlist") || url.endsWith("/minetogether/chatserver")
+                    ? serverResponse
+                    : ERROR_RESPONSE;
             final WebBody body = WebBody.string(response, "application/json");
             final HeaderList headers = new HeaderList();
             return new EngineResponse() {
