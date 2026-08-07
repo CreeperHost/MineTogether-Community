@@ -10,9 +10,14 @@ import net.creeperhost.minetogethercommunity.cosmetic.emote.EmotePlayer;
 import net.creeperhost.minetogethercommunity.cosmetic.emote.EmoteType;
 import net.creeperhost.minetogethercommunity.gui.chat.PublicChatGui;
 import net.minecraft.client.Minecraft;
+import net.minecraft.client.gui.GuiButton;
+import net.minecraft.client.gui.GuiCreateWorld;
+import net.minecraft.client.gui.GuiScreen;
 import net.minecraft.client.multiplayer.GuiConnecting;
 import net.minecraft.client.multiplayer.ServerData;
+import net.minecraft.client.resources.I18n;
 import net.minecraft.entity.player.EntityPlayer;
+import net.minecraft.util.ChatComponentText;
 
 import java.io.IOException;
 import java.lang.reflect.Field;
@@ -89,6 +94,16 @@ public final class MineTogetherCiProbe {
             return;
         }
 
+        if ("singleplayer".equals(role)) {
+            try {
+                tickSingleplayer(minecraft);
+            } catch (Throwable throwable) {
+                throwable.printStackTrace();
+                fail("Role " + role + " failed: " + throwable);
+            }
+            return;
+        }
+
         if (minecraft.thePlayer == null || minecraft.theWorld == null || minecraft.getNetHandler() == null) {
             connectIfNeeded(minecraft);
             stableTicks = 0;
@@ -114,12 +129,68 @@ public final class MineTogetherCiProbe {
             else if ("mixed-sender".equals(role)) tickMixedSender(minecraft);
             else if ("sender".equals(role)) tickSender(minecraft);
             else if ("receiver".equals(role)) tickReceiver(minecraft);
+            else if ("late-sender".equals(role)) tickLateSender(minecraft);
+            else if ("late-receiver".equals(role)) tickLateReceiver(minecraft);
             else if ("chat-sender".equals(role)) tickChatSender(minecraft);
             else if ("chat-receiver".equals(role)) tickChatReceiver(minecraft);
             else fail("Unknown CI probe role: " + role);
         } catch (Throwable throwable) {
             throwable.printStackTrace();
             fail("Role " + role + " failed: " + throwable);
+        }
+    }
+
+    private static void tickSingleplayer(Minecraft minecraft) throws IOException {
+        if (!started) {
+            if (minecraft.currentScreen == null || ticks < 200) return;
+            minecraft.displayGuiScreen(new CiCreateWorldScreen(minecraft.currentScreen));
+            started = true;
+            phaseTicks = ticks;
+            marker("singleplayer-create-screen");
+            System.out.println(PREFIX + "Opened the vanilla create-world screen");
+            return;
+        }
+
+        if (!stopped) {
+            if (!(minecraft.currentScreen instanceof CiCreateWorldScreen) || ticks - phaseTicks < 20) return;
+            if (!((CiCreateWorldScreen) minecraft.currentScreen).submitCreate()) {
+                if (ticks - phaseTicks > 200) fail("Could not find the vanilla create-world button");
+                return;
+            }
+            stopped = true;
+            stableTicks = 0;
+            marker("singleplayer-create-submitted");
+            System.out.println(PREFIX + "Submitted world creation through the vanilla screen");
+            return;
+        }
+
+        if (minecraft.thePlayer == null || minecraft.theWorld == null
+                || !minecraft.isIntegratedServerRunning() || minecraft.getIntegratedServer() == null
+                || !minecraft.getIntegratedServer().isServerRunning()) {
+            stableTicks = 0;
+            return;
+        }
+
+        if (++stableTicks >= 100) {
+            marker("singleplayer-world-ready");
+            success(minecraft);
+        }
+    }
+
+    private static final class CiCreateWorldScreen extends GuiCreateWorld {
+        private CiCreateWorldScreen(GuiScreen parent) {
+            super(parent);
+        }
+
+        private boolean submitCreate() throws IOException {
+            String createLabel = I18n.format("selectWorld.create");
+            for (GuiButton button : buttonList) {
+                if (createLabel.equals(button.displayString)) {
+                    actionPerformed(button);
+                    return true;
+                }
+            }
+            return false;
         }
     }
 
@@ -199,6 +270,71 @@ public final class MineTogetherCiProbe {
             marker("receiver-remote-stop");
         } else if (stopped && exists("sender-success")) {
             success(minecraft);
+        }
+    }
+
+    private static void tickLateSender(Minecraft minecraft) throws ReflectiveOperationException {
+        if (!started && stableTicks >= 60) {
+            EmoteNetworking.tryBroadcastStart(TEST_EMOTE, true);
+            started = true;
+            marker("late-sender-emote-started");
+            System.out.println(PREFIX + "Started persistent emote before the late peer joined");
+        }
+
+        findPeer(minecraft);
+        if (!started || peerId == null) return;
+
+        if (!stopped && activeEmotes.containsKey(peerId)) {
+            stopped = true;
+            marker("late-sender-observed-receiver");
+            System.out.println(PREFIX + "Observed the late peer's persistent emote");
+            return;
+        }
+
+        if (!stopped || !exists("late-receiver-disconnect-requested")) return;
+        boolean peerPresent = minecraft.theWorld.getPlayerEntityByUUID(peerId) != null;
+        boolean staleEmote = activeEmotes.containsKey(peerId);
+        if (peerPresent || staleEmote) {
+            phaseTicks = 0;
+            return;
+        }
+
+        if (++phaseTicks >= 40) {
+            EmoteNetworking.tryBroadcastStop();
+            marker("late-sender-disconnect-clean");
+            success(minecraft);
+        }
+    }
+
+    private static void tickLateReceiver(Minecraft minecraft) throws ReflectiveOperationException {
+        findPeer(minecraft);
+        if (peerId == null) return;
+
+        if (!started && activeEmotes.containsKey(peerId)) {
+            marker("late-receiver-observed-existing");
+            EmoteNetworking.tryBroadcastStart(TEST_EMOTE, true);
+            started = true;
+            marker("late-receiver-emote-started");
+            System.out.println(PREFIX + "Late peer received existing emote state and started its own emote");
+        } else if (started && exists("late-sender-observed-receiver")) {
+            marker("late-receiver-disconnect-requested");
+            minecraft.getNetHandler().getNetworkManager().closeChannel(
+                    new ChatComponentText("MineTogether CI disconnect cleanup")
+            );
+            role = "";
+            System.out.println(PREFIX + "Disconnected without sending an emote stop packet");
+        }
+    }
+
+    private static void findPeer(Minecraft minecraft) {
+        if (peerId != null) return;
+        for (Object playerObject : minecraft.theWorld.playerEntities) {
+            EntityPlayer player = (EntityPlayer) playerObject;
+            if (peerName.equals(player.getName())) {
+                peerId = player.getUniqueID();
+                marker(role + "-peer-found");
+                break;
+            }
         }
     }
 
