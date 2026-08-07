@@ -219,7 +219,7 @@ public class ClientEvents {
             if (Minecraft.getMinecraft().isSingleplayer()) {
                 addPauseConnectButton(event, gui);
             }
-        } else if (gui instanceof GuiMultiplayer && ConnectHandler.isEnabled()) {
+        } else if (gui instanceof GuiMultiplayer) {
             ServerListAppender.INSTANCE.init((GuiMultiplayer) gui);
         }
     }
