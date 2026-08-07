@@ -10,19 +10,33 @@ import net.creeperhost.minetogethercommunity.cosmetic.emote.EmoteNetworking;
 import net.creeperhost.minetogethercommunity.cosmetic.emote.EmotePlayer;
 import net.creeperhost.minetogethercommunity.cosmetic.emote.EmoteType;
 import net.creeperhost.minetogethercommunity.gui.chat.PublicChatGui;
+import net.creeperhost.minetogethercommunity.connect.ConnectHandler;
+import net.creeperhost.minetogethercommunity.connect.RemoteServer;
+import net.creeperhost.minetogethercommunity.connect.gui.ConnectPackWarningScreen;
+import net.creeperhost.minetogethercommunity.connect.gui.FriendConnectScreen;
+import net.creeperhost.minetogethercommunity.connect.gui.FriendServerEntry;
+import net.creeperhost.minetogethercommunity.connect.gui.GuiShareToFriends;
+import net.creeperhost.minetogethercommunity.connect.gui.ServerListAppender;
+import net.creeperhost.minetogethercommunity.modulargui.GuiElement;
+import net.creeperhost.minetogethercommunity.modulargui.ModularGuiScreen;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiButton;
 import net.minecraft.client.gui.GuiCreateWorld;
+import net.minecraft.client.gui.GuiDisconnected;
+import net.minecraft.client.gui.GuiIngameMenu;
+import net.minecraft.client.gui.GuiMultiplayer;
 import net.minecraft.client.gui.GuiScreen;
 import net.minecraft.client.multiplayer.GuiConnecting;
 import net.minecraft.client.multiplayer.ServerData;
 import net.minecraft.client.resources.I18n;
 import net.minecraft.entity.player.EntityPlayer;
 import net.minecraft.util.ChatComponentText;
+import net.minecraft.util.IChatComponent;
 
 import java.io.IOException;
 import java.lang.reflect.Field;
 import java.lang.reflect.Method;
+import java.lang.reflect.Modifier;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -38,6 +52,8 @@ public final class MineTogetherCiProbe {
     private static final String PREFIX = "[MT-CI] ";
     private static final String TEST_EMOTE = "ci_packet_probe";
     private static final String TEST_CHAT_MESSAGE = "MT-CI-OFFLINE-CHAT-RELAY";
+    private static final String CONNECT_NOT_FRIEND = "You cannot join as you are not MineTogether friends with this user!";
+    private static final String CONNECT_FULL = "MineTogether friends' server is full. Please contact your friend!";
     private static final int DEFAULT_TIMEOUT_TICKS = 20 * 180;
 
     private static boolean initialized;
@@ -57,6 +73,9 @@ public final class MineTogetherCiProbe {
     private static UUID peerId;
     private static Map<UUID, ?> activeEmotes;
     private static int chatPort;
+    private static int chatPhase;
+    private static String connectServerToken;
+    private static String connectHostHash;
 
     public static synchronized void init() {
         if (initialized) return;
@@ -72,6 +91,8 @@ public final class MineTogetherCiProbe {
         resultDirectory = Paths.get(setting("minetogether.ci.results", "MINETOGETHER_CI_RESULTS", "build/ci-multiplayer/results"))
                 .toAbsolutePath().normalize();
         chatPort = integerSetting("minetogether.ci.chatPort", "MINETOGETHER_CI_CHAT_PORT", 0);
+        connectServerToken = setting("minetogether.ci.connectServerToken", "MINETOGETHER_CI_CONNECT_SERVER_TOKEN", "server-0001").trim();
+        connectHostHash = setting("minetogether.ci.connectHostHash", "MINETOGETHER_CI_CONNECT_HOST_HASH", "").trim();
 
         try {
             Files.createDirectories(resultDirectory);
@@ -79,6 +100,14 @@ public final class MineTogetherCiProbe {
                 if (chatPort <= 0) throw new IllegalStateException("Local chat test requires MINETOGETHER_CI_CHAT_PORT");
                 CiChatMock.install(chatPort, role, resultDirectory);
             }
+            if (role.startsWith("connect-") && System.getenv("MINETOGETHER_CI_CONNECT_UUID") != null) {
+                if (chatPort <= 0) throw new IllegalStateException("Local Connect test requires MINETOGETHER_CI_CHAT_PORT");
+                CiConnectMock.install(chatPort, role, UUID.fromString(System.getenv("MINETOGETHER_CI_CONNECT_UUID")), resultDirectory);
+            }
+            if (role.equals("connect-ui") || role.equals("connect-host")) {
+                GuiShareToFriends.configureLocalForTesting(role.equals("connect-host") ? 2 : 8);
+            }
+            if (role.equals("connect-unavailable")) ConnectHandler.configureUnavailableForTesting();
             activeEmotes = activeEmotes();
             installTestEmote();
             marker(role + "-started");
@@ -98,13 +127,33 @@ public final class MineTogetherCiProbe {
             return;
         }
 
-        if ("singleplayer".equals(role)) {
+        if ("singleplayer".equals(role) || "connect-ui".equals(role) || "connect-host".equals(role)) {
             try {
-                tickSingleplayer(minecraft);
+                if (minecraft.thePlayer == null || minecraft.theWorld == null || !minecraft.isIntegratedServerRunning()) {
+                    tickSingleplayer(minecraft);
+                } else if ("connect-ui".equals(role)) {
+                    tickConnectUi(minecraft);
+                } else if ("connect-host".equals(role)) {
+                    tickConnectHost(minecraft);
+                }
             } catch (Throwable throwable) {
                 throwable.printStackTrace();
                 fail("Role " + role + " failed: " + throwable);
             }
+            return;
+        }
+
+        if ("connect-friend".equals(role)) {
+            try { tickConnectFriend(minecraft); } catch (Throwable throwable) { throwable.printStackTrace(); fail("Role " + role + " failed: " + throwable); }
+            return;
+        }
+        if ("connect-outsider".equals(role) || "connect-extra".equals(role)) {
+            try { tickConnectRejected(minecraft, "connect-outsider".equals(role) ? CONNECT_NOT_FRIEND : CONNECT_FULL); }
+            catch (Throwable throwable) { throwable.printStackTrace(); fail("Role " + role + " failed: " + throwable); }
+            return;
+        }
+        if ("connect-unavailable".equals(role)) {
+            tickConnectUnavailable(minecraft);
             return;
         }
 
@@ -181,6 +230,204 @@ public final class MineTogetherCiProbe {
             marker("singleplayer-world-ready");
             success(minecraft);
         }
+    }
+
+    private static void tickConnectUi(Minecraft minecraft) throws IOException {
+        if (chatPhase == 0) {
+            minecraft.displayGuiScreen(new GuiIngameMenu());
+            phaseTicks = ticks;
+            chatPhase = 1;
+        } else if (chatPhase == 1 && ticks - phaseTicks >= 20 && minecraft.currentScreen instanceof GuiIngameMenu) {
+            clickVanillaButton(minecraft.currentScreen, "minetogether.connect.open");
+            phaseTicks = ticks;
+            chatPhase = 2;
+        } else if (chatPhase == 2 && ticks - phaseTicks >= 40) {
+            if (!(minecraft.currentScreen instanceof GuiShareToFriends.Screen)) {
+                fail("Open to friends did not open its settings screen");
+                return;
+            }
+            translated("minetogether.connect.open.settings");
+            translated("minetogether.connect.open.max_players");
+            translated("minetogether.connect.open.start");
+            marker("connect-ui-settings-ready");
+            success(minecraft);
+        }
+    }
+
+    private static void tickConnectHost(Minecraft minecraft) throws IOException {
+        switch (chatPhase) {
+            case 0:
+                minecraft.getIntegratedServer().setOnlineMode(false);
+                minecraft.displayGuiScreen(new GuiIngameMenu());
+                phaseTicks = ticks; chatPhase = 1; return;
+            case 1:
+                if (ticks - phaseTicks < 20 || !(minecraft.currentScreen instanceof GuiIngameMenu)) return;
+                clickVanillaButton(minecraft.currentScreen, "minetogether.connect.open");
+                phaseTicks = ticks; chatPhase = 2; return;
+            case 2:
+                if (ticks - phaseTicks < 40 || !(minecraft.currentScreen instanceof GuiShareToFriends.Screen)) return;
+                clickModularButton((ModularGuiScreen) minecraft.currentScreen, "minetogether.connect.open.start");
+                chatPhase = 3; return;
+            case 3:
+                if (!ConnectHandler.isPublished()) return;
+                minecraft.getIntegratedServer().setOnlineMode(false);
+                marker("connect-host-published"); chatPhase = 4; return;
+            case 4:
+                if (exists("connect-friend-joined") && minecraft.getIntegratedServer().getConfigurationManager().getCurrentPlayerCount() >= 2
+                        && !exists("connect-host-friend-visible")) marker("connect-host-friend-visible");
+                if (!exists("connect-host-close-request")) return;
+                minecraft.displayGuiScreen(new GuiIngameMenu()); phaseTicks = ticks; chatPhase = 5; return;
+            case 5:
+                if (ticks - phaseTicks < 20 || !(minecraft.currentScreen instanceof GuiIngameMenu)) return;
+                clickVanillaButton(minecraft.currentScreen, "minetogether.connect.close_server"); chatPhase = 6; return;
+            case 6:
+                if (ConnectHandler.isPublished()) return;
+                marker("connect-host-closed"); chatPhase = 7; return;
+            case 7:
+                if (!exists("connect-host-republish-request")) return;
+                minecraft.displayGuiScreen(new GuiIngameMenu()); phaseTicks = ticks; chatPhase = 8; return;
+            case 8:
+                if (ticks - phaseTicks < 20 || !(minecraft.currentScreen instanceof GuiIngameMenu)) return;
+                clickVanillaButton(minecraft.currentScreen, "minetogether.connect.open"); phaseTicks = ticks; chatPhase = 9; return;
+            case 9:
+                if (ticks - phaseTicks < 40 || !(minecraft.currentScreen instanceof GuiShareToFriends.Screen)) return;
+                clickModularButton((ModularGuiScreen) minecraft.currentScreen, "minetogether.connect.open.start"); chatPhase = 10; return;
+            case 10:
+                if (!ConnectHandler.isPublished()) return;
+                marker("connect-host-republished"); chatPhase = 11; return;
+            case 11:
+                if (!exists("connect-host-fault-request") || ConnectHandler.isPublished()) return;
+                marker("connect-host-fault-observed"); chatPhase = 12; return;
+            case 12:
+                if (!exists("connect-host-final-republish-request")) return;
+                minecraft.displayGuiScreen(new GuiIngameMenu()); phaseTicks = ticks; chatPhase = 13; return;
+            case 13:
+                if (ticks - phaseTicks < 20 || !(minecraft.currentScreen instanceof GuiIngameMenu)) return;
+                clickVanillaButton(minecraft.currentScreen, "minetogether.connect.open"); phaseTicks = ticks; chatPhase = 14; return;
+            case 14:
+                if (ticks - phaseTicks < 40 || !(minecraft.currentScreen instanceof GuiShareToFriends.Screen)) return;
+                clickModularButton((ModularGuiScreen) minecraft.currentScreen, "minetogether.connect.open.start"); chatPhase = 15; return;
+            case 15:
+                if (!ConnectHandler.isPublished()) return;
+                marker("connect-host-final-republished"); chatPhase = 16; return;
+            case 16:
+                if (exists("connect-host-stop-request")) success(minecraft); return;
+            default:
+        }
+    }
+
+    private static void tickConnectFriend(Minecraft minecraft) throws IOException, ReflectiveOperationException {
+        if (chatPhase == 0) {
+            if (minecraft.currentScreen == null || ticks < 40) return;
+            minecraft.displayGuiScreen(new GuiMultiplayer(minecraft.currentScreen)); chatPhase = 1; return;
+        }
+        if (chatPhase == 1) {
+            if (!(minecraft.currentScreen instanceof GuiMultiplayer)) return;
+            Map<?, ?> entries = friendServerEntries();
+            if (entries.isEmpty()) return;
+            FriendServerEntry entry = (FriendServerEntry) entries.values().iterator().next();
+            RemoteServer remote = entry.getRemoteServer();
+            if (!connectHostHash.equalsIgnoreCase(remote.getFriendHash())) { fail("Connect listing host hash differed: " + remote.getFriendHash()); return; }
+            if (!connectServerToken.equals(remote.getServerToken())) { fail("Connect listing token differed: " + remote.getServerToken()); return; }
+            marker("connect-friend-listing");
+            minecraft.displayGuiScreen(remote.shouldWarnBeforeJoin()
+                    ? new ConnectPackWarningScreen.Screen(minecraft.currentScreen, remote)
+                    : new FriendConnectScreen(minecraft.currentScreen, remote));
+            chatPhase = 2; phaseTicks = ticks; return;
+        }
+        if (chatPhase == 2 && minecraft.currentScreen instanceof ConnectPackWarningScreen.Screen) {
+            if (ticks - phaseTicks < 20) return;
+            clickModularButton((ModularGuiScreen) minecraft.currentScreen, "minetogether.connect.pack_warning.proceed"); chatPhase = 3; return;
+        }
+        if (chatPhase == 2 && minecraft.currentScreen instanceof FriendConnectScreen) chatPhase = 3;
+        if (chatPhase == 3 && minecraft.thePlayer != null && minecraft.theWorld != null && minecraft.theWorld.playerEntities.size() >= 2) {
+            marker("connect-friend-joined"); chatPhase = 4;
+        }
+        if (chatPhase == 4 && exists("connect-friend-release")) success(minecraft);
+    }
+
+    private static void tickConnectRejected(Minecraft minecraft, String expectedMessage) throws ReflectiveOperationException {
+        if (!started) {
+            if (minecraft.currentScreen == null || ticks < 40) return;
+            minecraft.displayGuiScreen(new FriendConnectScreen(minecraft.currentScreen,
+                    new RemoteServer(connectHostHash, connectServerToken, "ci-local")));
+            started = true; return;
+        }
+        if (!(minecraft.currentScreen instanceof GuiDisconnected)) return;
+        if (!screenContains(minecraft.currentScreen, expectedMessage)) { fail("Connect rejection screen did not contain: " + expectedMessage); return; }
+        marker(role + "-rejected"); success(minecraft);
+    }
+
+    @SuppressWarnings("unchecked")
+    private static Map<?, ?> friendServerEntries() throws ReflectiveOperationException {
+        Field field = ServerListAppender.class.getDeclaredField("serverEntries");
+        field.setAccessible(true);
+        return (Map<?, ?>) field.get(ServerListAppender.INSTANCE);
+    }
+
+    @SuppressWarnings("unchecked")
+    private static void clickVanillaButton(GuiScreen screen, String translationKey) {
+        String expected = I18n.format(translationKey);
+        try {
+            Field field = GuiScreen.class.getDeclaredField("buttonList"); field.setAccessible(true);
+            for (GuiButton button : (Iterable<GuiButton>) field.get(screen)) {
+                if (!expected.equals(button.displayString)) continue;
+                Method action = GuiScreen.class.getDeclaredMethod("actionPerformed", GuiButton.class);
+                action.setAccessible(true); action.invoke(screen, button); return;
+            }
+        } catch (Exception exception) { fail("Could not press vanilla button " + translationKey + ": " + exception); return; }
+        fail("Could not find vanilla button " + translationKey);
+    }
+
+    private static void clickModularButton(ModularGuiScreen screen, String translationKey) throws IOException {
+        String expected = I18n.format(translationKey);
+        net.creeperhost.minetogethercommunity.modulargui.GuiButton button = findModularButton(screen.getModularGui().getRoot().getChildren(), expected);
+        if (button == null) { fail("Could not find modular button " + translationKey); return; }
+        int x = button.x() + button.width() / 2; int y = button.y() + button.height() / 2;
+        screen.getModularGui().mouseClicked(x, y, 0); screen.getModularGui().mouseReleased(x, y, 0);
+    }
+
+    private static net.creeperhost.minetogethercommunity.modulargui.GuiButton findModularButton(Iterable<GuiElement<?>> elements, String expected) {
+        for (GuiElement<?> element : elements) {
+            if (element instanceof net.creeperhost.minetogethercommunity.modulargui.GuiButton) {
+                net.creeperhost.minetogethercommunity.modulargui.GuiButton button = (net.creeperhost.minetogethercommunity.modulargui.GuiButton) element;
+                if (expected.equals(button.getLabel())) return button;
+            }
+            net.creeperhost.minetogethercommunity.modulargui.GuiButton child = findModularButton(element.getChildren(), expected);
+            if (child != null) return child;
+        }
+        return null;
+    }
+
+    private static boolean screenContains(GuiScreen screen, String expected) throws IllegalAccessException {
+        Class<?> type = screen.getClass();
+        while (type != null) {
+            for (Field field : type.getDeclaredFields()) {
+                if (Modifier.isStatic(field.getModifiers()) || !IChatComponent.class.isAssignableFrom(field.getType())) continue;
+                field.setAccessible(true);
+                IChatComponent component = (IChatComponent) field.get(screen);
+                if (component != null && component.getUnformattedText().contains(expected)) return true;
+            }
+            type = type.getSuperclass();
+        }
+        return false;
+    }
+
+    private static String translated(String key) {
+        String value = I18n.format(key); if (key.equals(value)) fail("Missing translation for " + key); return value;
+    }
+
+    private static void tickConnectUnavailable(Minecraft minecraft) {
+        if (!started) {
+            if (minecraft.currentScreen == null || ticks < 40) return;
+            minecraft.displayGuiScreen(new GuiMultiplayer(minecraft.currentScreen)); started = true; phaseTicks = ticks;
+            marker("connect-unavailable-screen-open"); return;
+        }
+        if (!(minecraft.currentScreen instanceof GuiMultiplayer)) { fail("Multiplayer screen closed after Connect discovery failed"); return; }
+        if (ConnectHandler.isEnabled() || ticks - phaseTicks < 240) return;
+        int attempts = ConnectHandler.getTestSearchAttempts();
+        if (attempts != 1) { fail("Connect discovery made " + attempts + " attempts during one backoff window"); return; }
+        marker("connect-unavailable-backoff"); success(minecraft);
     }
 
     private static final class CiCreateWorldScreen extends GuiCreateWorld {

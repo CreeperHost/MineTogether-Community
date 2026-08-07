@@ -17,7 +17,11 @@ results="$work/results"
 vanilla_port="${MINETOGETHER_CI_VANILLA_PORT:-25571}"
 modded_port="${MINETOGETHER_CI_MODDED_PORT:-25572}"
 chat_port="${MINETOGETHER_CI_CHAT_PORT:-26667}"
-scenarios=",${MINETOGETHER_CI_SCENARIOS:-1,2,3,4,5,6,7},"
+connect_proxy_port="${MINETOGETHER_CI_CONNECT_PROXY_PORT:-27777}"
+connect_control_port="${MINETOGETHER_CI_CONNECT_CONTROL_PORT:-27778}"
+connect_node_file="$work/connect-service/connect-nodes.json"
+connect_java="${MINETOGETHER_CI_JAVA17:-java}"
+scenarios=",${MINETOGETHER_CI_SCENARIOS:-1,2,3,4,5,6,7,8,9},"
 reuse_installs="${MINETOGETHER_CI_REUSE_INSTALLS:-false}"
 process_groups=()
 LAST_PID=""
@@ -181,6 +185,11 @@ create_client() {
   local game="$directory/game"
   write_hmc_config "$directory" "$game" "$username" "$uuid"
   mkdir -p "$game/mods"
+  cat > "$game/options.txt" <<'EOF'
+renderDistance:2
+maxFps:10
+fancyGraphics:false
+EOF
   if [[ "$modded" == true ]]; then
     cp "$repo/build/ci-runtime/$loader/mods/"*.jar "$game/mods/"
     cp "$repo/build/ci-runtime/$loader/probe/"*.jar "$game/mods/"
@@ -196,14 +205,20 @@ start_client() {
   local role="${5:-}"
   local expected="${6:-1}"
   local peer="${7:-CiSender}"
+  local connect_uuid="${8:-}"
+  local connect_username="${9:-$name}"
+  local connect_server_token="${10:-server-0001}"
+  local role_timeout=3600
   local log="$work/logs/$name.log"
   local jvm="-Xms384m -Xmx1024m"
   local environment=(env)
   local command=(launch "$version")
   local game_args=()
   if [[ -n "$role" ]]; then
+    [[ "$role" == connect-host ]] && role_timeout=12000
     environment+=(
       "MINETOGETHER_CI_ROLE=$role"
+      "MINETOGETHER_CI_TIMEOUT_TICKS=$role_timeout"
       "MINETOGETHER_CI_EXPECTED_PLAYERS=$expected"
       "MINETOGETHER_CI_PEER_NAME=$peer"
       "MINETOGETHER_CI_RESULTS=$results"
@@ -211,6 +226,13 @@ start_client() {
     )
     if [[ "$role" == chat-* || "$role" == ctcp-* ]]; then
       environment+=("MINETOGETHER_CI_CHAT_PORT=$chat_port")
+    fi
+    if [[ "$role" == connect-* && -n "$connect_uuid" ]]; then
+      jvm="-Xms384m -Xmx1536m"
+      environment+=("MINETOGETHER_CI_CHAT_PORT=$chat_port" "MINETOGETHER_CI_CONNECT_UUID=$connect_uuid"
+        "MINETOGETHER_CI_CONNECT_USERNAME=$connect_username" "MINETOGETHER_CI_CONNECT_SERVER_TOKEN=$connect_server_token"
+        "MINETOGETHER_CI_CONNECT_HOST_HASH=$connect_host_hash")
+      jvm+=" -Dconnect.mesh.hosts=$connect_node_file -Dconnect.node=ci-local"
     fi
   else
     case "$version" in
@@ -240,9 +262,13 @@ assert_clean_logs() {
   local logs=()
   mapfile -d '' logs < <(find "$work" -type f -name '*.log' -print0)
   [[ ${#logs[@]} -gt 0 ]] || fail "No multiplayer logs were produced"
-  if grep -Ein "$bad" "${logs[@]}" \
+  local matches
+  matches="$(grep -Ein "$bad" "${logs[@]}" \
       | grep -v 'dev/ftb/mods/ftbquests/client/FTBQuestsNetClient' \
-      | grep -vE '(/logs/(vanilla-server|vanilla-ctcp-server|modded-server)\.log|/servers/.*/logs/latest\.log):[0-9]+:.*(CiConnect|CiVanilla|CiMixed|CiSender|CiReceiver|CiChatSend|CiChatRecv|CiLateSend|CiLateRecv|CiCtcpSend|CiCtcpRecv) lost connection:.*Connection reset by peer'; then
+      | grep -vE '(/logs/(vanilla-server|vanilla-ctcp-server|modded-server)\.log|/servers/.*/logs/latest\.log):[0-9]+:.*(CiConnect|CiVanilla|CiMixed|CiSender|CiReceiver|CiChatSend|CiChatRecv|CiLateSend|CiLateRecv|CiCtcpSend|CiCtcpRecv) lost connection:.*Connection reset by peer' || true)"
+  if run_scenario 9; then matches="$(printf '%s\n' "$matches" | grep -vF 'MineTogether connection lost. Your world is no longer shared to friends.' || true)"; fi
+  if [[ -n "$matches" ]]; then
+    printf '%s\n' "$matches"
     fail "A fatal runtime signature was found in multiplayer logs"
   fi
 }
@@ -286,10 +312,20 @@ receiver="$(create_client receiver CiReceiver 00000000-0000-0000-0000-0000000000
 chat_sender="$(create_client chat-sender CiChatSend 00000000-0000-0000-0000-000000000060 true)"
 chat_receiver="$(create_client chat-receiver CiChatRecv 00000000-0000-0000-0000-000000000070 true)"
 singleplayer="$(create_client singleplayer CiSingleplayer 00000000-0000-0000-0000-000000000080 true)"
+connect_unavailable="$(create_client connect-unavailable CiConnectOffline 00000000-0000-0000-0000-000000000082 true)"
 late_sender="$(create_client late-sender CiLateSend 00000000-0000-0000-0000-000000000090 true)"
 late_receiver="$(create_client late-receiver CiLateRecv 00000000-0000-0000-0000-000000000100 true)"
 ctcp_sender="$(create_client ctcp-sender CiCtcpSend dbd71c71-94c9-3f55-b3fd-db7821724f20 true)"
 ctcp_receiver="$(create_client ctcp-receiver CiCtcpRecv 0384d072-c23c-327c-8170-878ce2dda94f true)"
+connect_host_uuid="10000000-0000-4000-8000-000000000001"
+connect_friend_uuid="20000000-0000-4000-8000-000000000002"
+connect_extra_uuid="30000000-0000-4000-8000-000000000003"
+connect_outsider_uuid="40000000-0000-4000-8000-000000000004"
+connect_host_hash="$(printf '%s' "$connect_host_uuid" | sha256sum | awk '{print toupper($1)}')"
+connect_host="$(create_client connect-host CiConnectHost "$connect_host_uuid" true)"
+connect_friend="$(create_client connect-friend CiConnectFriend "$connect_friend_uuid" true)"
+connect_extra="$(create_client connect-extra CiConnectExtra "$connect_extra_uuid" true)"
+connect_outsider="$(create_client connect-outsider CiConnectOutsider "$connect_outsider_uuid" true)"
 
 if run_scenario 5; then
   echo "Scenario 5/7: offline modded client creates and enters a fresh singleplayer world"
@@ -299,6 +335,66 @@ if run_scenario 5; then
   wait_for_marker singleplayer-success "$singleplayer_pid" 480
   await_group_exit "$singleplayer_pid" 60
   assert_clean_logs
+fi
+
+if run_scenario 8; then
+  echo "Scenario 8/9: unavailable Connect discovery leaves Multiplayer usable and backs off cleanly"
+  reset_results
+  start_client "$connect_unavailable" connect-unavailable "$launch_regex" 0 connect-unavailable 1
+  connect_unavailable_pid="$LAST_PID"
+  wait_for_marker connect-unavailable-backoff "$connect_unavailable_pid" 240
+  wait_for_marker connect-unavailable-success "$connect_unavailable_pid" 30
+  await_group_exit "$connect_unavailable_pid" 60
+  assert_clean_logs
+fi
+
+if run_scenario 9; then
+  echo "Scenario 9/9: local Connect publish, discovery, relay admission, rejection, limits, and lifecycle"
+  reset_results
+  connect_service_jar="$(find "$repo/build/ci-runtime/connect-service" -maxdepth 1 -type f -name '*.jar' -print -quit)"
+  [[ -n "$connect_service_jar" ]] || fail "Staged local MTConnect service jar was not found"
+  start_group "$work" "$work/logs/connect-service.log" "$connect_java" -jar "$connect_service_jar" \
+    --proxy-port "$connect_proxy_port" --control-port "$connect_control_port" --work-dir "$work/connect-service"
+  connect_service_pid="$LAST_PID"; remember_group "$connect_service_pid"
+  wait_for_log "$work/logs/connect-service.log" '^READY ' "$connect_service_pid" 60
+  connect_control="http://127.0.0.1:$connect_control_port"
+  curl -fsS -X POST "$connect_control/fixture/friend?left=$connect_host_uuid&right=$connect_friend_uuid" >/dev/null
+  curl -fsS -X POST "$connect_control/fixture/friend?left=$connect_host_uuid&right=$connect_extra_uuid" >/dev/null
+  curl -fsS -X POST "$connect_control/fixture/limit?user=$connect_host_uuid&max=2" >/dev/null
+
+  start_client "$connect_host" connect-host "$launch_regex" 0 connect-host 1 CiConnectFriend "$connect_host_uuid" CiConnectHost
+  connect_host_pid="$LAST_PID"; wait_for_marker connect-host-published "$connect_host_pid" 480
+  curl -fsS "$connect_control/state" | grep -q '"serverToken":"server-0001"' || fail "Local Connect service did not register the initial host"
+
+  start_client "$connect_outsider" connect-outsider "$launch_regex" 0 connect-outsider 1 CiConnectHost "$connect_outsider_uuid" CiConnectOutsider server-0001
+  connect_outsider_pid="$LAST_PID"; wait_for_marker connect-outsider-rejected "$connect_outsider_pid" 180; await_group_exit "$connect_outsider_pid" 60
+
+  start_client "$connect_friend" connect-friend "$launch_regex" 0 connect-friend 2 CiConnectHost "$connect_friend_uuid" CiConnectFriend server-0001
+  connect_friend_pid="$LAST_PID"; wait_for_marker connect-friend-listing "$connect_friend_pid" 240
+  wait_for_marker connect-friend-joined "$connect_friend_pid" 360; wait_for_marker connect-host-friend-visible "$connect_host_pid" 60
+
+  start_client "$connect_extra" connect-extra "$launch_regex" 0 connect-extra 1 CiConnectHost "$connect_extra_uuid" CiConnectExtra server-0001
+  connect_extra_pid="$LAST_PID"; wait_for_marker connect-extra-rejected "$connect_extra_pid" 180; await_group_exit "$connect_extra_pid" 60
+  curl -fsS "$connect_control/events" | grep -q '"type":"REJECTED_NOT_FRIEND"' || fail "Local Connect service did not audit the non-friend rejection"
+  curl -fsS "$connect_control/events" | grep -q '"type":"REJECTED_FULL"' || fail "Local Connect service did not audit the full-server rejection"
+
+  touch "$results/connect-friend-release"; wait_for_marker connect-friend-success "$connect_friend_pid" 60; await_group_exit "$connect_friend_pid" 60
+  touch "$results/connect-host-close-request"; wait_for_marker connect-host-closed "$connect_host_pid" 120
+  curl -fsS "$connect_control/state" | grep -q '"hosts":\[\]' || fail "Closing through the Connect UI left a host registration behind"
+  touch "$results/connect-host-republish-request"; wait_for_marker connect-host-republished "$connect_host_pid" 180
+  curl -fsS "$connect_control/state" | grep -q '"serverToken":"server-0002"' || fail "Republishing did not create exactly one fresh host registration"
+  touch "$results/connect-host-fault-request"
+  curl -fsS -X POST "$connect_control/fault/drop-host?user=$connect_host_uuid" | grep -q '"dropped":true' || fail "Could not inject the local Connect proxy-loss fault"
+  wait_for_marker connect-host-fault-observed "$connect_host_pid" 120
+  curl -fsS "$connect_control/state" | grep -q '"hosts":\[\]' || fail "Proxy loss left a host registration behind"
+  touch "$results/connect-host-final-republish-request"; wait_for_marker connect-host-final-republished "$connect_host_pid" 180
+  curl -fsS "$connect_control/state" | grep -q '"serverToken":"server-0003"' || fail "Host could not republish after proxy loss"
+  [[ "$(curl -fsS "$connect_control/state" | grep -o '"serverToken"' | wc -l)" -eq 1 ]] || fail "Republish produced duplicate host registrations"
+  touch "$results/connect-host-stop-request"; wait_for_marker connect-host-success "$connect_host_pid" 60; await_group_exit "$connect_host_pid" 60
+  curl -fsS -X POST "$connect_control/shutdown" >/dev/null || true; stop_group "$connect_service_pid"
+  if grep -E 'sessions\.minetogether\.io|dist\.creeper\.host/MineTogether/nodes|api\.creeper\.host/.*/profile' "$work/logs/connect-"*.log; then
+    fail "A local Connect scenario attempted to use a production service"
+  fi
 fi
 
 if run_scenario 1; then
