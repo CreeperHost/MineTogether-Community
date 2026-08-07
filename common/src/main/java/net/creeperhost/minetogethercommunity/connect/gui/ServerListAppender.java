@@ -94,6 +94,8 @@ public class ServerListAppender {
 
     private int tick = 0;
 
+    private boolean connectAvailable;
+
 
 
     public void init(ServerSelectionList serverList, JoinMultiplayerScreen multiplayerScreen) {
@@ -103,6 +105,8 @@ public class ServerListAppender {
         this.multiplayerScreen = multiplayerScreen;
 
         ConnectHandler.clearAndReset();
+
+        connectAvailable = ConnectHandler.isEnabled();
 
         ConnectHandler.updateFriendsSearch();
 
@@ -119,6 +123,14 @@ public class ServerListAppender {
 
 
         boolean dirty = false;
+
+        if (connectAvailable != ConnectHandler.isEnabled()) {
+
+            connectAvailable = ConnectHandler.isEnabled();
+
+            dirty = true;
+
+        }
 
         List<RemoteServer> remoteServers = new ArrayList<>(ConnectHandler.getRemoteServers());
 

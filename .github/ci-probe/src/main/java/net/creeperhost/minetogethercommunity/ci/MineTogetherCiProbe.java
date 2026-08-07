@@ -12,6 +12,7 @@ import net.creeperhost.minetogethercommunity.cosmetic.emote.EmoteType;
 import net.creeperhost.minetogethercommunity.chat.MineTogetherChat;
 import net.creeperhost.minetogethercommunity.chat.ChatTarget;
 import net.creeperhost.minetogethercommunity.connect.MineTogetherConnect;
+import net.creeperhost.minetogethercommunity.connect.ConnectHandler;
 import net.creeperhost.minetogethercommunity.connect.gui.GuiShareToFriends;
 import net.creeperhost.minetogether.lib.chat.irc.IrcChannel;
 import net.creeperhost.minetogether.lib.chat.irc.IrcState;
@@ -22,6 +23,7 @@ import net.minecraft.client.gui.components.events.GuiEventListener;
 import net.minecraft.client.gui.screens.ConnectScreen;
 import net.minecraft.client.gui.screens.ChatScreen;
 import net.minecraft.client.gui.screens.PauseScreen;
+import net.minecraft.client.gui.screens.multiplayer.JoinMultiplayerScreen;
 import net.minecraft.client.gui.screens.worldselection.CreateWorldScreen;
 import net.minecraft.client.multiplayer.ServerData;
 import net.minecraft.client.multiplayer.resolver.ServerAddress;
@@ -92,6 +94,9 @@ public final class MineTogetherCiProbe {
             if (role.equals("connect-ui")) {
                 GuiShareToFriends.configureLocalForTesting(8);
             }
+            if (role.equals("connect-unavailable")) {
+                ConnectHandler.configureUnavailableForTesting();
+            }
             activeEmotes = activeEmotes();
             installTestEmote();
             marker(role + "-started");
@@ -113,6 +118,16 @@ public final class MineTogetherCiProbe {
         if (role.equals("singleplayer") || role.equals("connect-ui")) {
             try {
                 tickSingleplayer(minecraft);
+            } catch (Throwable throwable) {
+                throwable.printStackTrace();
+                fail("Role " + role + " failed: " + throwable);
+            }
+            return;
+        }
+
+        if (role.equals("connect-unavailable")) {
+            try {
+                tickConnectUnavailable(minecraft);
             } catch (Throwable throwable) {
                 throwable.printStackTrace();
                 fail("Role " + role + " failed: " + throwable);
@@ -262,6 +277,31 @@ public final class MineTogetherCiProbe {
             fail("Missing translation for " + key);
         }
         return value;
+    }
+
+    private static void tickConnectUnavailable(Minecraft minecraft) {
+        if (!started) {
+            if (minecraft.screen == null || ticks < 40) return;
+            minecraft.setScreen(new JoinMultiplayerScreen(minecraft.screen));
+            started = true;
+            phaseTicks = ticks;
+            marker("connect-unavailable-screen-open");
+            return;
+        }
+
+        if (!(minecraft.screen instanceof JoinMultiplayerScreen)) {
+            fail("Multiplayer screen closed after Connect discovery failed");
+            return;
+        }
+        if (ConnectHandler.isEnabled()) return;
+        if (ticks - phaseTicks < 240) return;
+        int attempts = ConnectHandler.getTestSearchAttempts();
+        if (attempts != 1) {
+            fail("Connect discovery made " + attempts + " attempts during one backoff window");
+            return;
+        }
+        marker("connect-unavailable-backoff");
+        success(minecraft);
     }
 
     private static void connectIfNeeded(Minecraft minecraft) {

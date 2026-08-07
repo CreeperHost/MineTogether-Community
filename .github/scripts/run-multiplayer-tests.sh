@@ -17,7 +17,7 @@ results="$work/results"
 vanilla_port="${MINETOGETHER_CI_VANILLA_PORT:-25571}"
 modded_port="${MINETOGETHER_CI_MODDED_PORT:-25572}"
 chat_port="${MINETOGETHER_CI_CHAT_PORT:-26667}"
-scenarios=",${MINETOGETHER_CI_SCENARIOS:-1,2,3,4,5,6,7},"
+scenarios=",${MINETOGETHER_CI_SCENARIOS:-1,2,3,4,5,6,7,8},"
 reuse_installs="${MINETOGETHER_CI_REUSE_INSTALLS:-false}"
 process_groups=()
 LAST_PID=""
@@ -281,11 +281,12 @@ chat_sender="$(create_client chat-sender CiChatSend 00000000-0000-0000-0000-0000
 chat_receiver="$(create_client chat-receiver CiChatRecv 00000000-0000-0000-0000-000000000070 true)"
 singleplayer="$(create_client singleplayer CiSingleplayer 00000000-0000-0000-0000-000000000080 true)"
 connect_ui="$(create_client connect-ui CiConnectUi 00000000-0000-0000-0000-000000000081 true)"
+connect_unavailable="$(create_client connect-unavailable CiConnectOffline 00000000-0000-0000-0000-000000000082 true)"
 late_sender="$(create_client late-sender CiLateSend 00000000-0000-0000-0000-000000000090 true)"
 late_receiver="$(create_client late-receiver CiLateRecv 00000000-0000-0000-0000-000000000100 true)"
 
 if run_scenario 5; then
-  echo "Scenario 5/7: offline modded client creates and enters a fresh singleplayer world"
+  echo "Scenario 5/8: offline modded client creates and enters a fresh singleplayer world"
   reset_results
   start_client "$singleplayer" singleplayer "$launch_regex" 0 singleplayer 1
   singleplayer_pid="$LAST_PID"
@@ -294,8 +295,19 @@ if run_scenario 5; then
   assert_clean_logs "$work/logs/singleplayer.log"
 fi
 
+if run_scenario 8; then
+  echo "Scenario 8/8: unavailable Connect discovery leaves Multiplayer usable and backs off cleanly"
+  reset_results
+  start_client "$connect_unavailable" connect-unavailable "$launch_regex" 0 connect-unavailable 1
+  connect_unavailable_pid="$LAST_PID"
+  wait_for_marker connect-unavailable-backoff "$connect_unavailable_pid" 240
+  wait_for_marker connect-unavailable-success "$connect_unavailable_pid" 30
+  await_group_exit "$connect_unavailable_pid" 60
+  assert_clean_logs "$work/logs/connect-unavailable.log"
+fi
+
 if run_scenario 7; then
-  echo "Scenario 7/7: singleplayer pause menu opens translated MineTogether Connect controls"
+  echo "Scenario 7/8: singleplayer pause menu opens translated MineTogether Connect controls"
   reset_results
   start_client "$connect_ui" connect-ui "$launch_regex" 0 connect-ui 1
   connect_ui_pid="$LAST_PID"
@@ -306,7 +318,7 @@ if run_scenario 7; then
 fi
 
 if run_scenario 1; then
-  echo "Scenario 1/7: offline modded client joins a vanilla server and safely attempts an emote"
+  echo "Scenario 1/8: offline modded client joins a vanilla server and safely attempts an emote"
   reset_results
   start_server vanilla-ci "$work/logs/vanilla-server.log"
   vanilla_server_pid="$LAST_PID"
@@ -323,7 +335,7 @@ if run_scenario 2 || run_scenario 3 || run_scenario 4 || run_scenario 6; then
 fi
 
 if run_scenario 2; then
-  echo "Scenario 2/7: vanilla and modded clients stay connected while the modded client emits an emote"
+  echo "Scenario 2/8: vanilla and modded clients stay connected while the modded client emits an emote"
   reset_results
   start_client "$vanilla_client" vanilla-client "$minecraft" "$modded_port"
   vanilla_pid="$LAST_PID"
@@ -342,7 +354,7 @@ if run_scenario 2; then
 fi
 
 if run_scenario 3; then
-  echo "Scenario 3/7: two modded clients relay and apply emote start/stop packets"
+  echo "Scenario 3/8: two modded clients relay and apply emote start/stop packets"
   reset_results
   start_client "$receiver" receiver "$launch_regex" "$modded_port" receiver 2 CiSender
   receiver_pid="$LAST_PID"
@@ -357,7 +369,7 @@ if run_scenario 3; then
 fi
 
 if run_scenario 6; then
-  echo "Scenario 6/7: a late peer receives persistent emote state and disconnect cleanup removes its stale state"
+  echo "Scenario 6/8: a late peer receives persistent emote state and disconnect cleanup removes its stale state"
   reset_results
   start_client "$late_sender" late-sender "$launch_regex" "$modded_port" late-sender 1 CiLateRecv
   late_sender_pid="$LAST_PID"
@@ -374,7 +386,7 @@ if run_scenario 6; then
 fi
 
 if run_scenario 4; then
-  echo "Scenario 4/7: two offline clients use mocked API discovery and relay MineTogether chat over local IRC"
+  echo "Scenario 4/8: two offline clients use mocked API discovery and relay MineTogether chat over local IRC"
   reset_results
   start_group "$work" "$work/logs/mock-irc.log" python3 -u "$repo/.github/scripts/mock-irc-server.py" --host 127.0.0.1 --port "$chat_port" --channel '#minetogether-ci'
   mock_irc_pid="$LAST_PID"
