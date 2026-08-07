@@ -1,14 +1,18 @@
 package net.creeperhost.minetogethercommunity.cosmetic.emote;
 
+import com.google.common.hash.Hashing;
 import io.netty.buffer.ByteBuf;
+import net.creeperhost.minetogether.lib.chat.irc.IrcUser;
+import net.creeperhost.minetogether.lib.chat.profile.Profile;
+import net.creeperhost.minetogethercommunity.chat.MineTogetherChat;
 import net.creeperhost.minetogethercommunity.cosmetic.CosmeticDownloader;
 import net.creeperhost.minetogethercommunity.cosmetic.CosmeticIdValidator;
 import net.minecraft.client.Minecraft;
+import net.minecraft.entity.player.EntityPlayer;
 import net.minecraft.entity.player.EntityPlayerMP;
 import net.minecraft.network.NetHandlerPlayServer;
 import net.minecraft.server.MinecraftServer;
 import net.minecraftforge.fml.common.FMLCommonHandler;
-import net.minecraftforge.common.MinecraftForge;
 import net.minecraftforge.fml.common.eventhandler.SubscribeEvent;
 import net.minecraftforge.fml.common.gameevent.PlayerEvent;
 import net.minecraftforge.fml.common.network.ByteBufUtils;
@@ -22,10 +26,13 @@ import net.minecraftforge.fml.relauncher.Side;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
+import java.nio.charset.StandardCharsets;
 import java.util.Collections;
+import java.util.HashMap;
+import java.util.Locale;
+import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
-import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
 public final class EmoteNetworking {
@@ -34,6 +41,8 @@ public final class EmoteNetworking {
     private static final String CHANNEL_NAME = "mtcommunity";
     private static final SimpleNetworkWrapper CHANNEL = NetworkRegistry.INSTANCE.newSimpleChannel(CHANNEL_NAME);
     private static final int MAX_EMOTE_ID_LENGTH = 128;
+    private static final String CTCP_START = "MT_EMOTE_START";
+    private static final String CTCP_STOP = "MT_EMOTE_STOP";
     private static boolean initialized;
     private static final Map<UUID, String> ACTIVE_PERSISTENT_EMOTES = new ConcurrentHashMap<UUID, String>();
     private static final Set<UUID> CAPABLE_CLIENTS = Collections.newSetFromMap(new ConcurrentHashMap<UUID, Boolean>());
@@ -49,26 +58,101 @@ public final class EmoteNetworking {
         CHANNEL.registerMessage(client ? StartClientHandler.class : NoopStartClientHandler.class, StartEmoteS2C.class, 1, Side.CLIENT);
         CHANNEL.registerMessage(StopServerHandler.class, StopEmoteC2S.class, 2, Side.SERVER);
         CHANNEL.registerMessage(client ? StopClientHandler.class : NoopStopClientHandler.class, StopEmoteS2C.class, 3, Side.CLIENT);
-        MinecraftForge.EVENT_BUS.register(new PlayerLifecycleHandler());
+        FMLCommonHandler.instance().bus().register(new PlayerLifecycleHandler());
         LOGGER.debug("Emote networking initialized");
     }
 
     public static void tryBroadcastStart(String emoteId, boolean persistent) {
-        if (emoteId == null || emoteId.isEmpty() || !initialized || !capableServer) return;
-        try {
-            CHANNEL.sendToServer(new StartEmoteC2S(emoteId, persistent));
-        } catch (RuntimeException e) {
-            LOGGER.debug("Could not broadcast emote start '{}'", emoteId, e);
+        if (!validEmoteId(emoteId) || !initialized) return;
+        if (capableServer) {
+            try {
+                CHANNEL.sendToServer(new StartEmoteC2S(emoteId, persistent));
+            } catch (RuntimeException e) {
+                LOGGER.debug("Could not broadcast emote start '{}'", emoteId, e);
+            }
+        } else {
+            UUID playerId = localPlayerId();
+            if (playerId != null) broadcastCtcp(CTCP_START + " " + playerId + " " + emoteId);
         }
     }
 
     public static void tryBroadcastStop() {
-        if (!initialized || !capableServer) return;
-        try {
-            CHANNEL.sendToServer(new StopEmoteC2S());
-        } catch (RuntimeException e) {
-            LOGGER.debug("Could not broadcast emote stop", e);
+        if (!initialized) return;
+        if (capableServer) {
+            try {
+                CHANNEL.sendToServer(new StopEmoteC2S());
+            } catch (RuntimeException e) {
+                LOGGER.debug("Could not broadcast emote stop", e);
+            }
+        } else {
+            UUID playerId = localPlayerId();
+            if (playerId != null) broadcastCtcp(CTCP_STOP + " " + playerId);
         }
+    }
+
+    public static boolean handleCtcp(final Profile sender, String request) {
+        if (request == null) return false;
+        String[] parts = request.split(" ", 3);
+        if (!CTCP_START.equals(parts[0]) && !CTCP_STOP.equals(parts[0])) return false;
+        if (sender == null || !sender.isOnline() || parts.length < 2) return true;
+        try {
+            final UUID playerId = UUID.fromString(parts[1]);
+            if (!profileMatchesPlayer(sender, playerId)) return true;
+            final String emoteId = CTCP_START.equals(parts[0]) && parts.length == 3 ? parts[2] : null;
+            if (CTCP_START.equals(parts[0]) && !validEmoteId(emoteId)) return true;
+            Minecraft.getMinecraft().addScheduledTask(new Runnable() {
+                @Override
+                public void run() {
+                    if (!isPlayerInCurrentServer(playerId)) return;
+                    if (emoteId != null) {
+                        CosmeticDownloader.instance().ensureAssetLoaded("emote", emoteId);
+                        EmotePlayer.playRemote(playerId, emoteId);
+                    } else {
+                        EmotePlayer.stop(playerId);
+                    }
+                }
+            });
+        } catch (IllegalArgumentException ignored) {
+            LOGGER.debug("Ignored malformed MineTogether emote CTCP from {}", sender.getDisplayName());
+        }
+        return true;
+    }
+
+    private static void broadcastCtcp(String request) {
+        Minecraft mc = Minecraft.getMinecraft();
+        if (request == null || mc.player == null || mc.world == null || MineTogetherChat.CHAT_STATE == null) return;
+        Map<String, Profile> onlineProfiles = new HashMap<String, Profile>();
+        for (Profile profile : MineTogetherChat.CHAT_STATE.profileManager.getKnownProfiles()) {
+            if (profile.isOnline() && profile.hasFullHash()) {
+                onlineProfiles.put(profile.getFullHash().toUpperCase(Locale.ROOT), profile);
+            }
+        }
+        for (EntityPlayer player : mc.world.playerEntities) {
+            if (player.getUniqueID().equals(mc.player.getUniqueID())) continue;
+            Profile profile = onlineProfiles.get(profileHash(player.getUniqueID()));
+            if (profile == null) continue;
+            IrcUser user = MineTogetherChat.CHAT_STATE.ircClient.getUser(profile);
+            if (user != null && user.isOnline()) user.sendRawCTCP(request);
+        }
+    }
+
+    private static UUID localPlayerId() {
+        Minecraft mc = Minecraft.getMinecraft();
+        return mc.player == null ? null : mc.player.getUniqueID();
+    }
+
+    private static boolean profileMatchesPlayer(Profile profile, UUID playerId) {
+        return profile.hasFullHash() && profileHash(playerId).equalsIgnoreCase(profile.getFullHash());
+    }
+
+    private static boolean isPlayerInCurrentServer(UUID playerId) {
+        Minecraft mc = Minecraft.getMinecraft();
+        if (mc.player == null || mc.world == null || mc.player.getUniqueID().equals(playerId)) return false;
+        return mc.world.getPlayerEntityByUUID(playerId) != null;
+    }
+
+    private static String profileHash(UUID playerId) {
+        return Hashing.sha256().hashString(playerId.toString(), StandardCharsets.UTF_8).toString().toUpperCase(Locale.ROOT);
     }
 
     private static boolean validEmoteId(String emoteId) {
