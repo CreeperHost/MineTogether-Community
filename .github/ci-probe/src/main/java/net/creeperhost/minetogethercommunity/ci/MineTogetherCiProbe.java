@@ -372,7 +372,9 @@ public final class MineTogetherCiProbe {
             for (GuiButton button : vanillaButtons(screen)) {
                 if (!expected.equals(button.displayString)) continue;
                 Method action = vanillaButtonAction(screen.getClass());
-                action.setAccessible(true); action.invoke(screen, button); return;
+                action.setAccessible(true);
+                action.invoke(screen, button.xPosition + button.width / 2, button.yPosition + button.height / 2, 0);
+                return;
             }
         } catch (Exception exception) { fail("Could not press vanilla button " + translationKey + ": " + exception); return; }
         fail("Could not find vanilla button " + translationKey);
@@ -399,12 +401,13 @@ public final class MineTogetherCiProbe {
         while (type != null) {
             for (Method method : type.getDeclaredMethods()) {
                 Class<?>[] parameters = method.getParameterTypes();
-                if (parameters.length == 1 && GuiButton.class.isAssignableFrom(parameters[0])
+                if (!Modifier.isStatic(method.getModifiers()) && parameters.length == 3
+                        && parameters[0] == Integer.TYPE && parameters[1] == Integer.TYPE && parameters[2] == Integer.TYPE
                         && method.getReturnType() == Void.TYPE) return method;
             }
             type = type.getSuperclass();
         }
-        throw new IllegalStateException("Could not find the vanilla button action by signature");
+        throw new IllegalStateException("Could not find vanilla mouseClicked by signature");
     }
 
     private static void clickModularButton(ModularGuiScreen screen, String translationKey) throws IOException {
