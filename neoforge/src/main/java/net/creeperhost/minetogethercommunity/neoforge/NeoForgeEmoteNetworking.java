@@ -9,7 +9,7 @@ import net.neoforged.neoforge.network.registration.PayloadRegistrar;
 public final class NeoForgeEmoteNetworking {
 
     public static void registerPayloads(RegisterPayloadHandlersEvent event) {
-        PayloadRegistrar registrar = event.registrar(MineTogether.MOD_ID).versioned("1");
+        PayloadRegistrar registrar = event.registrar(MineTogether.MOD_ID).versioned("1").optional();
         registrar.playToServer(EmoteNetworking.HELLO_C2S_TYPE, EmoteNetworking.HELLO_C2S_CODEC, (payload, context) ->
                 context.enqueueWork(() -> {
                     if (context.player() instanceof ServerPlayer serverPlayer) {
