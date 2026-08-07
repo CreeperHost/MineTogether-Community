@@ -15,7 +15,10 @@ buildSrc/build/
 
 # Git files
 !.github/
+.github/scripts/__pycache__/
+!.gitattributes
 !.gitignore
+!.actrc
 
 # Gradle files
 !gradle/
