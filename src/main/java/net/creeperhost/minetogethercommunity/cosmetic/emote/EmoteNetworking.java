@@ -138,7 +138,13 @@ public final class EmoteNetworking {
         Minecraft mc = Minecraft.getMinecraft();
         if (mc.getNetHandler() == null || mc.getNetHandler().getNetworkManager() == null) return false;
         NetworkDispatcher dispatcher = NetworkDispatcher.get(mc.getNetHandler().getNetworkManager());
-        return dispatcher != null && dispatcher.getModList().containsKey(MineTogether.MOD_ID);
+        if (dispatcher == null) return false;
+        try {
+            return dispatcher.getModList().containsKey(MineTogether.MOD_ID);
+        } catch (NullPointerException ignored) {
+            // Forge 1.8.9 exposes a dispatcher for vanilla handshakes without a mod-list backing map.
+            return false;
+        }
     }
 
     private static UUID localPlayerId() {
