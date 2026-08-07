@@ -30,9 +30,7 @@ public abstract class JoinMultiplayerScreenMixin {
 
     @Inject (at = @At ("TAIL"), method = "init()V")
     public void init(CallbackInfo ci) {
-        if (ConnectHandler.isEnabled()){
-            ServerListAppender.INSTANCE.init(serverSelectionList, getThis());
-        }
+        ServerListAppender.INSTANCE.init(serverSelectionList, getThis());
     }
 
     @Inject (at = @At ("TAIL"), method = "removed()V") // closed
@@ -63,8 +61,6 @@ public abstract class JoinMultiplayerScreenMixin {
 
     @Inject (at = @At ("TAIL"), method = "tick()V")
     public void tick(CallbackInfo ci) {
-        if (ConnectHandler.isEnabled()){
-            ServerListAppender.INSTANCE.tick();
-        }
+        ServerListAppender.INSTANCE.tick();
     }
 }

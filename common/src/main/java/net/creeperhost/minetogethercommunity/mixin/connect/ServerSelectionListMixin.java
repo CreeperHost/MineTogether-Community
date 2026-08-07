@@ -35,6 +35,7 @@ public abstract class ServerSelectionListMixin {
 
     @Inject (at = @At("TAIL"), method = "refreshEntries()V")
     public void onEntriesRefresh(CallbackInfo ci) {
+        SCANNING_LABEL = ConnectHandler.isEnabled() ? Component.translatable("minetogether.connect.scan") : Component.translatable("minetogether.connect.scan.offline");
         ServerListAppender.INSTANCE.addEntries();
     }
 }
