@@ -1,0 +1,17 @@
+{
+  "schemaVersion": 1,
+  "id": "minetogether_ci_probe",
+  "version": "1.0.0",
+  "name": "MineTogether CI Probe",
+  "environment": "client",
+  "entrypoints": {
+    "client": [
+      "net.creeperhost.minetogethercommunity.ci.fabric.MineTogetherCiProbeFabric"
+    ]
+  },
+  "depends": {
+    "fabricloader": ">=0.14.0",
+    "minecraft": "*",
+    "minetogethercommunity": "*"
+  }
+}
