@@ -496,7 +496,7 @@ public class ConnectHandler {
 
     private static List<CFriendServers.ServerEntry> requestFriendServers() throws Exception {
         JWebToken token = requireSessionToken();
-        return NettyClient.getFriendServers(getEndpoint(), token, getModpackKey()).servers;
+        return NettyClient.getFriendServers(getEndpoint(), token, getModpackIdentity().key).servers;
     }
 
     /** CI-only seam: exercises unavailable discovery without contacting production services. */
