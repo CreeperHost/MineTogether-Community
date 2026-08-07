@@ -261,7 +261,7 @@ run_scenario() {
 assert_clean_logs() {
   local bad='Mixin apply failed|Mixin transformation of .* failed|InvalidMixinException|NoClassDefFoundError|ClassNotFoundException|ExceptionInInitializerError|Connection refused|Failed to connect to the server|Connection Lost|Internal Exception|The game crashed|A fatal error has been detected'
   local logs=()
-  mapfile -d '' logs < <(find "$work" -type f -name '*.log' -print0)
+  mapfile -d '' logs < <(find "$work/clients" "$work/logs" -type f -name '*.log' -print0)
   [[ ${#logs[@]} -gt 0 ]] || fail "No multiplayer logs were produced"
   local matches
   matches="$(grep -Ein "$bad" "${logs[@]}" | grep -v 'dev/ftb/mods/ftbquests/client/FTBQuestsNetClient' || true)"
