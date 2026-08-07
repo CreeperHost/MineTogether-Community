@@ -129,13 +129,6 @@ jobs:
         shell: bash
         run: echo "::warning::No compatible No Chat Reports build exists for this Minecraft/loader row; runtime launch skipped."
 
-      - name: Refresh package index for act
-        if: env.ACT == 'true' && (matrix.compatibility == 'none' || steps.compatibility.outputs.available == 'true')
-        shell: bash
-        run: |
-          sudo apt-get update
-          sudo DEBIAN_FRONTEND=noninteractive apt-get install -y xvfb
-
       - name: Launch production client
         id: minecraft
         if: matrix.compatibility == 'none' || steps.compatibility.outputs.available == 'true'
@@ -197,16 +190,14 @@ jobs:
           path: build/ci-multiplayer-cache/minecraft
           key: headlessmc-${{ runner.os }}-${{ needs.metadata.outputs.minecraft }}-${{ matrix.loader }}-${{ matrix['loader-version'] }}
 
-      - name: Install headless display and HeadlessMC
+      - name: Install HeadlessMC
         shell: bash
         run: |
-          sudo apt-get update
-          sudo DEBIAN_FRONTEND=noninteractive apt-get install -y xvfb x11-xserver-utils
           mkdir -p build/tools
           curl --fail --location --retry 3 \
-            https://github.com/HeadlessHQ/HeadlessMC/releases/download/2.9.0/headlessmc-launcher-wrapper-2.9.0.jar \
+            https://github.com/HeadlessHQ/HeadlessMC/releases/download/2.10.0/headlessmc-launcher-wrapper-2.10.0.jar \
             --output build/tools/headlessmc-launcher-wrapper.jar
-          echo 'f8fe5a769977309149e3a5ed09e35a19acd08bce064effa2fe2c0948062df44e  build/tools/headlessmc-launcher-wrapper.jar' \
+          echo 'bf80d84516eeeb9a51fa35894c4466b146d55d0146cd6d2adc49fdd231654536  build/tools/headlessmc-launcher-wrapper.jar' \
             | sha256sum --check --strict
 
       - name: Run compatibility and packet relay scenarios
