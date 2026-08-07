@@ -85,6 +85,7 @@ public class MineTogetherChat {
                 () -> "MineTogether CI",
                 true
         );
+        registerCtcpListener();
         CHAT_STATE.ircClient.start();
     }
 
@@ -126,9 +127,7 @@ public class MineTogetherChat {
         LOGGER.info("MineTogether chat auth hash {} using fingerprint {}.", mask(CHAT_AUTH.getHash()), mask(CHAT_AUTH.getSignature()));
         File muted = new File(new File(MineTogether.getGameDir(), "local/minetogether"), "mutedusers.json");
         CHAT_STATE = new ChatState(MineTogether.API, CHAT_AUTH, new MutedUserList(muted.toPath()), () -> ModPackInfo.getInfo().realName, false);
-        CHAT_STATE.ircClient.addCTCPListener((user, request) ->
-                user != null && EmoteNetworking.handleCtcp(user.getProfile(), request)
-        );
+        registerCtcpListener();
         CHAT_STATE.logChatToConsole = Config.instance().logChatToConsole || Config.instance().debugMode;
         if (Config.instance().debugMode) {
             System.setProperty("net.covers1624.pircbot.logging.info", "INFO");
@@ -144,6 +143,12 @@ public class MineTogetherChat {
         if (isChatEnabled()) {
             enableChat();
         }
+    }
+
+    private static void registerCtcpListener() {
+        CHAT_STATE.ircClient.addCTCPListener((user, request) ->
+                user != null && EmoteNetworking.handleCtcp(user.getProfile(), request)
+        );
     }
 
     public static void enableChat() {

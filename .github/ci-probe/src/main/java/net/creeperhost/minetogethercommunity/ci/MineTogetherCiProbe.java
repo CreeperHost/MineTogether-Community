@@ -1,5 +1,6 @@
 package net.creeperhost.minetogethercommunity.ci;
 
+import com.google.common.hash.Hashing;
 import cpw.mods.fml.common.FMLCommonHandler;
 import cpw.mods.fml.client.FMLClientHandler;
 import cpw.mods.fml.common.eventhandler.SubscribeEvent;
@@ -26,12 +27,15 @@ import net.minecraft.world.World;
 import java.io.IOException;
 import java.lang.reflect.Field;
 import java.lang.reflect.Method;
+import java.lang.reflect.Method;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.Collections;
+import java.util.Locale;
 import java.util.Map;
+import java.util.Set;
 import java.util.UUID;
 
 /** CI-only Java 8 multiplayer probe, packaged separately from release artifacts. */
@@ -125,6 +129,8 @@ public final class MineTogetherCiProbe {
             else if ("late-receiver".equals(role)) tickLateReceiver(minecraft);
             else if ("chat-sender".equals(role)) tickChatSender(minecraft);
             else if ("chat-receiver".equals(role)) tickChatReceiver(minecraft);
+            else if ("ctcp-sender".equals(role)) tickCtcpSender(minecraft);
+            else if ("ctcp-receiver".equals(role)) tickCtcpReceiver(minecraft);
             else fail("Unknown CI probe role: " + role);
         } catch (Throwable throwable) {
             throwable.printStackTrace();
@@ -133,7 +139,7 @@ public final class MineTogetherCiProbe {
     }
 
     private static void installChatIfNeeded() {
-        if (chatInstalled || !("chat-sender".equals(role) || "chat-receiver".equals(role))) return;
+        if (chatInstalled || !(role.startsWith("chat-") || role.startsWith("ctcp-"))) return;
         if (chatPort <= 0) throw new IllegalStateException("Local chat test requires MINETOGETHER_CI_CHAT_PORT");
         CiChatMock.install(chatPort, role, resultDirectory);
         chatInstalled = true;
@@ -328,6 +334,97 @@ public final class MineTogetherCiProbe {
             marker("chat-sender-ui-ready");
             if (exists("chat-receiver-ui-ready")) success();
         }
+    }
+
+    private static void tickCtcpSender(Minecraft minecraft) throws ReflectiveOperationException {
+        if (!preparePeerProfile(minecraft) || !chatReady(primaryChannel())) return;
+        if (!started && stableTicks >= 60 && exists("ctcp-receiver-ready")) {
+            if (canSendEmoteToServer()) {
+                fail("Vanilla server unexpectedly accepted MineTogether emote packets");
+                return;
+            }
+            EmoteNetworking.tryBroadcastStart(TEST_EMOTE, true);
+            started = true;
+            marker("ctcp-emote-start-sent");
+            System.out.println(PREFIX + "Sent emote start through MineTogether CTCP");
+        } else if (started && !stopped && exists("ctcp-receiver-remote-start")) {
+            EmoteNetworking.tryBroadcastStop();
+            stopped = true;
+            marker("ctcp-emote-stop-sent");
+            System.out.println(PREFIX + "Sent emote stop through MineTogether CTCP");
+        } else if (stopped && exists("ctcp-receiver-remote-stop")) {
+            success();
+        }
+    }
+
+    private static void tickCtcpReceiver(Minecraft minecraft) throws ReflectiveOperationException {
+        installTestEmote();
+        if (!preparePeerProfile(minecraft) || !chatReady(primaryChannel())) return;
+        if (!exists("ctcp-receiver-ready")) marker("ctcp-receiver-ready");
+        if (!started && activeEmotes.containsKey(peerId)) {
+            started = true;
+            marker("ctcp-receiver-remote-start");
+            System.out.println(PREFIX + "Observed CTCP emote start for " + peerId);
+        } else if (started && !stopped && !activeEmotes.containsKey(peerId)) {
+            stopped = true;
+            marker("ctcp-receiver-remote-stop");
+            System.out.println(PREFIX + "Observed CTCP emote stop for " + peerId);
+        } else if (stopped && exists("ctcp-sender-success")) {
+            success();
+        }
+    }
+
+    private static boolean preparePeerProfile(Minecraft minecraft) throws ReflectiveOperationException {
+        if (peerId == null) {
+            for (Object playerObject : ((World) minecraft.theWorld).playerEntities) {
+                EntityPlayer player = (EntityPlayer) playerObject;
+                if (peerName.equals(player.getCommandSenderName())) {
+                    peerId = ((Entity) player).getUniqueID();
+                    break;
+                }
+            }
+        }
+        if (peerId == null) return false;
+
+        String fullHash = profileHash(peerId);
+        Object chatState = MineTogetherChat.class.getField("CHAT_STATE").get(null);
+        Object profileManager = chatState.getClass().getField("profileManager").get(chatState);
+        Object knownProfiles = profileManager.getClass().getMethod("getKnownProfiles").invoke(profileManager);
+        if (!(knownProfiles instanceof Iterable)) return false;
+        for (Object profile : (Iterable<?>) knownProfiles) {
+            Object aliasesValue = profile.getClass().getMethod("getAliases").invoke(profile);
+            if (!(aliasesValue instanceof Set)) continue;
+            boolean matches = false;
+            for (Object aliasValue : (Set<?>) aliasesValue) {
+                String alias = aliasValue.toString();
+                if (alias.startsWith("MT")) alias = alias.substring(2);
+                if (fullHash.startsWith(alias)) {
+                    matches = true;
+                    break;
+                }
+            }
+            boolean online = ((Boolean) profile.getClass().getMethod("isOnline").invoke(profile)).booleanValue();
+            if (!online || !matches) continue;
+            boolean hasFullHash = ((Boolean) profile.getClass().getMethod("hasFullHash").invoke(profile)).booleanValue();
+            if (!hasFullHash) {
+                Field field = profile.getClass().getDeclaredField("fullHash");
+                field.setAccessible(true);
+                field.set(profile, fullHash);
+            }
+            return true;
+        }
+        return false;
+    }
+
+    private static boolean canSendEmoteToServer() throws ReflectiveOperationException {
+        Method method = EmoteNetworking.class.getDeclaredMethod("canSendToServer");
+        method.setAccessible(true);
+        return ((Boolean) method.invoke(null)).booleanValue();
+    }
+
+    @SuppressWarnings("deprecation")
+    private static String profileHash(UUID playerId) {
+        return Hashing.sha256().hashString(playerId.toString(), StandardCharsets.UTF_8).toString().toUpperCase(Locale.ROOT);
     }
 
     private static void tickChatReceiver(Minecraft minecraft) throws ReflectiveOperationException {
