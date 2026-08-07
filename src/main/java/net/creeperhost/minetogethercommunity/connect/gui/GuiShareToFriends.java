@@ -29,6 +29,7 @@ import org.apache.logging.log4j.Logger;
 import java.net.MalformedURLException;
 import java.net.URL;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.Callable;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.function.Supplier;
@@ -38,6 +39,13 @@ public class GuiShareToFriends implements GuiProvider {
     private static final Logger LOGGER = LogManager.getLogger("MineTogether Connect GUI");
     private static final ExecutorService EXECUTOR = Executors.newSingleThreadExecutor(new ThreadFactoryBuilder().setDaemon(true).setNameFormat("MT Connect GUI").build());
     private static final ResourceLocation CONNECT_LOGO = new ResourceLocation("minetogethercommunity", "textures/gui/minetogether_connect.png");
+    private static Callable<Integer> maxPlayersLookup = new Callable<Integer>() {
+        @Override
+        public Integer call() throws Exception {
+            JWebToken token = ConnectHandler.requireSessionToken();
+            return NettyClient.getMaxPlayers(ConnectHandler.getEndpoint(), token);
+        }
+    };
 
     private GameType gameMode = GameType.SURVIVAL;
     private boolean commands;
@@ -213,8 +221,7 @@ public class GuiShareToFriends implements GuiProvider {
             @Override
             public void run() {
                 try {
-                    JWebToken token = ConnectHandler.requireSessionToken();
-                    int result = NettyClient.getMaxPlayers(ConnectHandler.getEndpoint(), token);
+                    int result = maxPlayersLookup.call();
                     if (result == -1) {
                         noPlayerLimit = true;
                         maxPlayers = 100;
@@ -233,6 +240,20 @@ public class GuiShareToFriends implements GuiProvider {
                 }
             }
         }, EXECUTOR);
+    }
+
+    /** CI-only seam: prevents the real publish UI from contacting production for its limit check. */
+    public static void configureLocalForTesting(final int availablePlayers) {
+        String role = System.getenv("MINETOGETHER_CI_ROLE");
+        if (!"connect-ui".equals(role) && !"connect-host".equals(role)) {
+            throw new IllegalStateException("Local Connect testing is only available to the CI probe");
+        }
+        maxPlayersLookup = new Callable<Integer>() {
+            @Override
+            public Integer call() {
+                return availablePlayers;
+            }
+        };
     }
 
     private static class TextLink extends GuiElement<TextLink> {

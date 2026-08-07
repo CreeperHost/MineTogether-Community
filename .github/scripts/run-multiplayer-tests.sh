@@ -17,7 +17,11 @@ results="$work/results"
 vanilla_port="${MINETOGETHER_CI_VANILLA_PORT:-25571}"
 modded_port="${MINETOGETHER_CI_MODDED_PORT:-25572}"
 chat_port="${MINETOGETHER_CI_CHAT_PORT:-26667}"
-scenarios=",${MINETOGETHER_CI_SCENARIOS:-1,2,3,4,5,6,7},"
+connect_proxy_port="${MINETOGETHER_CI_CONNECT_PROXY_PORT:-27777}"
+connect_control_port="${MINETOGETHER_CI_CONNECT_CONTROL_PORT:-27778}"
+connect_node_file="$work/connect-service/connect-nodes.json"
+connect_java="${MINETOGETHER_CI_JAVA17:-java}"
+scenarios=",${MINETOGETHER_CI_SCENARIOS:-1,2,3,4,5,6,7,8,9},"
 reuse_installs="${MINETOGETHER_CI_REUSE_INSTALLS:-false}"
 server_suffix="$(printf '%s' "$loader_version" | tr -c '[:alnum:]_.-' '-')"
 modded_server_name="modded-${loader}-${server_suffix}-ci"
@@ -186,6 +190,11 @@ create_client() {
   local game="$directory/game"
   write_hmc_config "$directory" "$game" "$username" "$uuid"
   mkdir -p "$game/mods"
+  cat > "$game/options.txt" <<'EOF'
+renderDistance:2
+maxFps:10
+fancyGraphics:false
+EOF
   if [[ "$modded" == true ]]; then
     cp "$repo/build/ci-runtime/$loader/mods/"*.jar "$game/mods/"
     cp "$repo/build/ci-runtime/$loader/probe/"*.jar "$game/mods/"
@@ -201,14 +210,20 @@ start_client() {
   local role="${5:-}"
   local expected="${6:-1}"
   local peer="${7:-CiSender}"
+  local connect_uuid="${8:-}"
+  local connect_username="${9:-$name}"
+  local connect_server_token="${10:-server-0001}"
+  local role_timeout=3600
   local log="$work/logs/$name.log"
   local jvm="-Xms384m -Xmx1024m"
   local environment=(env)
   local command=(launch "$version")
   local game_args=()
   if [[ -n "$role" ]]; then
+    [[ "$role" == connect-host ]] && role_timeout=12000
     environment+=(
       "MINETOGETHER_CI_ROLE=$role"
+      "MINETOGETHER_CI_TIMEOUT_TICKS=$role_timeout"
       "MINETOGETHER_CI_EXPECTED_PLAYERS=$expected"
       "MINETOGETHER_CI_PEER_NAME=$peer"
       "MINETOGETHER_CI_RESULTS=$results"
@@ -216,6 +231,17 @@ start_client() {
     )
     if [[ "$role" == chat-* || "$role" == ctcp-* ]]; then
       environment+=("MINETOGETHER_CI_CHAT_PORT=$chat_port")
+    fi
+    if [[ "$role" == connect-* && -n "$connect_uuid" ]]; then
+      jvm="-Xms384m -Xmx1536m"
+      environment+=(
+        "MINETOGETHER_CI_CHAT_PORT=$chat_port"
+        "MINETOGETHER_CI_CONNECT_UUID=$connect_uuid"
+        "MINETOGETHER_CI_CONNECT_USERNAME=$connect_username"
+        "MINETOGETHER_CI_CONNECT_SERVER_TOKEN=$connect_server_token"
+        "MINETOGETHER_CI_CONNECT_HOST_HASH=$connect_host_hash"
+      )
+      jvm+=" -Dconnect.mesh.hosts=$connect_node_file -Dconnect.node=ci-local"
     fi
   fi
   if [[ "$minecraft" == 1.12.* && "$port" -gt 0 ]]; then
@@ -245,7 +271,13 @@ assert_clean_logs() {
   local logs=()
   mapfile -d '' logs < <(find "$work" -type f -name '*.log' -print0)
   [[ ${#logs[@]} -gt 0 ]] || fail "No multiplayer logs were produced"
-  if grep -Ein "$bad" "${logs[@]}" | grep -v 'dev/ftb/mods/ftbquests/client/FTBQuestsNetClient'; then
+  local matches
+  matches="$(grep -Ein "$bad" "${logs[@]}" | grep -v 'dev/ftb/mods/ftbquests/client/FTBQuestsNetClient' || true)"
+  if run_scenario 9; then
+    matches="$(printf '%s\n' "$matches" | grep -vF 'MineTogether connection lost. Your world is no longer shared to friends.' || true)"
+  fi
+  if [[ -n "$matches" ]]; then
+    printf '%s\n' "$matches"
     fail "A fatal runtime signature was found in multiplayer logs"
   fi
 }
@@ -289,13 +321,24 @@ receiver="$(create_client receiver CiReceiver 00000000-0000-0000-0000-0000000000
 chat_sender="$(create_client chat-sender CiChatSend 00000000-0000-0000-0000-000000000060 true)"
 chat_receiver="$(create_client chat-receiver CiChatRecv 00000000-0000-0000-0000-000000000070 true)"
 singleplayer="$(create_client singleplayer CiSingleplayer 00000000-0000-0000-0000-000000000080 true)"
+connect_ui="$(create_client connect-ui CiConnectUi 00000000-0000-0000-0000-000000000081 true)"
+connect_unavailable="$(create_client connect-unavailable CiConnectOffline 00000000-0000-0000-0000-000000000082 true)"
 late_sender="$(create_client late-sender CiLateSend 00000000-0000-0000-0000-000000000090 true)"
 late_receiver="$(create_client late-receiver CiLateRecv 00000000-0000-0000-0000-000000000100 true)"
 ctcp_sender="$(create_client ctcp-sender CiCtcpSend 00000000-0000-0000-0000-000000000110 true)"
 ctcp_receiver="$(create_client ctcp-receiver CiCtcpRecv 00000000-0000-0000-0000-000000000120 true)"
+connect_host_uuid="10000000-0000-4000-8000-000000000001"
+connect_friend_uuid="20000000-0000-4000-8000-000000000002"
+connect_extra_uuid="30000000-0000-4000-8000-000000000003"
+connect_outsider_uuid="40000000-0000-4000-8000-000000000004"
+connect_host_hash="$(printf '%s' "$connect_host_uuid" | sha256sum | awk '{print toupper($1)}')"
+connect_host="$(create_client connect-host CiConnectHost "$connect_host_uuid" true)"
+connect_friend="$(create_client connect-friend CiConnectFriend "$connect_friend_uuid" true)"
+connect_extra="$(create_client connect-extra CiConnectExtra "$connect_extra_uuid" true)"
+connect_outsider="$(create_client connect-outsider CiConnectOutsider "$connect_outsider_uuid" true)"
 
 if run_scenario 5; then
-  echo "Scenario 5/7: offline modded client creates and enters a fresh singleplayer world"
+  echo "Scenario 5/9: offline modded client creates and enters a fresh singleplayer world"
   reset_results
   start_client "$singleplayer" singleplayer "$launch_regex" 0 singleplayer 1
   singleplayer_pid="$LAST_PID"
@@ -304,8 +347,107 @@ if run_scenario 5; then
   assert_clean_logs "$work/logs/singleplayer.log"
 fi
 
+if run_scenario 8; then
+  echo "Scenario 8/9: unavailable Connect discovery leaves Multiplayer usable and backs off cleanly"
+  reset_results
+  start_client "$connect_unavailable" connect-unavailable "$launch_regex" 0 connect-unavailable 1
+  connect_unavailable_pid="$LAST_PID"
+  wait_for_marker connect-unavailable-backoff "$connect_unavailable_pid" 240
+  wait_for_marker connect-unavailable-success "$connect_unavailable_pid" 30
+  await_group_exit "$connect_unavailable_pid" 60
+  assert_clean_logs "$work/logs/connect-unavailable.log"
+fi
+
+if run_scenario 9; then
+  echo "Scenario 9/9: local Connect publish, discovery, relay admission, rejection, limits, and lifecycle"
+  reset_results
+  connect_service_jar="$(find "$repo/build/ci-runtime/connect-service" -maxdepth 1 -type f -name '*.jar' -print -quit)"
+  [[ -n "$connect_service_jar" ]] || fail "Staged local MTConnect service jar was not found"
+
+  start_group "$work" "$work/logs/connect-service.log" "$connect_java" -jar "$connect_service_jar" \
+    --proxy-port "$connect_proxy_port" --control-port "$connect_control_port" \
+    --work-dir "$work/connect-service"
+  connect_service_pid="$LAST_PID"
+  remember_group "$connect_service_pid"
+  wait_for_log "$work/logs/connect-service.log" '^READY ' "$connect_service_pid" 60
+
+  connect_control="http://127.0.0.1:$connect_control_port"
+  curl -fsS -X POST "$connect_control/fixture/friend?left=$connect_host_uuid&right=$connect_friend_uuid" >/dev/null
+  curl -fsS -X POST "$connect_control/fixture/friend?left=$connect_host_uuid&right=$connect_extra_uuid" >/dev/null
+  curl -fsS -X POST "$connect_control/fixture/limit?user=$connect_host_uuid&max=2" >/dev/null
+
+  start_client "$connect_host" connect-host "$launch_regex" 0 connect-host 1 CiConnectFriend \
+    "$connect_host_uuid" CiConnectHost
+  connect_host_pid="$LAST_PID"
+  wait_for_marker connect-host-published "$connect_host_pid" 480
+  curl -fsS "$connect_control/state" | grep -q '"serverToken":"server-0001"' \
+    || fail "Local Connect service did not register the initial host"
+
+  start_client "$connect_outsider" connect-outsider "$launch_regex" 0 connect-outsider 1 CiConnectHost \
+    "$connect_outsider_uuid" CiConnectOutsider server-0001
+  connect_outsider_pid="$LAST_PID"
+  wait_for_marker connect-outsider-rejected "$connect_outsider_pid" 180
+  await_group_exit "$connect_outsider_pid" 60
+
+  start_client "$connect_friend" connect-friend "$launch_regex" 0 connect-friend 2 CiConnectHost \
+    "$connect_friend_uuid" CiConnectFriend server-0001
+  connect_friend_pid="$LAST_PID"
+  wait_for_marker connect-friend-listing "$connect_friend_pid" 240
+  wait_for_marker connect-friend-joined "$connect_friend_pid" 360
+  wait_for_marker connect-host-friend-visible "$connect_host_pid" 60
+
+  start_client "$connect_extra" connect-extra "$launch_regex" 0 connect-extra 1 CiConnectHost \
+    "$connect_extra_uuid" CiConnectExtra server-0001
+  connect_extra_pid="$LAST_PID"
+  wait_for_marker connect-extra-rejected "$connect_extra_pid" 180
+  await_group_exit "$connect_extra_pid" 60
+  curl -fsS "$connect_control/events" | grep -q '"type":"REJECTED_NOT_FRIEND"' \
+    || fail "Local Connect service did not audit the non-friend rejection"
+  curl -fsS "$connect_control/events" | grep -q '"type":"REJECTED_FULL"' \
+    || fail "Local Connect service did not audit the full-server rejection"
+
+  touch "$results/connect-friend-release"
+  wait_for_marker connect-friend-success "$connect_friend_pid" 60
+  await_group_exit "$connect_friend_pid" 60
+
+  touch "$results/connect-host-close-request"
+  wait_for_marker connect-host-closed "$connect_host_pid" 120
+  curl -fsS "$connect_control/state" | grep -q '"hosts":\[\]' \
+    || fail "Closing through the Connect UI left a host registration behind"
+
+  touch "$results/connect-host-republish-request"
+  wait_for_marker connect-host-republished "$connect_host_pid" 180
+  curl -fsS "$connect_control/state" | grep -q '"serverToken":"server-0002"' \
+    || fail "Republishing did not create exactly one fresh host registration"
+
+  touch "$results/connect-host-fault-request"
+  curl -fsS -X POST "$connect_control/fault/drop-host?user=$connect_host_uuid" | grep -q '"dropped":true' \
+    || fail "Could not inject the local Connect proxy-loss fault"
+  wait_for_marker connect-host-fault-observed "$connect_host_pid" 120
+  curl -fsS "$connect_control/state" | grep -q '"hosts":\[\]' \
+    || fail "Proxy loss left a host registration behind"
+
+  touch "$results/connect-host-final-republish-request"
+  wait_for_marker connect-host-final-republished "$connect_host_pid" 180
+  curl -fsS "$connect_control/state" | grep -q '"serverToken":"server-0003"' \
+    || fail "Host could not republish after proxy loss"
+  [[ "$(curl -fsS "$connect_control/state" | grep -o '"serverToken"' | wc -l)" -eq 1 ]] \
+    || fail "Republish produced duplicate host registrations"
+
+  touch "$results/connect-host-stop-request"
+  wait_for_marker connect-host-success "$connect_host_pid" 60
+  await_group_exit "$connect_host_pid" 60
+  curl -fsS -X POST "$connect_control/shutdown" >/dev/null || true
+  stop_group "$connect_service_pid"
+
+  if grep -E 'sessions\.minetogether\.io|dist\.creeper\.host/MineTogether/nodes|api\.creeper\.host/.*/profile' \
+      "$work/logs/connect-"*.log; then
+    fail "A local Connect scenario attempted to use a production service"
+  fi
+fi
+
 if run_scenario 1; then
-  echo "Scenario 1/7: offline modded client joins a vanilla server and safely attempts an emote"
+  echo "Scenario 1/9: offline modded client joins a vanilla server and safely attempts an emote"
   reset_results
   start_server vanilla-ci "$work/logs/vanilla-server.log"
   vanilla_server_pid="$LAST_PID"
@@ -322,7 +464,7 @@ if run_scenario 2 || run_scenario 3 || run_scenario 4 || run_scenario 6; then
 fi
 
 if run_scenario 2; then
-  echo "Scenario 2/7: vanilla and modded clients stay connected while the modded client emits an emote"
+  echo "Scenario 2/9: vanilla and modded clients stay connected while the modded client emits an emote"
   reset_results
   start_client "$vanilla_client" vanilla-client "$minecraft" "$modded_port"
   vanilla_pid="$LAST_PID"
@@ -340,7 +482,7 @@ if run_scenario 2; then
 fi
 
 if run_scenario 3; then
-  echo "Scenario 3/7: two modded clients relay and apply emote start/stop packets"
+  echo "Scenario 3/9: two modded clients relay and apply emote start/stop packets"
   reset_results
   start_client "$receiver" receiver "$launch_regex" "$modded_port" receiver 2 CiSender
   receiver_pid="$LAST_PID"
@@ -355,7 +497,7 @@ if run_scenario 3; then
 fi
 
 if run_scenario 6; then
-  echo "Scenario 6/7: a late peer receives persistent emote state and disconnect cleanup removes its stale state"
+  echo "Scenario 6/9: a late peer receives persistent emote state and disconnect cleanup removes its stale state"
   reset_results
   start_client "$late_sender" late-sender "$launch_regex" "$modded_port" late-sender 1 CiLateRecv
   late_sender_pid="$LAST_PID"
@@ -372,7 +514,7 @@ if run_scenario 6; then
 fi
 
 if run_scenario 4; then
-  echo "Scenario 4/7: two offline clients use mocked API discovery and relay MineTogether chat over local IRC"
+  echo "Scenario 4/9: two offline clients use mocked API discovery and relay MineTogether chat over local IRC"
   reset_results
   start_group "$work" "$work/logs/mock-irc.log" python3 -u "$repo/.github/scripts/mock-irc-server.py" --host 127.0.0.1 --port "$chat_port" --channel '#minetogether-ci'
   mock_irc_pid="$LAST_PID"
@@ -399,7 +541,7 @@ if run_scenario 2; then
 fi
 
 if run_scenario 7; then
-  echo "Scenario 7/7: two MineTogether clients relay emotes over CTCP on a vanilla server"
+  echo "Scenario 7/9: two MineTogether clients relay emotes over CTCP on a vanilla server"
   reset_results
   start_server vanilla-ci "$work/logs/vanilla-ctcp-server.log"
   vanilla_ctcp_server_pid="$LAST_PID"

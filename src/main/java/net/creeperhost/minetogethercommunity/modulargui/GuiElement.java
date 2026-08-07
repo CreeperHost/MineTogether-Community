@@ -189,4 +189,8 @@ public class GuiElement<T extends GuiElement<T>> extends Gui {
     public int height() {
         return height;
     }
+
+    public List<GuiElement<?>> getChildren() {
+        return Collections.unmodifiableList(children);
+    }
 }

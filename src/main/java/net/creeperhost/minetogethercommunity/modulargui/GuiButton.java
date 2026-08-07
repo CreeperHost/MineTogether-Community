@@ -38,6 +38,10 @@ public class GuiButton extends GuiElement<GuiButton> {
         return this;
     }
 
+    public String getLabel() {
+        return label == null ? null : label.get();
+    }
+
     public GuiButton setToggleMode(BooleanSupplier toggled) {
         this.toggled = toggled == null ? () -> false : toggled;
         return this;
