@@ -18,3 +18,9 @@ if unzip -l "$probe_jar" | grep -Eq 'net/creeperhost/minetogethercommunity/(Mine
   exit 1
 fi
 echo "Verified Forge 1.7.10 runtime: $(basename "$production_jar") + $(basename "$probe_jar")"
+
+service_root=build/ci-runtime/connect-service
+service_jar="$(find "$service_root" -maxdepth 1 -type f -name '*.jar' -print -quit)"
+[[ -n "$service_jar" ]] || { echo "Missing local Connect service jar" >&2; exit 1; }
+unzip -tqq "$service_jar"
+echo "Verified local Connect service: $(basename "$service_jar")"
