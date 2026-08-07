@@ -484,7 +484,11 @@ public final class ActivityTelemetry {
     private static ActivityModels.Modpack currentModpack() {
         ActivityModels.Modpack modpack = new ActivityModels.Modpack();
         ModPackInfo.VersionInfo info = ModPackInfo.getInfo();
-        if (!info.ftbPackID.isEmpty()) {
+        if (!info.modrinthProjectID.isEmpty()) {
+            modpack.source = "modrinth";
+            modpack.packId = info.modrinthProjectID;
+            modpack.versionId = info.modrinthVersionID;
+        } else if (!info.ftbPackID.isEmpty()) {
             modpack.source = "ftb";
             modpack.packId = info.ftbPackID;
             modpack.versionId = info.base64FTBID;
