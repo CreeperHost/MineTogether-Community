@@ -313,6 +313,12 @@ public class MineTogetherChat {
         CHAT_STATE.ircClient.stop();
     }
 
+    public static void shutdown() {
+        if (CHAT_STATE != null) {
+            CHAT_STATE.ircClient.stop();
+        }
+    }
+
     public static void enableChat() {
         if (isChatEnabled()) {
             CHAT_STATE.ircClient.start();

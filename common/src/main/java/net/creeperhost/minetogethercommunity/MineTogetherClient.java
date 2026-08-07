@@ -70,6 +70,7 @@ public class MineTogetherClient {
         EmoteNetworking.initClient();
 
         PolyClientLifecycleEvents.CLIENT_STARTED.register(MineTogetherClient::onClientStarted);
+        PolyClientLifecycleEvents.CLIENT_STOPPING.register(client -> MineTogetherChat.shutdown());
         PolyScreenEvents.SCREEN_OPENED.register(MineTogetherClient::onScreenOpen);
 
         // Kick off cosmetic catalog download and profile fetch as soon as the player enters a world,
