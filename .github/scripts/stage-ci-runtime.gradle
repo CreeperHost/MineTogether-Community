@@ -1,3 +1,5 @@
+apply from: new File(System.getProperty("user.dir"), ".github/scripts/stage-connect-service.gradle")
+
 gradle.projectsEvaluated {
     def root = gradle.rootProject
     def enabled = root.findProperty("enabled_platforms")
@@ -42,7 +44,7 @@ gradle.projectsEvaluated {
     def stageAll = root.tasks.create(name: "stageCiRuntime") {
         group = "verification"
         description = "Stages the production jar and CI probe for legacy runtime tests."
-        dependsOn(productionTask, reobfProbe)
+        dependsOn(productionTask, reobfProbe, root.tasks.stageCiConnectService)
 
         doLast {
             def runtimeRoot = new File(root.buildDir, "ci-runtime/forge")
