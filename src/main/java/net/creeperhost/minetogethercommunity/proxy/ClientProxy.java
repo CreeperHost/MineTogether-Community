@@ -76,6 +76,7 @@ public class ClientProxy extends CommonProxy {
     }
 
     public static void onClientWorldJoin() {
+        EmoteNetworking.clientWorldReady();
         ActivityTelemetry.onWorldEnter();
         CosmeticDownloader.instance().startCatalogFetch();
         CosmeticApiClient.fetchProfileAsync();

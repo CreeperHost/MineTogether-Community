@@ -8,7 +8,6 @@ import net.minecraft.client.Minecraft;
 import net.minecraft.entity.player.EntityPlayerMP;
 import net.minecraft.server.MinecraftServer;
 import cpw.mods.fml.common.FMLCommonHandler;
-import net.minecraftforge.common.MinecraftForge;
 import cpw.mods.fml.common.eventhandler.SubscribeEvent;
 import cpw.mods.fml.common.gameevent.PlayerEvent;
 import cpw.mods.fml.common.network.ByteBufUtils;
@@ -44,7 +43,8 @@ public final class EmoteNetworking {
         CHANNEL.registerMessage(client ? StartClientHandler.class : NoopStartClientHandler.class, StartEmoteS2C.class, 1, Side.CLIENT);
         CHANNEL.registerMessage(StopServerHandler.class, StopEmoteC2S.class, 2, Side.SERVER);
         CHANNEL.registerMessage(client ? StopClientHandler.class : NoopStopClientHandler.class, StopEmoteS2C.class, 3, Side.CLIENT);
-        MinecraftForge.EVENT_BUS.register(new PlayerLifecycleHandler());
+        CHANNEL.registerMessage(HelloServerHandler.class, HelloC2S.class, 4, Side.SERVER);
+        FMLCommonHandler.instance().bus().register(new PlayerLifecycleHandler());
         LOGGER.debug("Emote networking initialized");
     }
 
@@ -63,6 +63,23 @@ public final class EmoteNetworking {
             CHANNEL.sendToServer(new StopEmoteC2S());
         } catch (RuntimeException e) {
             LOGGER.debug("Could not broadcast emote stop", e);
+        }
+    }
+
+    public static void clientWorldReady() {
+        if (!initialized) return;
+        try {
+            CHANNEL.sendToServer(new HelloC2S());
+        } catch (RuntimeException e) {
+            LOGGER.debug("Could not announce emote packet support", e);
+        }
+    }
+
+    private static void syncPersistentEmotes(EntityPlayerMP target) {
+        for (Map.Entry<UUID, String> active : ACTIVE_PERSISTENT_EMOTES.entrySet()) {
+            if (!active.getKey().equals(target.getUniqueID())) {
+                CHANNEL.sendTo(new StartEmoteS2C(active.getKey(), active.getValue()), target);
+            }
         }
     }
 
@@ -155,6 +172,16 @@ public final class EmoteNetworking {
         }
     }
 
+    public static class HelloC2S implements IMessage {
+        @Override
+        public void fromBytes(ByteBuf buf) {
+        }
+
+        @Override
+        public void toBytes(ByteBuf buf) {
+        }
+    }
+
     public static class StartServerHandler implements IMessageHandler<StartEmoteC2S, IMessage> {
         @Override
         public IMessage onMessage(final StartEmoteC2S message, final MessageContext ctx) {
@@ -191,21 +218,29 @@ public final class EmoteNetworking {
         }
     }
 
+    public static class HelloServerHandler implements IMessageHandler<HelloC2S, IMessage> {
+        @Override
+        public IMessage onMessage(HelloC2S message, MessageContext ctx) {
+            syncPersistentEmotes(ctx.getServerHandler().playerEntity);
+            return null;
+        }
+    }
+
     public static class PlayerLifecycleHandler {
         @SubscribeEvent
-        public void onPlayerLogin(PlayerEvent.PlayerLoggedInEvent event) {
-            if (!(event.player instanceof EntityPlayerMP)) return;
-            EntityPlayerMP target = (EntityPlayerMP) event.player;
-            for (Map.Entry<UUID, String> active : ACTIVE_PERSISTENT_EMOTES.entrySet()) {
-                if (!active.getKey().equals(target.getUniqueID())) {
-                    CHANNEL.sendTo(new StartEmoteS2C(active.getKey(), active.getValue()), target);
-                }
-            }
-        }
-
-        @SubscribeEvent
         public void onPlayerLogout(PlayerEvent.PlayerLoggedOutEvent event) {
-            ACTIVE_PERSISTENT_EMOTES.remove(event.player.getUniqueID());
+            if (!(event.player instanceof EntityPlayerMP)) return;
+            UUID playerId = event.player.getUniqueID();
+            if (ACTIVE_PERSISTENT_EMOTES.remove(playerId) == null) return;
+            MinecraftServer server = FMLCommonHandler.instance().getMinecraftServerInstance();
+            if (server == null) return;
+            StopEmoteS2C packet = new StopEmoteS2C(playerId);
+            List<EntityPlayerMP> players = server.getConfigurationManager().playerEntityList;
+            for (EntityPlayerMP target : players) {
+                if (target == event.player) continue;
+                CHANNEL.sendTo(packet, target);
+            }
+            LOGGER.debug("Cleared persistent emote state for disconnected player {}", event.player.getCommandSenderName());
         }
     }
 
