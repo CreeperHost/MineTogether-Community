@@ -1,0 +1,62 @@
+gradle.projectsEvaluated {
+    def root = gradle.rootProject
+    def mainSourceSet = root.sourceSets.main
+    def probeSourceSet = root.sourceSets.maybeCreate("ciProbe")
+
+    probeSourceSet.java.srcDir(root.file(".github/ci-probe/src/main/java"))
+    probeSourceSet.resources.srcDir(root.file(".github/ci-probe/src/main/resources"))
+    root.configurations.ciProbeImplementation.extendsFrom(root.configurations.implementation)
+    probeSourceSet.compileClasspath += mainSourceSet.output + mainSourceSet.compileClasspath
+    probeSourceSet.runtimeClasspath += probeSourceSet.output + probeSourceSet.compileClasspath
+
+    def probeJar = root.tasks.register("ciProbeJar", Jar) {
+        group = "verification"
+        description = "Builds the Forge 1.7.10 CI-only multiplayer probe."
+        dependsOn(root.tasks.named(probeSourceSet.classesTaskName))
+        from(probeSourceSet.output)
+        archiveBaseName.set("minetogether-ci-probe-forge-${root.property('minecraft_version')}")
+        archiveClassifier.set("dev")
+    }
+
+    def baseReobf = root.tasks.named("reobfJar").get()
+    def reobfJarType = baseReobf.class
+    def reobfProbe = root.tasks.register("reobfCiProbeJar", reobfJarType) {
+        group = "verification"
+        description = "Reobfuscates the Forge 1.7.10 CI probe for a production client."
+        setInputJarFromTask(probeJar)
+        exceptorCfg.set(baseReobf.exceptorCfg)
+        fieldCsv.set(baseReobf.fieldCsv)
+        mcVersion.set(baseReobf.mcVersion)
+        methodCsv.set(baseReobf.methodCsv)
+        recompMcJar.set(baseReobf.recompMcJar)
+        srg.set(baseReobf.srg)
+        archiveBaseName.set("minetogether-ci-probe-forge-${root.property('minecraft_version')}")
+        archiveClassifier.set("")
+    }
+
+    root.tasks.register("stageCiRuntime") {
+        group = "verification"
+        description = "Stages the shaded production jar and CI probe for Forge 1.7.10 runtime tests."
+        dependsOn(root.tasks.named("reobfJar"), reobfProbe)
+        doLast {
+            def modsDir = root.layout.buildDirectory.dir("ci-runtime/forge/mods").get().asFile
+            def probeDir = root.layout.buildDirectory.dir("ci-runtime/forge/probe").get().asFile
+
+            root.delete(modsDir, probeDir)
+            modsDir.mkdirs()
+            probeDir.mkdirs()
+
+            root.copy {
+                from(root.tasks.named("reobfJar").get().archiveFile)
+                into(modsDir)
+            }
+            root.copy {
+                from(reobfProbe.get().archiveFile)
+                into(probeDir)
+            }
+
+            root.logger.lifecycle("Staged Forge 1.7.10 runtime mod in ${modsDir}")
+            root.logger.lifecycle("Staged Forge 1.7.10 CI probe in ${probeDir}")
+        }
+    }
+}

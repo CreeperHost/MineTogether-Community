@@ -1,0 +1,9 @@
+[
+  {
+    "modid": "minetogether_ci_probe",
+    "name": "MineTogether CI Probe",
+    "description": "CI-only autonomous runtime probe.",
+    "version": "1",
+    "mcversion": "1.7.10"
+  }
+]
