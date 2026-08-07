@@ -9,7 +9,6 @@ import net.creeperhost.minetogether.lib.chat.profile.ProfileManager;
 import net.creeperhost.minetogether.lib.web.ApiClientResponse;
 import net.creeperhost.minetogether.lib.web.requests.GetClosestDCRequest;
 import net.creeperhost.minetogether.session.JWebToken;
-import net.creeperhost.minetogether.session.MineTogetherSession;
 import net.creeperhost.minetogethercommunity.MineTogether;
 import net.creeperhost.minetogethercommunity.chat.MineTogetherChat;
 import net.creeperhost.minetogethercommunity.connect.netty.NettyClient;
@@ -276,7 +275,7 @@ public class ConnectHandler {
     }
 
     public static JWebToken requireSessionToken() throws Exception {
-        JWebToken token = MineTogetherSession.getDefault().getTokenAsync().get();
+        JWebToken token = ConnectCredentials.get();
         if (token == null) {
             throw new IOException("MineTogether session token is unavailable");
         }
@@ -296,7 +295,9 @@ public class ConnectHandler {
                     keep.add(server);
                     Profile profile = AVAILABLE_SERVER_MAP.get(server);
                     if (profileManager != null && (profile == null || profile.isStale())) {
-                        profile = profileManager.lookupProfile(entry.friend);
+                        profile = isLocalConnectTest()
+                                ? profileManager.lookupProfileStale(entry.friend)
+                                : profileManager.lookupProfile(entry.friend);
                     }
                     if (!AVAILABLE_SERVER_MAP.containsKey(server) || profile != AVAILABLE_SERVER_MAP.get(server)) {
                         AVAILABLE_SERVER_MAP.put(server, profile);
@@ -370,6 +371,12 @@ public class ConnectHandler {
 
     public static int getTestSearchAttempts() {
         return TEST_SEARCH_ATTEMPTS.get();
+    }
+
+    private static boolean isLocalConnectTest() {
+        String role = System.getenv("MINETOGETHER_CI_ROLE");
+        return role != null && role.startsWith("connect-")
+                && System.getenv("MINETOGETHER_CI_CONNECT_UUID") != null;
     }
 
     public static void setServerMaxPlayers(IntegratedServer server, int maxPlayers) {
