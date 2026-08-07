@@ -45,6 +45,7 @@ import net.creeperhost.minetogethercommunity.config.Config;
 import net.creeperhost.minetogethercommunity.connect.ConnectHandler;
 import net.creeperhost.minetogethercommunity.connect.ConnectHost;
 import net.minecraft.client.Minecraft;
+import net.minecraft.network.EnumConnectionState;
 import net.minecraft.network.EnumPacketDirection;
 import net.minecraft.network.LegacyPingHandler;
 import net.minecraft.network.NettyPacketDecoder;
@@ -303,7 +304,7 @@ public class NettyClient {
     }
 
     private static void link(final IntegratedServer server, final ConnectHost endpoint, final JWebToken session, final String linkToken) {
-        final NetworkManager networkManager = new NetworkManager(EnumPacketDirection.SERVERBOUND);
+        final NetworkManager networkManager = new RelayedServerNetworkManager();
         ProxyConnection connection = new ProxyConnection(endpoint) {
             @Override
             protected void buildPipeline(ChannelPipeline pipeline) {
@@ -331,6 +332,31 @@ public class NettyClient {
 
         openConnection(endpoint, connection, NettyClient::serverEventLoop, NettyClient::serverEventLoop);
         addNetworkManager(server.getNetworkSystem(), networkManager);
+    }
+
+    /**
+     * Forge changes a logging-in server connection to PLAY from the server thread while the
+     * preceding login-success packet may still be queued on Netty. A normal socket happens to
+     * drain that queue first, but a relayed channel must preserve the ordering explicitly.
+     */
+    private static final class RelayedServerNetworkManager extends NetworkManager {
+        private RelayedServerNetworkManager() {
+            super(EnumPacketDirection.SERVERBOUND);
+        }
+
+        @Override
+        public void setConnectionState(final EnumConnectionState state) {
+            if (state == EnumConnectionState.PLAY && channel() != null && !channel().eventLoop().inEventLoop()) {
+                channel().eventLoop().execute(new Runnable() {
+                    @Override
+                    public void run() {
+                        RelayedServerNetworkManager.super.setConnectionState(state);
+                    }
+                });
+                return;
+            }
+            super.setConnectionState(state);
+        }
     }
 
     private static ChannelFuture openConnection(final ConnectHost endpoint, final ProxyConnection connection, Supplier<EventLoopGroup> epollGroup, Supplier<EventLoopGroup> nioGroup) {
