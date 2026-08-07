@@ -1,0 +1,24 @@
+modLoader = "javafml"
+loaderVersion = "[1,)"
+license = "All Rights Reserved"
+
+[[mods]]
+modId = "minetogether_ci_probe"
+version = "1.0.0"
+displayName = "MineTogether CI Probe"
+displayTest = "IGNORE_ALL_VERSION"
+description = '''CI-only multiplayer integration probe.'''
+
+[[dependencies.minetogether_ci_probe]]
+modId = "minecraft"
+type = "required"
+versionRange = "[1,)"
+ordering = "NONE"
+side = "CLIENT"
+
+[[dependencies.minetogether_ci_probe]]
+modId = "minetogethercommunity"
+type = "required"
+versionRange = "[0,)"
+ordering = "AFTER"
+side = "CLIENT"

@@ -3,12 +3,20 @@ package net.creeperhost.minetogethercommunity.chat;
 import dev.architectury.hooks.client.screen.ScreenHooks;
 import dev.architectury.event.events.client.ClientTickEvent;
 import dev.architectury.platform.Platform;
+import net.covers1624.quack.net.httpapi.AbstractEngineRequest;
+import net.covers1624.quack.net.httpapi.EngineRequest;
+import net.covers1624.quack.net.httpapi.EngineResponse;
+import net.covers1624.quack.net.httpapi.HeaderList;
+import net.covers1624.quack.net.httpapi.HttpEngine;
+import net.covers1624.quack.net.httpapi.WebBody;
 import net.creeperhost.minetogether.lib.chat.ChatState;
+import net.creeperhost.minetogether.lib.chat.ChatAuth;
 import net.creeperhost.minetogether.lib.chat.MutedUserList;
 import net.creeperhost.minetogether.lib.chat.irc.IrcChannel;
 import net.creeperhost.minetogether.lib.chat.irc.IrcClient;
 import net.creeperhost.minetogether.lib.chat.profile.Profile;
 import net.creeperhost.minetogether.lib.chat.profile.ProfileManager;
+import net.creeperhost.minetogether.session.JWebToken;
 import net.creeperhost.minetogethercommunity.Constants;
 import net.creeperhost.minetogethercommunity.MineTogether;
 import net.creeperhost.minetogethercommunity.chat.gui.ChatScreenTickHandler;
@@ -37,7 +45,11 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.jetbrains.annotations.Nullable;
 
+import java.io.IOException;
+import java.nio.file.Path;
 import java.util.Locale;
+import java.util.UUID;
+import java.util.concurrent.CompletableFuture;
 
 /**
  * @author covers1624
@@ -58,6 +70,68 @@ public class MineTogetherChat {
     public static MTChatComponent groupChat;
     private static boolean hasHitLoadingScreen = false;
     private static boolean minecraftChatAllowed = true;
+
+    /** Replaces external chat discovery for the isolated offline runtime test. */
+    public static void configureLocalChatForTesting(int port, String hash, UUID uuid, Path mutedUsersFile) {
+        if (!Boolean.getBoolean("minetogether.ci.localChat")) {
+            throw new IllegalStateException("The local chat override is only available to the CI runtime probe");
+        }
+        ChatAuth auth = new ChatAuth() {
+            @Override public String getSignature() { return "ci-offline-signature"; }
+            @Override public UUID getUUID() { return uuid; }
+            @Override public String getHash() { return hash; }
+            @Override public void resetSessionToken() { }
+            @Override public CompletableFuture<@Nullable JWebToken> getSessionTokenAsync() {
+                return CompletableFuture.completedFuture(null);
+            }
+        };
+        String serverResponse = "{\"status\":\"success\",\"channel\":\"#minetogether-ci\","
+                + "\"server\":{\"address\":\"127.0.0.1\",\"port\":" + port + ",\"ssl\":false}}";
+        HttpEngine engine = () -> new LocalChatRequest(serverResponse);
+        CHAT_STATE = new ChatState(
+                net.creeperhost.minetogether.lib.web.ApiClient.builder()
+                        .httpEngine(engine)
+                        .addUserAgentSegment("MineTogether-CI")
+                        .build(),
+                auth,
+                new MutedUserList(mutedUsersFile),
+                () -> "MineTogether CI",
+                true
+        );
+    }
+
+    private static final class LocalChatRequest extends AbstractEngineRequest {
+        private static final String ERROR_RESPONSE =
+                "{\"status\":\"error\",\"message\":\"Profile request already ongoing (CI mock)\"}";
+        private final String serverResponse;
+
+        private LocalChatRequest(String serverResponse) {
+            this.serverResponse = serverResponse;
+        }
+
+        @Override
+        public EngineRequest method(String method, @Nullable WebBody body) {
+            assertState();
+            return this;
+        }
+
+        @Override
+        public EngineResponse execute() {
+            assertState();
+            executed = true;
+            String json = getUrl().endsWith("/minetogether/chatserver") ? serverResponse : ERROR_RESPONSE;
+            WebBody body = WebBody.string(json, "application/json; charset=utf-8");
+            return new EngineResponse() {
+                private final HeaderList headers = new HeaderList();
+                @Override public EngineRequest request() { return LocalChatRequest.this; }
+                @Override public int statusCode() { return 200; }
+                @Override public String message() { return "OK"; }
+                @Override public HeaderList headers() { return headers; }
+                @Override public WebBody body() { return body; }
+                @Override public void close() throws IOException { }
+            };
+        }
+    }
 
     public static void init() {
         CHAT_STATE.logChatToConsole = Config.instance().logChatToConsole | Config.instance().debugMode;

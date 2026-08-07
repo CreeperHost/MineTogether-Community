@@ -1,0 +1,123 @@
+gradle.projectsEvaluated {
+    def root = gradle.rootProject
+    def enabledPlatforms = root.findProperty("enabled_platforms")
+    def loaders = enabledPlatforms
+            ? enabledPlatforms.toString().split(",").collect { it.trim() }.findAll { !it.isEmpty() }
+            : ["fabric", "forge", "neoforge"].findAll { root.findProject(":" + it) != null }
+
+    def stageAll = root.tasks.register("stageCiRuntime") {
+        group = "verification"
+        description = "Stages production jars and required runtime dependencies for CI client launches."
+    }
+
+    loaders.each { loader ->
+        def loaderProject = root.findProject(":" + loader)
+        if (loaderProject == null) {
+            throw new GradleException("enabled_platforms contains '${loader}', but project ':${loader}' does not exist")
+        }
+
+        def remapTask = loaderProject.tasks.findByName("remapJar")
+        if (remapTask == null) {
+            throw new GradleException("Project ':${loader}' does not provide a remapJar task")
+        }
+
+        def sourceSets = loaderProject.extensions.getByType(org.gradle.api.tasks.SourceSetContainer)
+        def mainSourceSet = sourceSets.getByName("main")
+        def probeSourceSet = sourceSets.maybeCreate("ciProbe")
+        probeSourceSet.java.srcDirs(
+                root.file(".github/ci-probe/src/main/java"),
+                root.file(".github/ci-probe/src/${loader}/java")
+        )
+        probeSourceSet.resources.srcDir(root.file(".github/ci-probe/src/${loader}/resources"))
+        probeSourceSet.compileClasspath += mainSourceSet.output + mainSourceSet.compileClasspath
+        probeSourceSet.runtimeClasspath += probeSourceSet.output + probeSourceSet.compileClasspath
+
+        def probeJar = loaderProject.tasks.register("ciProbeJar", Jar) {
+            group = "verification"
+            description = "Builds the ${loader} CI-only multiplayer probe."
+            dependsOn(loaderProject.tasks.named(probeSourceSet.classesTaskName))
+            from(probeSourceSet.output)
+            archiveBaseName.set("minetogether-ci-probe-${loader}-${root.property('minecraft_version')}")
+            archiveClassifier.set("dev")
+        }
+
+        // Reuse the loader's Loom remap task type so this remains compatible with the
+        // mappings selected by each branch, without making the probe a release subproject.
+        def remapProbe = loaderProject.tasks.register("remapCiProbeJar", remapTask.class) {
+            group = "verification"
+            description = "Remaps the ${loader} CI-only multiplayer probe for a production client."
+            dependsOn(probeJar)
+            input.set(probeJar.flatMap { it.archiveFile })
+            archiveBaseName.set("minetogether-ci-probe-${loader}-${root.property('minecraft_version')}")
+            archiveClassifier.set(null)
+            if (hasProperty("addNestedDependencies")) {
+                addNestedDependencies.set(false)
+            }
+        }
+
+        def stageLoader = loaderProject.tasks.register("stageCiRuntimeMods") {
+            group = "verification"
+            description = "Stages the ${loader} production jar and runtime dependencies for CI."
+            dependsOn(remapTask, remapProbe)
+
+            doLast {
+                def outputDir = root.layout.buildDirectory.dir("ci-runtime/${loader}/mods").get().asFile
+                loaderProject.delete(outputDir)
+                outputDir.mkdirs()
+
+                def productionJar
+                if (remapTask.hasProperty("archiveFile")) {
+                    productionJar = remapTask.archiveFile.get().asFile
+                } else {
+                    productionJar = remapTask.outputs.files.files.find {
+                        it.name.endsWith(".jar") && !it.name.contains("sources") && !it.name.contains("dev")
+                    }
+                }
+                if (productionJar == null || !productionJar.isFile()) {
+                    throw new GradleException("Could not find the production jar produced by :${loader}:remapJar")
+                }
+
+                loaderProject.copy {
+                    from productionJar
+                    into outputDir
+                }
+
+                def dependencyCoordinates = []
+                if (root.hasProperty("architectury_version")) {
+                    dependencyCoordinates << "dev.architectury:architectury-${loader}:${root.property('architectury_version')}"
+                }
+                if (root.hasProperty("polylib_version")) {
+                    dependencyCoordinates << "net.creeperhost:polylib-${loader}:${root.property('polylib_version')}"
+                }
+                if (loader == "fabric" && root.hasProperty("fabric_api_version")) {
+                    dependencyCoordinates << "net.fabricmc.fabric-api:fabric-api:${root.property('fabric_api_version')}"
+                }
+
+                if (!dependencyCoordinates.isEmpty()) {
+                    def dependencies = dependencyCoordinates.collect { coordinate ->
+                        def dependency = loaderProject.dependencies.create(coordinate)
+                        dependency.transitive = false
+                        dependency
+                    }
+                    def runtimeMods = loaderProject.configurations.detachedConfiguration(*dependencies)
+                    loaderProject.copy {
+                        from runtimeMods
+                        into outputDir
+                    }
+                }
+
+                logger.lifecycle("Staged ${loader} runtime mods in ${outputDir}")
+
+                def probeOutputDir = root.layout.buildDirectory.dir("ci-runtime/${loader}/probe").get().asFile
+                loaderProject.delete(probeOutputDir)
+                probeOutputDir.mkdirs()
+                loaderProject.copy {
+                    from remapProbe.flatMap { it.archiveFile }
+                    into probeOutputDir
+                }
+                logger.lifecycle("Staged ${loader} CI probe in ${probeOutputDir}")
+            }
+        }
+        stageAll.configure { dependsOn(stageLoader) }
+    }
+}
