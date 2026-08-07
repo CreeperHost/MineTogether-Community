@@ -1,9 +1,7 @@
 package net.creeperhost.minetogethercommunity.ci;
 
 import com.google.common.hash.Hashing;
-import dev.architectury.event.events.client.ClientTickEvent;
-import dev.architectury.networking.NetworkManager;
-import dev.architectury.networking.simple.MessageType;
+import net.creeperhost.minetogethercommunity.MineTogetherClientPlatform;
 import net.creeperhost.minetogethercommunity.cosmetic.CosmeticDownloader;
 import net.creeperhost.minetogethercommunity.cosmetic.emote.Emote;
 import net.creeperhost.minetogethercommunity.cosmetic.emote.EmoteAnimation;
@@ -25,6 +23,7 @@ import net.creeperhost.minetogether.lib.chat.irc.IrcState;
 import net.creeperhost.polylib.client.modulargui.ModularGuiScreen;
 import net.creeperhost.polylib.client.modulargui.elements.GuiButton;
 import net.creeperhost.polylib.client.modulargui.elements.GuiElement;
+import net.creeperhost.polylib.event.events.client.PolyClientTickEvents;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.components.Button;
 import net.minecraft.client.gui.components.EditBox;
@@ -36,6 +35,9 @@ import net.minecraft.client.gui.screens.PauseScreen;
 import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.client.gui.screens.multiplayer.JoinMultiplayerScreen;
 import net.minecraft.client.gui.screens.worldselection.CreateWorldScreen;
+import net.minecraft.client.input.KeyEvent;
+import net.minecraft.client.input.MouseButtonEvent;
+import net.minecraft.client.input.MouseButtonInfo;
 import net.minecraft.client.multiplayer.ServerData;
 import net.minecraft.client.multiplayer.resolver.ServerAddress;
 import net.minecraft.client.server.LanServer;
@@ -132,7 +134,7 @@ public final class MineTogetherCiProbe {
         }
 
         System.out.println(PREFIX + "Started role=" + role + ", expectedPlayers=" + expectedPlayers);
-        ClientTickEvent.CLIENT_POST.register(MineTogetherCiProbe::tick);
+        PolyClientTickEvents.CLIENT_TICK_END.register(MineTogetherCiProbe::tick);
     }
 
     private static void tick(Minecraft minecraft) {
@@ -230,8 +232,9 @@ public final class MineTogetherCiProbe {
 
     private static void tickSingleplayer(Minecraft minecraft) throws ReflectiveOperationException {
         if (!started) {
-            if (minecraft.screen == null || ticks < 40) return;
-            CreateWorldScreen.openFresh(minecraft, minecraft.screen);
+            if (minecraft.gui.screen() == null || ticks < 40) return;
+            Screen parent = minecraft.gui.screen();
+            CreateWorldScreen.openFresh(minecraft, () -> minecraft.gui.setScreen(parent));
             started = true;
             phaseTicks = ticks;
             marker("singleplayer-create-screen");
@@ -240,10 +243,10 @@ public final class MineTogetherCiProbe {
         }
 
         if (!stopped) {
-            if (!(minecraft.screen instanceof CreateWorldScreen) || ticks - phaseTicks < 20) return;
+            if (!(minecraft.gui.screen() instanceof CreateWorldScreen) || ticks - phaseTicks < 20) return;
             String createLabel = Component.translatable("selectWorld.create").getString();
             Button createButton = null;
-            for (GuiEventListener child : minecraft.screen.children()) {
+            for (GuiEventListener child : minecraft.gui.screen().children()) {
                 if (child instanceof Button button && createLabel.equals(button.getMessage().getString())) {
                     createButton = button;
                     break;
@@ -253,7 +256,7 @@ public final class MineTogetherCiProbe {
                 if (ticks - phaseTicks > 200) fail("Could not find the vanilla create-world button");
                 return;
             }
-            createButton.onPress();
+            createButton.onPress(new KeyEvent(257, 0, 0));
             stopped = true;
             stableTicks = 0;
             marker("singleplayer-create-submitted");
@@ -289,16 +292,16 @@ public final class MineTogetherCiProbe {
                 return;
             }
             marker("connect-ui-world-ready");
-            minecraft.setScreen(new PauseScreen(true));
+            minecraft.gui.setScreen(new PauseScreen(true));
             phaseTicks = ticks;
             chatPhase = 1;
             return;
         }
 
         if (chatPhase == 1) {
-            if (ticks - phaseTicks < 20 || !(minecraft.screen instanceof PauseScreen)) return;
+            if (ticks - phaseTicks < 20 || !(minecraft.gui.screen() instanceof PauseScreen)) return;
             String openLabel = translated("minetogether.connect.open");
-            Button openButton = minecraft.screen.children().stream()
+            Button openButton = minecraft.gui.screen().children().stream()
                     .filter(Button.class::isInstance)
                     .map(Button.class::cast)
                     .filter(button -> openLabel.equals(button.getMessage().getString()))
@@ -309,14 +312,14 @@ public final class MineTogetherCiProbe {
                 return;
             }
             marker("connect-ui-pause-control");
-            openButton.onPress();
+            openButton.onPress(new KeyEvent(257, 0, 0));
             phaseTicks = ticks;
             chatPhase = 2;
             return;
         }
 
         if (chatPhase == 2 && ticks - phaseTicks >= 40) {
-            if (!(minecraft.screen instanceof GuiShareToFriends.Screen)) {
+            if (!(minecraft.gui.screen() instanceof GuiShareToFriends.Screen)) {
                 fail("Open to friends did not open its settings screen");
                 return;
             }
@@ -334,18 +337,18 @@ public final class MineTogetherCiProbe {
                 // The runtime clients intentionally use offline HMC accounts. Disable the
                 // integrated server's session-server challenge before publishing it.
                 minecraft.getSingleplayerServer().setUsesAuthentication(false);
-                minecraft.setScreen(new PauseScreen(true));
+                minecraft.gui.setScreen(new PauseScreen(true));
                 phaseTicks = ticks;
                 chatPhase = 1;
             }
             case 1 -> {
-                if (ticks - phaseTicks < 20 || !(minecraft.screen instanceof PauseScreen)) return;
-                clickVanillaButton(minecraft.screen, "minetogether.connect.open");
+                if (ticks - phaseTicks < 20 || !(minecraft.gui.screen() instanceof PauseScreen)) return;
+                clickVanillaButton(minecraft.gui.screen(), "minetogether.connect.open");
                 phaseTicks = ticks;
                 chatPhase = 2;
             }
             case 2 -> {
-                if (ticks - phaseTicks < 40 || !(minecraft.screen instanceof GuiShareToFriends.Screen screen)) return;
+                if (ticks - phaseTicks < 40 || !(minecraft.gui.screen() instanceof GuiShareToFriends.Screen screen)) return;
                 clickModularButton(screen, "minetogether.connect.open.start");
                 chatPhase = 3;
             }
@@ -362,13 +365,13 @@ public final class MineTogetherCiProbe {
                     marker("connect-host-friend-visible");
                 }
                 if (!exists("connect-host-close-request")) return;
-                minecraft.setScreen(new PauseScreen(true));
+                minecraft.gui.setScreen(new PauseScreen(true));
                 phaseTicks = ticks;
                 chatPhase = 5;
             }
             case 5 -> {
-                if (ticks - phaseTicks < 20 || !(minecraft.screen instanceof PauseScreen)) return;
-                clickVanillaButton(minecraft.screen, "minetogether.connect.close");
+                if (ticks - phaseTicks < 20 || !(minecraft.gui.screen() instanceof PauseScreen)) return;
+                clickVanillaButton(minecraft.gui.screen(), "minetogether.connect.close");
                 chatPhase = 6;
             }
             case 6 -> {
@@ -378,18 +381,18 @@ public final class MineTogetherCiProbe {
             }
             case 7 -> {
                 if (!exists("connect-host-republish-request")) return;
-                minecraft.setScreen(new PauseScreen(true));
+                minecraft.gui.setScreen(new PauseScreen(true));
                 phaseTicks = ticks;
                 chatPhase = 8;
             }
             case 8 -> {
-                if (ticks - phaseTicks < 20 || !(minecraft.screen instanceof PauseScreen)) return;
-                clickVanillaButton(minecraft.screen, "minetogether.connect.open");
+                if (ticks - phaseTicks < 20 || !(minecraft.gui.screen() instanceof PauseScreen)) return;
+                clickVanillaButton(minecraft.gui.screen(), "minetogether.connect.open");
                 phaseTicks = ticks;
                 chatPhase = 9;
             }
             case 9 -> {
-                if (ticks - phaseTicks < 40 || !(minecraft.screen instanceof GuiShareToFriends.Screen screen)) return;
+                if (ticks - phaseTicks < 40 || !(minecraft.gui.screen() instanceof GuiShareToFriends.Screen screen)) return;
                 clickModularButton(screen, "minetogether.connect.open.start");
                 chatPhase = 10;
             }
@@ -405,18 +408,18 @@ public final class MineTogetherCiProbe {
             }
             case 12 -> {
                 if (!exists("connect-host-final-republish-request")) return;
-                minecraft.setScreen(new PauseScreen(true));
+                minecraft.gui.setScreen(new PauseScreen(true));
                 phaseTicks = ticks;
                 chatPhase = 13;
             }
             case 13 -> {
-                if (ticks - phaseTicks < 20 || !(minecraft.screen instanceof PauseScreen)) return;
-                clickVanillaButton(minecraft.screen, "minetogether.connect.open");
+                if (ticks - phaseTicks < 20 || !(minecraft.gui.screen() instanceof PauseScreen)) return;
+                clickVanillaButton(minecraft.gui.screen(), "minetogether.connect.open");
                 phaseTicks = ticks;
                 chatPhase = 14;
             }
             case 14 -> {
-                if (ticks - phaseTicks < 40 || !(minecraft.screen instanceof GuiShareToFriends.Screen screen)) return;
+                if (ticks - phaseTicks < 40 || !(minecraft.gui.screen() instanceof GuiShareToFriends.Screen screen)) return;
                 clickModularButton(screen, "minetogether.connect.open.start");
                 chatPhase = 15;
             }
@@ -433,15 +436,15 @@ public final class MineTogetherCiProbe {
 
     private static void tickConnectFriend(Minecraft minecraft) throws ReflectiveOperationException {
         if (chatPhase == 0) {
-            if (minecraft.screen == null || ticks < 40) return;
-            minecraft.setScreen(new JoinMultiplayerScreen(minecraft.screen));
+            if (minecraft.gui.screen() == null || ticks < 40) return;
+            minecraft.gui.setScreen(new JoinMultiplayerScreen(minecraft.gui.screen()));
             phaseTicks = ticks;
             chatPhase = 1;
             return;
         }
 
         if (chatPhase == 1) {
-            if (!(minecraft.screen instanceof JoinMultiplayerScreen multiplayer)) return;
+            if (!(minecraft.gui.screen() instanceof JoinMultiplayerScreen multiplayer)) return;
             Map<?, ?> entries = friendServerEntries();
             if (entries.isEmpty()) return;
             FriendServerEntry entry = (FriendServerEntry) entries.values().iterator().next();
@@ -454,21 +457,20 @@ public final class MineTogetherCiProbe {
                 return;
             }
             marker("connect-friend-listing");
-            multiplayer.setSelected(entry);
-            multiplayer.joinSelectedServer();
+            entry.join();
             phaseTicks = ticks;
             chatPhase = 2;
             return;
         }
 
         if (chatPhase == 2) {
-            if (minecraft.screen instanceof ConnectPackWarningScreen.Screen warning) {
+            if (minecraft.gui.screen() instanceof ConnectPackWarningScreen.Screen warning) {
                 if (ticks - phaseTicks < 20) return;
                 clickModularButton(warning, "minetogether.connect.pack_warning.proceed");
                 chatPhase = 3;
                 return;
             }
-            if (minecraft.screen instanceof FriendConnectScreen) chatPhase = 3;
+            if (minecraft.gui.screen() instanceof FriendConnectScreen) chatPhase = 3;
         }
 
         if (chatPhase == 3 && minecraft.player != null && minecraft.level != null
@@ -483,10 +485,10 @@ public final class MineTogetherCiProbe {
 
     private static void tickConnectRejected(Minecraft minecraft, String expectedMessage) throws ReflectiveOperationException {
         if (!started) {
-            if (minecraft.screen == null || ticks < 40) return;
+            if (minecraft.gui.screen() == null || ticks < 40) return;
             RemoteServer remote = new RemoteServer(connectHostHash, connectServerToken, null);
             FriendConnectScreen.startConnecting(
-                    minecraft.screen,
+                    minecraft.gui.screen(),
                     minecraft,
                     remote,
                     new LanServer("MineTogether CI", "127.0.0.1")
@@ -495,8 +497,8 @@ public final class MineTogetherCiProbe {
             return;
         }
 
-        if (!(minecraft.screen instanceof DisconnectedScreen)) return;
-        if (!screenContains(minecraft.screen, expectedMessage)) {
+        if (!(minecraft.gui.screen() instanceof DisconnectedScreen)) return;
+        if (!screenContains(minecraft.gui.screen(), expectedMessage)) {
             fail("Connect rejection screen did not contain: " + expectedMessage);
             return;
         }
@@ -523,7 +525,7 @@ public final class MineTogetherCiProbe {
             fail("Could not find vanilla button " + translationKey);
             return;
         }
-        button.onPress();
+        button.onPress(new KeyEvent(257, 0, 0));
     }
 
     private static void clickModularButton(ModularGuiScreen screen, String translationKey) {
@@ -536,8 +538,9 @@ public final class MineTogetherCiProbe {
         double x = button.xCenter();
         double y = button.yCenter();
         screen.getModularGui().getRoot().updateMouseOver(x, y, false);
-        screen.mouseClicked(x, y, 0);
-        screen.mouseReleased(x, y, 0);
+        MouseButtonEvent event = new MouseButtonEvent(x, y, new MouseButtonInfo(0, 0));
+        screen.mouseClicked(event, false);
+        screen.mouseReleased(event);
     }
 
     private static GuiButton findModularButton(Iterable<GuiElement<?>> elements, String expected) {
@@ -576,15 +579,15 @@ public final class MineTogetherCiProbe {
 
     private static void tickConnectUnavailable(Minecraft minecraft) {
         if (!started) {
-            if (minecraft.screen == null || ticks < 40) return;
-            minecraft.setScreen(new JoinMultiplayerScreen(minecraft.screen));
+            if (minecraft.gui.screen() == null || ticks < 40) return;
+            minecraft.gui.setScreen(new JoinMultiplayerScreen(minecraft.gui.screen()));
             started = true;
             phaseTicks = ticks;
             marker("connect-unavailable-screen-open");
             return;
         }
 
-        if (!(minecraft.screen instanceof JoinMultiplayerScreen)) {
+        if (!(minecraft.gui.screen() instanceof JoinMultiplayerScreen)) {
             fail("Multiplayer screen closed after Connect discovery failed");
             return;
         }
@@ -600,17 +603,18 @@ public final class MineTogetherCiProbe {
     }
 
     private static void connectIfNeeded(Minecraft minecraft) {
-        if (connectionStarted || serverAddress.isEmpty() || minecraft.screen == null || ticks < 40) return;
+        if (connectionStarted || serverAddress.isEmpty() || minecraft.gui.screen() == null || ticks < 40) return;
 
         connectionStarted = true;
         marker(role + "-connecting");
         System.out.println(PREFIX + "Connecting role=" + role + " to " + serverAddress);
         ConnectScreen.startConnecting(
-                minecraft.screen,
+                minecraft.gui.screen(),
                 minecraft,
                 ServerAddress.parseString(serverAddress),
-                new ServerData("MineTogether CI", serverAddress, false),
-                true
+                new ServerData("MineTogether CI", serverAddress, ServerData.Type.OTHER),
+                true,
+                null
         );
     }
 
@@ -646,7 +650,7 @@ public final class MineTogetherCiProbe {
             case 2 -> {
                 if (MineTogetherChat.isChatEnabled()
                         || MineTogetherChat.CHAT_STATE.ircClient.getState() != IrcState.DISCONNECTED) return;
-                minecraft.setScreen(new ChatScreen(""));
+                minecraft.gui.setScreen(new ChatScreen("", false));
                 phaseTicks = ticks;
                 chatPhase = 3;
             }
@@ -824,23 +828,23 @@ public final class MineTogetherCiProbe {
 
     private static void openPublicChat(Minecraft minecraft) {
         MineTogetherChat.setTarget(ChatTarget.PUBLIC);
-        minecraft.setScreen(new ChatScreen(""));
+        minecraft.gui.setScreen(new ChatScreen("", false));
     }
 
     private static void assertChatScreen(Minecraft minecraft) {
-        if (!(minecraft.screen instanceof ChatScreen)) {
+        if (!(minecraft.gui.screen() instanceof ChatScreen)) {
             fail("MineTogether chat screen did not remain open during the local IRC test");
         }
     }
 
     private static void assertMineTogetherChatControls(Minecraft minecraft, boolean expected) {
-        long radioButtons = minecraft.screen.children().stream()
+        long radioButtons = minecraft.gui.screen().children().stream()
                 .filter(child -> child.getClass().getName().endsWith(".RadioButton"))
                 .count();
-        long sliders = minecraft.screen.children().stream()
+        long sliders = minecraft.gui.screen().children().stream()
                 .filter(child -> child.getClass().getName().endsWith(".SlideButton"))
                 .count();
-        long iconButtons = minecraft.screen.children().stream()
+        long iconButtons = minecraft.gui.screen().children().stream()
                 .filter(child -> child.getClass().getName().endsWith(".IconButton"))
                 .count();
         boolean present = radioButtons >= 2 && sliders >= 3 && iconButtons >= 1;
@@ -851,7 +855,7 @@ public final class MineTogetherCiProbe {
     }
 
     private static void submitChatThroughUi(Minecraft minecraft, String message) {
-        if (!(minecraft.screen instanceof ChatScreen screen)) {
+        if (!(minecraft.gui.screen() instanceof ChatScreen screen)) {
             fail("Cannot submit chat because the vanilla ChatScreen is not open");
             return;
         }
@@ -865,7 +869,7 @@ public final class MineTogetherCiProbe {
             return;
         }
         input.setValue(message);
-        if (!screen.keyPressed(257, 0, 0)) { // GLFW_KEY_ENTER
+        if (!screen.keyPressed(new KeyEvent(257, 0, 0))) { // GLFW_KEY_ENTER
             fail("The vanilla ChatScreen did not handle the Enter key");
         }
     }
@@ -1047,11 +1051,8 @@ public final class MineTogetherCiProbe {
         return (Map<UUID, ?>) field.get(null);
     }
 
-    private static boolean canSendEmoteToServer() throws ReflectiveOperationException {
-        Field field = EmoteNetworking.class.getDeclaredField("START_C2S");
-        field.setAccessible(true);
-        MessageType type = (MessageType) field.get(null);
-        return type != null && NetworkManager.canServerReceive(type.getId());
+    private static boolean canSendEmoteToServer() {
+        return EmoteNetworking.isClientSupportAnnounced() && MineTogetherClientPlatform.canSendEmoteToServer();
     }
 
     @SuppressWarnings("unchecked")

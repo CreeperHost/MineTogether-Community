@@ -1,5 +1,10 @@
 gradle.projectsEvaluated {
     def root = gradle.rootProject
+    // Init scripts also run for the buildSrc build on current Gradle. Only the
+    // main MineTogether build owns the standalone Connect service sources.
+    if (!root.file(".github/connect-service").isDirectory()) {
+        return
+    }
     def commonProject = root.findProject(":common")
     if (commonProject == null) {
         throw new GradleException("The local MTConnect CI service requires project ':common'")
@@ -28,6 +33,7 @@ gradle.projectsEvaluated {
     addServiceDependency(serviceSourceSet.compileOnlyConfigurationName, "org.jetbrains:annotations:23.1.0")
     addServiceDependency(serviceTestSourceSet.implementationConfigurationName, "org.junit.jupiter:junit-jupiter-api:5.8.2")
     addServiceDependency(serviceTestSourceSet.runtimeOnlyConfigurationName, "org.junit.jupiter:junit-jupiter-engine:5.8.2")
+    addServiceDependency(serviceTestSourceSet.runtimeOnlyConfigurationName, "org.junit.platform:junit-platform-launcher:1.8.2")
 
     def serviceTest = commonProject.tasks.register("ciConnectServiceTest", Test) {
         group = "verification"
