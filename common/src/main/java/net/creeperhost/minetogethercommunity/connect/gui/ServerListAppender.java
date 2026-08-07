@@ -47,11 +47,13 @@ public class ServerListAppender {
 
     private Map<RemoteServer, FriendServerEntry> serverEntries = new HashMap<>();
     private int tick = 0;
+    private boolean connectAvailable;
 
     public void init(ServerSelectionList serverList, JoinMultiplayerScreen multiplayerScreen) {
         this.serverList = serverList;
         this.multiplayerScreen = multiplayerScreen;
         ConnectHandler.clearAndReset();
+        connectAvailable = ConnectHandler.isEnabled();
         ConnectHandler.updateFriendsSearch();
     }
 
@@ -60,6 +62,10 @@ public class ServerListAppender {
         ConnectHandler.updateFriendsSearch();
 
         boolean dirty = false;
+        if (connectAvailable != ConnectHandler.isEnabled()) {
+            connectAvailable = ConnectHandler.isEnabled();
+            dirty = true;
+        }
         List<RemoteServer> remoteServers = new ArrayList<>(ConnectHandler.getRemoteServers());
 
         //Add new servers
@@ -248,7 +254,6 @@ public class ServerListAppender {
         return serverList;
     }
 }
-
 
 
 
