@@ -26,6 +26,7 @@ import net.creeperhost.minetogethercommunity.cosmetic.CosmeticApiClient;
 import net.creeperhost.minetogethercommunity.cosmetic.CosmeticDownloader;
 import net.creeperhost.minetogethercommunity.cosmetic.CosmeticSelections;
 import net.creeperhost.minetogethercommunity.cosmetic.PlayerCosmeticCache;
+import net.creeperhost.minetogethercommunity.cosmetic.emote.EmoteNetworking;
 import net.creeperhost.minetogethercommunity.cosmetic.emote.EmotePlayer;
 import net.creeperhost.minetogethercommunity.gui.SettingGui;
 import net.creeperhost.minetogethercommunity.orderform.OrderGui;
@@ -77,6 +78,7 @@ public class MineTogetherClient {
         FriendChatNotifier.init();
         ActivityTelemetry.init();
         Keybindings.init();
+        EmoteNetworking.initClient();
         Integration.runOptional("ftbquests", () -> FTBQuestsCompat::registerArchitecturyEvents);
         Integration.runOptional("bountiful", () -> BountifulCompat::register);
         Integration.runOptional("hardcorequesting", () -> HQMCompat::register);
