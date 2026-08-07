@@ -8,7 +8,6 @@ import net.creeperhost.minetogethercommunity.connect.netty.NettyClient;
 import net.creeperhost.minetogether.lib.chat.profile.Profile;
 import net.creeperhost.minetogether.lib.chat.profile.ProfileManager;
 import net.creeperhost.minetogether.session.JWebToken;
-import net.creeperhost.minetogether.session.MineTogetherSession;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.server.IntegratedServer;
 import net.minecraft.network.chat.Component;
@@ -82,7 +81,7 @@ public class ConnectHandler {
 
         CompletableFuture.runAsync(() -> {
             try { // TODO, This should be done outside somewhere.
-                JWebToken token = MineTogetherSession.getDefault().getTokenAsync().get();
+                JWebToken token = ConnectCredentials.get();
                 publishedServer = NettyClient.publishServer(server, getEndpoint(), token, getModpackKey(), maxPlayers);
             } catch (Exception e) {
                 Minecraft.getInstance().gui.hud.getChat().addClientSystemMessage(Component.translatable("minetogether.connect.open.failed", e.getMessage()));
@@ -146,7 +145,9 @@ public class ConnectHandler {
                     ConnectPackResolver.prefetch(server.modpackKey);
                     keep.add(server);
                     if (!AVAILABLE_SERVER_MAP.containsKey(server)) {
-                        Profile profile = profileManager.lookupProfile(entry.friend);
+                        Profile profile = isLocalConnectTest()
+                                ? profileManager.lookupProfileStale(entry.friend)
+                                : profileManager.lookupProfile(entry.friend);
                         AVAILABLE_SERVER_MAP.put(server, profile);
                     }
                 }
@@ -195,7 +196,7 @@ public class ConnectHandler {
     }
 
     private static List<CFriendServers.ServerEntry> requestFriendServers() throws Exception {
-        JWebToken token = MineTogetherSession.getDefault().getTokenAsync().get();
+        JWebToken token = ConnectCredentials.get();
         return NettyClient.getFriendServers(getEndpoint(), token, getModpackKey()).servers;
     }
 
@@ -214,6 +215,12 @@ public class ConnectHandler {
 
     public static int getTestSearchAttempts() {
         return TEST_SEARCH_ATTEMPTS.get();
+    }
+
+    private static boolean isLocalConnectTest() {
+        String role = System.getenv("MINETOGETHER_CI_ROLE");
+        return role != null && role.startsWith("connect-")
+                && System.getenv("MINETOGETHER_CI_CONNECT_UUID") != null;
     }
 
     private static @Nullable String getModpackKey() {
