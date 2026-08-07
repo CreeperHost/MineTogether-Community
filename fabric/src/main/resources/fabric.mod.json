@@ -22,6 +22,9 @@
     "entrypoints": {
         "main": [
             "net.creeperhost.minetogethercommunity.fabric.MineTogetherFabric"
+        ],
+        "client": [
+            "net.creeperhost.minetogethercommunity.fabric.MineTogetherFabricClient"
         ]
     },
     "depends": {

@@ -36,13 +36,13 @@ public class Keybindings {
     private static boolean wasPickDown;
 
     public static void init() {
-        MineTogetherPlatform.registerKeyMapping(OPEN_FRIEND_CHAT);
-        MineTogetherPlatform.registerKeyMapping(OPEN_GLOBAL_CHAT);
-        MineTogetherPlatform.registerKeyMapping(OPEN_SETTINGS);
-        MineTogetherPlatform.registerKeyMapping(OPEN_COSMETICS);
-        MineTogetherPlatform.registerKeyMapping(OPEN_EMOTES);
+        MineTogetherClientPlatform.registerKeyMapping(OPEN_FRIEND_CHAT);
+        MineTogetherClientPlatform.registerKeyMapping(OPEN_GLOBAL_CHAT);
+        MineTogetherClientPlatform.registerKeyMapping(OPEN_SETTINGS);
+        MineTogetherClientPlatform.registerKeyMapping(OPEN_COSMETICS);
+        MineTogetherClientPlatform.registerKeyMapping(OPEN_EMOTES);
         for (KeyMapping mapping : PLAY_FAVORITE_EMOTES) {
-            MineTogetherPlatform.registerKeyMapping(mapping);
+            MineTogetherClientPlatform.registerKeyMapping(mapping);
         }
         PolyClientTickEvents.CLIENT_TICK_END.register(Keybindings::clientTick);
     }

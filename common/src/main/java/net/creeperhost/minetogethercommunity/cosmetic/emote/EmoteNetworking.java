@@ -1,9 +1,11 @@
 package net.creeperhost.minetogethercommunity.cosmetic.emote;
 
 import net.creeperhost.minetogethercommunity.MineTogether;
+import net.creeperhost.minetogethercommunity.MineTogetherClientPlatform;
 import net.creeperhost.minetogethercommunity.MineTogetherPlatform;
 import net.creeperhost.minetogethercommunity.cosmetic.CosmeticDownloader;
 import net.creeperhost.minetogethercommunity.cosmetic.CosmeticIdValidator;
+import net.creeperhost.polylib.event.events.client.PolyClientTickEvents;
 import net.minecraft.client.Minecraft;
 import net.minecraft.network.RegistryFriendlyByteBuf;
 import net.minecraft.network.codec.StreamCodec;
@@ -16,18 +18,23 @@ import org.apache.logging.log4j.Logger;
 import java.util.UUID;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.Set;
 
 public class EmoteNetworking {
 
     private static final Logger LOGGER = LogManager.getLogger();
     private static final int MAX_EMOTE_ID_LENGTH = 128;
     private static final Map<UUID, String> ACTIVE_PERSISTENT_EMOTES = new ConcurrentHashMap<>();
+    private static final Set<UUID> EMOTE_CAPABLE_CLIENTS = ConcurrentHashMap.newKeySet();
 
+    public static final CustomPacketPayload.Type<EmoteHelloC2S> HELLO_C2S_TYPE = type("emote_hello_c2s");
     public static final CustomPacketPayload.Type<StartEmoteC2S> START_C2S_TYPE = type("emote_start_c2s");
     public static final CustomPacketPayload.Type<StartEmoteS2C> START_S2C_TYPE = type("emote_start_s2c");
     public static final CustomPacketPayload.Type<StopEmoteC2S> STOP_C2S_TYPE = type("emote_stop_c2s");
     public static final CustomPacketPayload.Type<StopEmoteS2C> STOP_S2C_TYPE = type("emote_stop_s2c");
 
+    public static final StreamCodec<RegistryFriendlyByteBuf, EmoteHelloC2S> HELLO_C2S_CODEC =
+            CustomPacketPayload.codec(EmoteHelloC2S::write, EmoteHelloC2S::new);
     public static final StreamCodec<RegistryFriendlyByteBuf, StartEmoteC2S> START_C2S_CODEC =
             CustomPacketPayload.codec(StartEmoteC2S::write, StartEmoteC2S::new);
     public static final StreamCodec<RegistryFriendlyByteBuf, StartEmoteS2C> START_S2C_CODEC =
@@ -38,6 +45,7 @@ public class EmoteNetworking {
             CustomPacketPayload.codec(StopEmoteS2C::write, StopEmoteS2C::new);
 
     private static boolean initialized;
+    private static boolean clientSupportAnnounced;
 
     public static void init() {
         if (initialized) return;
@@ -45,14 +53,38 @@ public class EmoteNetworking {
         LOGGER.debug("Emote networking initialized");
     }
 
+    /** Called from the client entrypoint; retries until the server's C2S channel is ready. */
+    public static void initClient() {
+        PolyClientTickEvents.CLIENT_TICK_END.register(mc -> {
+            if (mc.player == null || mc.getConnection() == null) {
+                clientSupportAnnounced = false;
+                return;
+            }
+            if (!clientSupportAnnounced && MineTogetherClientPlatform.canSendEmoteHelloToServer()) {
+                MineTogetherClientPlatform.sendEmoteHelloToServer(new EmoteHelloC2S());
+                clientSupportAnnounced = true;
+            }
+        });
+    }
+
+    public static boolean isClientSupportAnnounced() {
+        return clientSupportAnnounced;
+    }
+
+    public static void handleHelloFromClient(ServerPlayer serverPlayer) {
+        EMOTE_CAPABLE_CLIENTS.add(serverPlayer.getUUID());
+        syncPersistentEmotes(serverPlayer);
+        LOGGER.debug("Registered emote packet support for {}", serverPlayer.getGameProfile().name());
+    }
+
     public static void tryBroadcastStart(String emoteId, boolean persistent) {
-        if (!validEmoteId(emoteId) || !MineTogetherPlatform.canSendEmoteToServer()) return;
-        MineTogetherPlatform.sendEmoteStartToServer(new StartEmoteC2S(emoteId, persistent));
+        if (!clientSupportAnnounced || !validEmoteId(emoteId) || !MineTogetherClientPlatform.canSendEmoteToServer()) return;
+        MineTogetherClientPlatform.sendEmoteStartToServer(new StartEmoteC2S(emoteId, persistent));
     }
 
     public static void tryBroadcastStop() {
-        if (!MineTogetherPlatform.canSendEmoteToServer()) return;
-        MineTogetherPlatform.sendEmoteStopToServer(new StopEmoteC2S());
+        if (!clientSupportAnnounced || !MineTogetherClientPlatform.canSendEmoteToServer()) return;
+        MineTogetherClientPlatform.sendEmoteStopToServer(new StopEmoteC2S());
     }
 
     public static void handleStartFromClient(ServerPlayer serverPlayer, String emoteId, boolean persistent) {
@@ -66,6 +98,7 @@ public class EmoteNetworking {
         StartEmoteS2C packet = new StartEmoteS2C(playerId, emoteId);
         for (ServerPlayer target : serverPlayer.level().getServer().getPlayerList().getPlayers()) {
             if (target == serverPlayer) continue;
+            if (!EMOTE_CAPABLE_CLIENTS.contains(target.getUUID())) continue;
             MineTogetherPlatform.sendEmoteStartToClient(target, packet);
         }
     }
@@ -76,6 +109,7 @@ public class EmoteNetworking {
         StopEmoteS2C packet = new StopEmoteS2C(playerId);
         for (ServerPlayer target : serverPlayer.level().getServer().getPlayerList().getPlayers()) {
             if (target == serverPlayer) continue;
+            if (!EMOTE_CAPABLE_CLIENTS.contains(target.getUUID())) continue;
             MineTogetherPlatform.sendEmoteStopToClient(target, packet);
         }
     }
@@ -103,6 +137,7 @@ public class EmoteNetworking {
     }
 
     public static void syncPersistentEmotes(ServerPlayer target) {
+        if (!EMOTE_CAPABLE_CLIENTS.contains(target.getUUID())) return;
         for (Map.Entry<UUID, String> active : ACTIVE_PERSISTENT_EMOTES.entrySet()) {
             if (!active.getKey().equals(target.getUUID())) {
                 MineTogetherPlatform.sendEmoteStartToClient(target, new StartEmoteS2C(active.getKey(), active.getValue()));
@@ -112,10 +147,25 @@ public class EmoteNetworking {
 
     public static void playerQuit(UUID playerId) {
         ACTIVE_PERSISTENT_EMOTES.remove(playerId);
+        EMOTE_CAPABLE_CLIENTS.remove(playerId);
     }
 
     private static <T extends CustomPacketPayload> CustomPacketPayload.Type<T> type(String path) {
         return new CustomPacketPayload.Type<>(Identifier.fromNamespaceAndPath(MineTogether.MOD_ID, path));
+    }
+
+    public record EmoteHelloC2S() implements CustomPacketPayload {
+        public EmoteHelloC2S(RegistryFriendlyByteBuf buf) {
+            this();
+        }
+
+        public void write(RegistryFriendlyByteBuf buf) {
+        }
+
+        @Override
+        public Type<EmoteHelloC2S> type() {
+            return HELLO_C2S_TYPE;
+        }
     }
 
     public record StartEmoteC2S(String emoteId, boolean persistent) implements CustomPacketPayload {
