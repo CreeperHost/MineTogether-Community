@@ -249,8 +249,18 @@ public final class EmoteNetworking {
 
         @SubscribeEvent
         public void onPlayerLogout(PlayerEvent.PlayerLoggedOutEvent event) {
-            ACTIVE_PERSISTENT_EMOTES.remove(event.player.getUniqueID());
-            CAPABLE_CLIENTS.remove(event.player.getUniqueID());
+            UUID playerId = event.player.getUniqueID();
+            boolean wasActive = ACTIVE_PERSISTENT_EMOTES.remove(playerId) != null;
+            CAPABLE_CLIENTS.remove(playerId);
+            MinecraftServer server = FMLCommonHandler.instance().getMinecraftServerInstance();
+            if (!wasActive || server == null) return;
+
+            StopEmoteS2C packet = new StopEmoteS2C(playerId);
+            for (EntityPlayerMP target : server.getPlayerList().getPlayers()) {
+                if (!target.getUniqueID().equals(playerId)) {
+                    sendToCapableClient(packet, target);
+                }
+            }
         }
     }
 
