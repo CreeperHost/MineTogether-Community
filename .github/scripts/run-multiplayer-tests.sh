@@ -214,7 +214,7 @@ start_client() {
   fi
   [[ "$version" == "$launch_regex" ]] && command+=( -regex )
 
-  start_group "$directory" "$log" "${environment[@]}" xvfb-run -a java -jar "$hmc_jar" --command "${command[@]}" --jvm "\"$jvm\"" --game-args "--quickPlayMultiplayer=127.0.0.1:$port"
+  start_group "$directory" "$log" "${environment[@]}" java -jar "$hmc_jar" --command "${command[@]}" --jvm "\"$jvm\"" --game-args "--quickPlayMultiplayer=127.0.0.1:$port"
   remember_group "$LAST_PID"
 }
 
