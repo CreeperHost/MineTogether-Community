@@ -10,7 +10,7 @@ import net.creeperhost.minetogether.lib.chat.profile.Profile;
 
 import net.creeperhost.minetogether.session.JWebToken;
 
-import net.creeperhost.minetogether.session.MineTogetherSession;
+import net.creeperhost.minetogethercommunity.connect.ConnectCredentials;
 
 import net.creeperhost.minetogethercommunity.connect.ConnectHandler;
 
@@ -252,7 +252,7 @@ public class ServerListAppender {
 
     public void pingServer(RemoteServer server, Profile profile) throws Exception {
 
-        JWebToken token = MineTogetherSession.getDefault().getTokenAsync().get();
+        JWebToken token = ConnectCredentials.get();
 
         ConnectHost endpoint = ConnectHandler.getSpecificEndpoint(server.node);
 
