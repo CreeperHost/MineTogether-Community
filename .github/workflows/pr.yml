@@ -1,22 +1,190 @@
-name: PR Compile Check
+name: Commit Tests
 
 on:
+  push:
   pull_request:
-    branches:
-      - '1.7.10'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: commit-tests-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
-  build:
+  metadata:
+    name: Detect branch test matrix
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    outputs:
+      java: ${{ steps.detect.outputs.java }}
+      minecraft: ${{ steps.detect.outputs.minecraft }}
+      runtime-matrix: ${{ steps.detect.outputs.runtime-matrix }}
+      multiplayer-matrix: ${{ steps.detect.outputs.multiplayer-matrix }}
     steps:
-      - uses: actions/checkout@v2
-      - name: Set up JDK 8
-        uses: actions/setup-java@v2
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - name: Detect Java, Minecraft and loader
+        id: detect
+        shell: bash
+        run: bash .github/scripts/detect-test-matrix.sh
+
+  build:
+    name: Build and unit tests
+    needs: metadata
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - name: Set up JDK ${{ needs.metadata.outputs.java }}
+        uses: actions/setup-java@b6effb05e454b25005698d916606bdc6ffcbf961 # v5
         with:
-          distribution: 'temurin'
-          java-version: '8'
-      - name: Build with Gradle
+          distribution: temurin
+          java-version: ${{ needs.metadata.outputs.java }}
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@ed408507eac070d1f99cc633dbcf757c94c7933a # v4
+      - name: Build, test and stage production client
+        shell: bash
         run: |
+          sed -i 's/\r$//' ./gradlew
           chmod +x ./gradlew
-          ./gradlew build --stacktrace --no-daemon
+          mkdir -p build/ci
+          set -o pipefail
+          ./gradlew clean build stageCiRuntime \
+            --init-script .github/scripts/stage-ci-runtime.gradle \
+            --stacktrace --no-daemon --console=plain 2>&1 | tee build/ci/gradle.log
+      - name: Verify production artifacts
+        shell: bash
+        run: bash .github/scripts/verify-staged-runtime.sh
+      - name: Upload runtime client
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: runtime-clients
+          path: build/ci-runtime
+          if-no-files-found: error
+          retention-days: 1
+      - name: Upload build diagnostics
+        if: failure()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: build-diagnostics
+          path: |
+            build/ci
+            build/reports
+            build/test-results
+          if-no-files-found: ignore
+          retention-days: 7
+
+  runtime:
+    name: Runtime (${{ matrix.loader }})
+    needs: [metadata, build]
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    strategy:
+      fail-fast: false
+      matrix:
+        include: ${{ fromJSON(needs.metadata.outputs.runtime-matrix) }}
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - name: Set up JDK ${{ needs.metadata.outputs.java }}
+        uses: actions/setup-java@b6effb05e454b25005698d916606bdc6ffcbf961 # v5
+        with:
+          distribution: temurin
+          java-version: ${{ needs.metadata.outputs.java }}
+      - name: Download staged client
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        with:
+          name: runtime-clients
+          path: build/ci-runtime
+      - name: Install runtime mod
+        shell: bash
+        run: |
+          mkdir -p run/mods
+          cp -v build/ci-runtime/forge/mods/*.jar run/mods/
+      - name: Launch production client
+        id: minecraft
+        uses: headlesshq/mc-runtime-test@fbafe02f89f4f13682e7b16dbcee6b6a43f4faca # 4.5.1
+        with:
+          mc: ${{ needs.metadata.outputs.minecraft }}
+          modloader: forge
+          regex: ${{ matrix.regex }}
+          mc-runtime-test: lexforge
+          java: ${{ needs.metadata.outputs.java }}
+          cache-mc: github
+      - name: Check runtime log
+        if: always()
+        shell: bash
+        run: bash .github/scripts/check-runtime-log.sh
+      - name: Upload runtime diagnostics
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: runtime-forge
+          path: |
+            run/logs
+            run/crash-reports
+            run/mc-runtime-test-results
+          if-no-files-found: ignore
+          retention-days: 7
+
+  multiplayer:
+    name: Multiplayer (Forge)
+    needs: [metadata, build]
+    if: github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    strategy:
+      fail-fast: false
+      matrix:
+        include: ${{ fromJSON(needs.metadata.outputs.multiplayer-matrix) }}
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - name: Set up JDK ${{ needs.metadata.outputs.java }}
+        uses: actions/setup-java@b6effb05e454b25005698d916606bdc6ffcbf961 # v5
+        with:
+          distribution: temurin
+          java-version: ${{ needs.metadata.outputs.java }}
+      - name: Download staged client and server mod
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        with:
+          name: runtime-clients
+          path: build/ci-runtime
+      - name: Cache HeadlessMC Minecraft files
+        uses: actions/cache@0400d5f644dc74513175e3cd8d07132dd4860809 # v4
+        with:
+          path: build/ci-multiplayer-cache/minecraft
+          key: headlessmc-${{ runner.os }}-${{ needs.metadata.outputs.minecraft }}-forge-${{ matrix['loader-version'] }}
+      - name: Install HeadlessMC
+        shell: bash
+        run: |
+          mkdir -p build/tools
+          curl --fail --location --retry 3 \
+            https://github.com/headlesshq/headlessmc/releases/download/2.10.0/headlessmc-launcher-wrapper-2.10.0.jar \
+            --output build/tools/headlessmc-launcher-wrapper.jar
+          echo 'bf80d84516eeeb9a51fa35894c4466b146d55d0146cd6d2adc49fdd231654536  build/tools/headlessmc-launcher-wrapper.jar' \
+            | sha256sum --check --strict
+      - name: Run compatibility and packet relay scenarios
+        shell: bash
+        env:
+          MINETOGETHER_CI_MINECRAFT_CACHE: build/ci-multiplayer-cache/minecraft
+        run: >-
+          bash .github/scripts/run-multiplayer-tests.sh
+          forge
+          "${{ needs.metadata.outputs.minecraft }}"
+          "${{ matrix['loader-version'] }}"
+          "${{ needs.metadata.outputs.java }}"
+          "${{ matrix.regex }}"
+          build/tools/headlessmc-launcher-wrapper.jar
+      - name: Upload multiplayer diagnostics
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: multiplayer-forge
+          path: |
+            build/ci-multiplayer/forge/logs
+            build/ci-multiplayer/forge/results
+            build/ci-multiplayer/forge/clients/*/game/logs
+            build/ci-multiplayer/forge/clients/*/game/crash-reports
+            build/ci-multiplayer/forge/manager/HeadlessMC/servers/**/logs
+            build/ci-multiplayer/forge/manager/HeadlessMC/servers/**/crash-reports
+          if-no-files-found: ignore
+          retention-days: 7
