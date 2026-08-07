@@ -57,7 +57,6 @@ public class ServerListAppender {
     }
 
     public void init(GuiMultiplayer screen) {
-        if (!ConnectHandler.isEnabled()) return;
         if (screen == multiplayerScreen && serverList != null) {
             appendEntries();
             return;
@@ -73,7 +72,7 @@ public class ServerListAppender {
 
     public void tick(GuiScreen currentScreen) {
         processPingConnections();
-        if (!(currentScreen instanceof GuiMultiplayer) || !ConnectHandler.isEnabled()) {
+        if (!(currentScreen instanceof GuiMultiplayer)) {
             remove();
             return;
         }

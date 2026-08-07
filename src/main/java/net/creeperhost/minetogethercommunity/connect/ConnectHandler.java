@@ -33,8 +33,10 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.Callable;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.atomic.AtomicInteger;
 
 public class ConnectHandler {
 
@@ -42,6 +44,14 @@ public class ConnectHandler {
     private static final Map<RemoteServer, Profile> AVAILABLE_SERVER_MAP = new HashMap<>();
     private static final ExecutorService SEARCH_EXECUTOR = Executors.newSingleThreadExecutor(new ThreadFactoryBuilder().setDaemon(true).setNameFormat("MT Connect Friend Search").build());
     private static final ExecutorService SHARE_EXECUTOR = Executors.newSingleThreadExecutor(new ThreadFactoryBuilder().setDaemon(true).setNameFormat("MT Connect Share").build());
+    private static final ConnectAvailability AVAILABILITY = new ConnectAvailability();
+    private static final AtomicInteger TEST_SEARCH_ATTEMPTS = new AtomicInteger();
+    private static volatile Callable<List<CFriendServers.ServerEntry>> friendSearch = new Callable<List<CFriendServers.ServerEntry>>() {
+        @Override
+        public List<CFriendServers.ServerEntry> call() throws Exception {
+            return requestFriendServers();
+        }
+    };
     private static final Gson GSON = new Gson();
     private static final Field PLAYER_LIST_MAX_PLAYERS = findField(PlayerList.class, "maxPlayers", "field_72405_c");
     private static final Field INTEGRATED_SERVER_IS_PUBLIC = findField(IntegratedServer.class, "isPublic", "field_71346_p");
@@ -146,7 +156,7 @@ public class ConnectHandler {
     }
 
     public static boolean isEnabled() {
-        return true;
+        return AVAILABILITY.isAvailable();
     }
 
     public static void publishToFriends(final GameType gameType, final boolean cheats, final int maxPlayers) {
@@ -298,17 +308,21 @@ public class ConnectHandler {
             return;
         }
 
-        if (System.currentTimeMillis() - lastSearch < 5000) return;
-        lastSearch = System.currentTimeMillis();
+        long now = System.currentTimeMillis();
+        if (!AVAILABILITY.shouldAttempt(now) || now - lastSearch < 5000) return;
+        lastSearch = now;
         activeSearch = CompletableFuture.runAsync(new Runnable() {
             @Override
             public void run() {
                 searchResult = null;
                 try {
-                    JWebToken token = requireSessionToken();
-                    searchResult = NettyClient.getFriendServers(getEndpoint(), token, getModpackKey()).servers;
+                    searchResult = friendSearch.call();
+                    AVAILABILITY.succeeded();
                 } catch (Throwable ex) {
-                    LOGGER.error("Failed to search for friend servers", ex);
+                    AVAILABLE_SERVER_MAP.clear();
+                    if (AVAILABILITY.failed(System.currentTimeMillis(), ex)) {
+                        LOGGER.error("MineTogether Connect discovery is unavailable; retrying in 30 seconds.", ex);
+                    }
                 }
             }
         }, SEARCH_EXECUTOR);
@@ -331,6 +345,31 @@ public class ConnectHandler {
         AVAILABLE_SERVER_MAP.clear();
         lastSearch = 0;
         endpoint = null;
+    }
+
+    private static List<CFriendServers.ServerEntry> requestFriendServers() throws Exception {
+        JWebToken token = requireSessionToken();
+        return NettyClient.getFriendServers(getEndpoint(), token, getModpackKey()).servers;
+    }
+
+    /** CI-only seam: exercises unavailable discovery without contacting production services. */
+    public static void configureUnavailableForTesting() {
+        if (!"connect-unavailable".equals(System.getenv("MINETOGETHER_CI_ROLE"))) {
+            throw new IllegalStateException("Local Connect testing is only available to the CI probe");
+        }
+        TEST_SEARCH_ATTEMPTS.set(0);
+        AVAILABILITY.reset();
+        friendSearch = new Callable<List<CFriendServers.ServerEntry>>() {
+            @Override
+            public List<CFriendServers.ServerEntry> call() throws Exception {
+                TEST_SEARCH_ATTEMPTS.incrementAndGet();
+                throw new IOException("MineTogether CI forced discovery failure");
+            }
+        };
+    }
+
+    public static int getTestSearchAttempts() {
+        return TEST_SEARCH_ATTEMPTS.get();
     }
 
     public static void setServerMaxPlayers(IntegratedServer server, int maxPlayers) {
