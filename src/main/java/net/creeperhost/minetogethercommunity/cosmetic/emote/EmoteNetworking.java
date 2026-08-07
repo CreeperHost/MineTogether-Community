@@ -219,7 +219,20 @@ public final class EmoteNetworking {
 
         @SubscribeEvent
         public void onPlayerLogout(PlayerEvent.PlayerLoggedOutEvent event) {
-            ACTIVE_PERSISTENT_EMOTES.remove(event.player.getUniqueID());
+            if (!(event.player instanceof EntityPlayerMP)) return;
+            EntityPlayerMP sender = (EntityPlayerMP) event.player;
+            UUID playerId = sender.getUniqueID();
+            if (ACTIVE_PERSISTENT_EMOTES.remove(playerId) == null) return;
+
+            MinecraftServer server = FMLCommonHandler.instance().getMinecraftServerInstance();
+            if (server == null) return;
+            StopEmoteS2C packet = new StopEmoteS2C(playerId);
+            List<EntityPlayerMP> players = server.getConfigurationManager().playerEntityList;
+            for (EntityPlayerMP target : players) {
+                if (target == sender || !canReceiveEmotePackets(target)) continue;
+                CHANNEL.sendTo(packet, target);
+            }
+            LOGGER.debug("Cleared persistent emote state for disconnected player {}", sender.getName());
         }
     }
 
