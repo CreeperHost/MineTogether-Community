@@ -10,6 +10,14 @@ fi
 found=0
 while IFS= read -r -d '' loader_dir; do
   loader="$(basename "$loader_dir")"
+
+  if [[ "$loader" == "connect-service" ]]; then
+    service_jar="$(find "$loader_dir" -maxdepth 1 -type f -name '*.jar' -print -quit)"
+    [[ -n "$service_jar" ]] || { echo "Missing local Connect service jar" >&2; exit 1; }
+    unzip -tqq "$service_jar"
+    echo "Verified local Connect service: $(basename "$service_jar")"
+    continue
+  fi
   mods_dir="$loader_dir/mods"
   probe_dir="$loader_dir/probe"
   [[ -d "$mods_dir" ]] || { echo "Missing mods directory for $loader" >&2; exit 1; }
