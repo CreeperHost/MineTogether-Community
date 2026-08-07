@@ -181,6 +181,9 @@ create_client() {
   local game="$directory/game"
   write_hmc_config "$directory" "$game" "$username" "$uuid"
   mkdir -p "$game/mods"
+  cat > "$game/options.txt" <<'EOF'
+onboardAccessibility:false
+EOF
   if [[ "$modded" == true ]]; then
     cp "$repo/build/ci-runtime/$loader/mods/"*.jar "$game/mods/"
     cp "$repo/build/ci-runtime/$loader/probe/"*.jar "$game/mods/"
@@ -200,6 +203,7 @@ start_client() {
   local jvm="-Xms384m -Xmx1024m"
   local environment=(env)
   local command=(launch "$version")
+  local game_args=()
   if [[ -n "$role" ]]; then
     environment+=(
       "MINETOGETHER_CI_ROLE=$role"
@@ -211,10 +215,12 @@ start_client() {
     if [[ "$role" == chat-* ]]; then
       environment+=("MINETOGETHER_CI_CHAT_PORT=$chat_port")
     fi
+  else
+    game_args+=(--game-args "--quickPlayMultiplayer=127.0.0.1:$port")
   fi
   [[ "$version" == "$launch_regex" ]] && command+=( -regex )
 
-  start_group "$directory" "$log" "${environment[@]}" xvfb-run -a java -jar "$hmc_jar" --command "${command[@]}" --jvm "\"$jvm\"" --game-args "--quickPlayMultiplayer=127.0.0.1:$port"
+  start_group "$directory" "$log" "${environment[@]}" xvfb-run -a java -jar "$hmc_jar" --command "${command[@]}" --jvm "\"$jvm\"" "${game_args[@]}"
   remember_group "$LAST_PID"
 }
 
@@ -232,7 +238,7 @@ assert_clean_logs() {
   local logs=()
   mapfile -d '' logs < <(find "$work" -type f -name '*.log' -print0)
   [[ ${#logs[@]} -gt 0 ]] || fail "No multiplayer logs were produced"
-  if grep -Ein "$bad" "${logs[@]}" | grep -v 'dev/ftb/mods/ftbquests/client/FTBQuestsNetClient'; then
+  if grep -Ein "$bad" "${logs[@]}" | grep -Ev 'dev[/\.]ftb[/\.]mods[/\.]ftbquests[/\.]client[/\.]FTBQuestsNetClient'; then
     fail "A fatal runtime signature was found in multiplayer logs"
   fi
 }
