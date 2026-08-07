@@ -1,8 +1,13 @@
 package net.creeperhost.minetogethercommunity.util;
 
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.io.TempDir;
 
+import java.io.IOException;
+import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -12,6 +17,9 @@ import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class ModPackInfoTest {
+
+    @TempDir
+    Path temporaryFolder;
 
     @Test
     void modrinthIdentityUsesProjectForConnectAndVersionForLookup() {
@@ -108,5 +116,103 @@ class ModPackInfoTest {
         assertFalse(missing.isSuccessful());
         assertFalse(serverError.isNotFound());
         assertEquals("https://www.creeperhost.net/json/modpacks/modrinth/version%20id", ModrinthPackLookup.urlFor("version id"));
+    }
+
+    @Test
+    void detectsFtbAppOfficialPackFromStaticInstanceFixture() throws IOException {
+        Path game = fixtureGame("ftb-app-official", "instance.json");
+
+        ModPackInfo.PackIdentity identity = detect(game);
+
+        assertNotNull(identity);
+        assertEquals(ModPackInfo.PackSource.FTB, identity.source());
+        assertEquals("119", identity.projectId());
+        assertEquals("12034", identity.versionId());
+        assertEquals("MTE5MTIwMzQ=", identity.connectKey());
+    }
+
+    @Test
+    void detectsFtbAppCursePackFromStaticInstanceFixture() throws IOException {
+        Path game = fixtureGame("ftb-app-curse", "instance.json");
+
+        ModPackInfo.PackIdentity identity = detect(game);
+
+        assertNotNull(identity);
+        assertEquals(ModPackInfo.PackSource.CURSEFORGE, identity.source());
+        assertEquals("925200", identity.projectId());
+    }
+
+    @Test
+    void detectsCurseForgeLauncherFromStaticFixture() throws IOException {
+        Path game = fixtureGame("curseforge", "minecraftinstance.json");
+
+        ModPackInfo.PackIdentity identity = detect(game);
+
+        assertNotNull(identity);
+        assertEquals(ModPackInfo.PackSource.CURSEFORGE, identity.source());
+        assertEquals("925200", identity.projectId());
+    }
+
+    @Test
+    void detectsAllPrismManagedPackCataloguesFromStaticFixtures() throws IOException {
+        ModPackInfo.PackIdentity curse = detect(fixturePrism("prism-curse"));
+        ModPackInfo.PackIdentity ftb = detect(fixturePrism("prism-ftb"));
+        ModPackInfo.PackIdentity modrinth = detect(fixturePrism("prism-modrinth"));
+
+        assertNotNull(curse);
+        assertEquals(ModPackInfo.PackSource.CURSEFORGE, curse.source());
+        assertEquals("925200", curse.projectId());
+        assertNotNull(ftb);
+        assertEquals(ModPackInfo.PackSource.FTB, ftb.source());
+        assertEquals("119", ftb.projectId());
+        assertEquals("12034", ftb.versionId());
+        assertNotNull(modrinth);
+        assertEquals(ModPackInfo.PackSource.MODRINTH, modrinth.source());
+        assertEquals("5FFgwNNP", modrinth.projectId());
+        assertEquals("JQpSjXOD", modrinth.versionId());
+    }
+
+    @Test
+    void detectsNamedModrinthAppProfileFromStaticDatabaseFixture() throws IOException {
+        Path root = temporaryFolder.resolve("modrinth-app");
+        Path game = root.resolve("profiles").resolve("Cobblemon 1.21");
+        Files.createDirectories(game);
+        copyFixture("modrinth-app/app.db", root.resolve("app.db"));
+
+        ModPackInfo.PackIdentity identity = detect(game);
+
+        assertNotNull(identity);
+        assertEquals(ModPackInfo.PackSource.MODRINTH, identity.source());
+        assertEquals("5FFgwNNP", identity.projectId());
+        assertEquals("JQpSjXOD", identity.versionId());
+    }
+
+    private ModPackInfo.PackIdentity detect(Path game) throws IOException {
+        Path config = game.resolve("config");
+        Files.createDirectories(config);
+        return new ModPackInfo.VersionInfo(false, false).detectLauncherIdentity(game, config);
+    }
+
+    private Path fixtureGame(String fixture, String file) throws IOException {
+        Path game = temporaryFolder.resolve(fixture).resolve("game");
+        Files.createDirectories(game);
+        copyFixture(fixture + "/" + file, game.resolve(file));
+        return game;
+    }
+
+    private Path fixturePrism(String fixture) throws IOException {
+        Path instance = temporaryFolder.resolve(fixture);
+        Path game = instance.resolve(".minecraft");
+        Files.createDirectories(game);
+        copyFixture(fixture + "/instance.cfg", instance.resolve("instance.cfg"));
+        return game;
+    }
+
+    private void copyFixture(String fixture, Path destination) throws IOException {
+        Files.createDirectories(destination.getParent());
+        try (InputStream stream = getClass().getResourceAsStream("/modpacks/" + fixture)) {
+            assertNotNull(stream, "Missing fixture " + fixture);
+            Files.copy(stream, destination);
+        }
     }
 }
