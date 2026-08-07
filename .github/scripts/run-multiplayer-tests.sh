@@ -19,6 +19,8 @@ modded_port="${MINETOGETHER_CI_MODDED_PORT:-25572}"
 chat_port="${MINETOGETHER_CI_CHAT_PORT:-26667}"
 scenarios=",${MINETOGETHER_CI_SCENARIOS:-1,2,3,4},"
 reuse_installs="${MINETOGETHER_CI_REUSE_INSTALLS:-false}"
+server_suffix="$(printf '%s' "$loader_version" | tr -c '[:alnum:]_.-' '-')"
+modded_server_name="modded-${loader}-${server_suffix}-ci"
 process_groups=()
 LAST_PID=""
 
@@ -261,14 +263,14 @@ fi
 if ! find "$manager/HeadlessMC/servers" -type d -name vanilla-ci -print -quit 2>/dev/null | grep -q .; then
   hmc "$manager" server add vanilla "$minecraft" vanilla-ci
 fi
-if ! find "$manager/HeadlessMC/servers" -type d -name modded-ci -print -quit 2>/dev/null | grep -q .; then
-  hmc "$manager" server add "$loader" "$minecraft" modded-ci "$loader_version"
+if ! find "$manager/HeadlessMC/servers" -type d -name "$modded_server_name" -print -quit 2>/dev/null | grep -q .; then
+  hmc "$manager" server add "$loader" "$minecraft" "$modded_server_name" "$loader_version"
 fi
 hmc "$manager" server eula vanilla-ci accept
-hmc "$manager" server eula modded-ci accept
+hmc "$manager" server eula "$modded_server_name" accept
 
 vanilla_server="$(server_directory vanilla-ci)"
-modded_server="$(server_directory modded-ci)"
+modded_server="$(server_directory "$modded_server_name")"
 configure_server "$vanilla_server" "$vanilla_port"
 configure_server "$modded_server" "$modded_port"
 mkdir -p "$modded_server/mods"
@@ -295,7 +297,7 @@ if run_scenario 1; then
 fi
 
 if run_scenario 2 || run_scenario 3 || run_scenario 4; then
-  start_server modded-ci "$work/logs/modded-server.log"
+  start_server "$modded_server_name" "$work/logs/modded-server.log"
   modded_server_pid="$LAST_PID"
 fi
 
