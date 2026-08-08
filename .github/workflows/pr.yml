@@ -111,6 +111,12 @@ jobs:
           bash .github/scripts/verify-staged-runtime.sh
           mkdir -p run/mods
           cp -v build/ci-runtime/${{ matrix.loader }}/mods/*.jar run/mods/
+      - name: Bypass interactive Connect pack selection
+        shell: bash
+        run: |
+          mkdir -p run/local/minetogether
+          printf '%s\n' '{"connectPackPrompted":true,"connectPackBypass":true}' \
+            > run/local/minetogether/minetogethercommunity.json
       - name: Install No Chat Reports
         if: matrix.compatibility == 'no-chat-reports'
         id: compatibility
