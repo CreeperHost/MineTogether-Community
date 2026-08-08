@@ -249,10 +249,10 @@ public final class MineTogetherCiProbe {
 
     private static void tickConnectHost(Minecraft minecraft) throws IOException {
         switch (connectPhase) {
-            case 0: minecraft.getIntegratedServer().setOnlineMode(false); minecraft.displayGuiScreen(new GuiIngameMenu()); phaseTicks=ticks; connectPhase=1; return;
+            case 0: setIntegratedServerOnlineMode(minecraft, false); minecraft.displayGuiScreen(new GuiIngameMenu()); phaseTicks=ticks; connectPhase=1; return;
             case 1: if (ticks-phaseTicks<20 || !(minecraft.currentScreen instanceof GuiIngameMenu)) return; clickVanillaButton(minecraft.currentScreen,"minetogether.connect.open"); phaseTicks=ticks; connectPhase=2; return;
             case 2: if (ticks-phaseTicks<40 || !(minecraft.currentScreen instanceof GuiShareToFriends.Screen)) return; clickModularButton((ModularGuiScreen)minecraft.currentScreen,"minetogether.connect.open.start"); connectPhase=3; return;
-            case 3: if (!ConnectHandler.isPublished()) return; minecraft.getIntegratedServer().setOnlineMode(false); marker("connect-host-published"); connectPhase=4; return;
+            case 3: if (!ConnectHandler.isPublished()) return; setIntegratedServerOnlineMode(minecraft, false); marker("connect-host-published"); connectPhase=4; return;
             case 4:
                 if (exists("connect-friend-joined") && minecraft.getIntegratedServer().getConfigurationManager().getCurrentPlayerCount()>=2 && !exists("connect-host-friend-visible")) marker("connect-host-friend-visible");
                 if (!exists("connect-host-close-request")) return; minecraft.displayGuiScreen(new GuiIngameMenu()); phaseTicks=ticks; connectPhase=5; return;
@@ -270,6 +270,26 @@ public final class MineTogetherCiProbe {
             case 16: if (exists("connect-host-stop-request")) success(); return;
             default:
         }
+    }
+
+    private static void setIntegratedServerOnlineMode(Minecraft minecraft, boolean online) {
+        Object server = minecraft.getIntegratedServer();
+        for (String methodName : new String[] { "setOnlineMode", "func_71229_d" }) {
+            Class<?> type = server.getClass();
+            while (type != null) {
+                try {
+                    Method method = type.getDeclaredMethod(methodName, Boolean.TYPE);
+                    method.setAccessible(true);
+                    method.invoke(server, Boolean.valueOf(online));
+                    return;
+                } catch (NoSuchMethodException ignored) {
+                    type = type.getSuperclass();
+                } catch (ReflectiveOperationException exception) {
+                    throw new IllegalStateException("Could not change the integrated server authentication mode", exception);
+                }
+            }
+        }
+        throw new IllegalStateException("Could not find the integrated server authentication-mode method");
     }
 
     private static void tickConnectFriend(Minecraft minecraft) throws IOException, ReflectiveOperationException {

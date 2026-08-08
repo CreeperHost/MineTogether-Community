@@ -288,21 +288,25 @@ fi
 if ! find "$shared_mc/versions" -mindepth 1 -maxdepth 1 -type d -iname "*$loader*" -print -quit | grep -q .; then
   hmc "$manager" "$loader" "$minecraft" --uid "$loader_version" --java "$java_version"
 fi
-if ! find "$manager/HeadlessMC/servers" -type d -name vanilla-ci -print -quit 2>/dev/null | grep -q .; then
-  hmc "$manager" server add vanilla "$minecraft" vanilla-ci
+if run_scenario 1 || run_scenario 7; then
+  if ! find "$manager/HeadlessMC/servers" -type d -name vanilla-ci -print -quit 2>/dev/null | grep -q .; then
+    hmc "$manager" server add vanilla "$minecraft" vanilla-ci
+  fi
+  hmc "$manager" server eula vanilla-ci accept
+  vanilla_server="$(server_directory vanilla-ci)"
+  configure_server "$vanilla_server" "$vanilla_port"
 fi
-if ! find "$manager/HeadlessMC/servers" -type d -name modded-ci -print -quit 2>/dev/null | grep -q .; then
-  hmc "$manager" server add "$loader" "$minecraft" modded-ci "$loader_version"
-fi
-hmc "$manager" server eula vanilla-ci accept
-hmc "$manager" server eula modded-ci accept
 
-vanilla_server="$(server_directory vanilla-ci)"
-modded_server="$(server_directory modded-ci)"
-configure_server "$vanilla_server" "$vanilla_port"
-configure_server "$modded_server" "$modded_port"
-mkdir -p "$modded_server/mods"
-cp "$repo/build/ci-runtime/$loader/mods/"*.jar "$modded_server/mods/"
+if run_scenario 2 || run_scenario 3 || run_scenario 4 || run_scenario 6; then
+  if ! find "$manager/HeadlessMC/servers" -type d -name modded-ci -print -quit 2>/dev/null | grep -q .; then
+    hmc "$manager" server add "$loader" "$minecraft" modded-ci "$loader_version"
+  fi
+  hmc "$manager" server eula modded-ci accept
+  modded_server="$(server_directory modded-ci)"
+  configure_server "$modded_server" "$modded_port"
+  mkdir -p "$modded_server/mods"
+  cp "$repo/build/ci-runtime/$loader/mods/"*.jar "$modded_server/mods/"
+fi
 
 modded_connect="$(create_client modded-connect CiConnect 00000000-0000-0000-0000-000000000010 true)"
 vanilla_client="$(create_client vanilla-client CiVanilla 00000000-0000-0000-0000-000000000020 false)"
