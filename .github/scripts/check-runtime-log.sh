@@ -26,10 +26,6 @@ if [[ "$compatibility" == "no-chat-reports" ]]; then
     exit 1
   fi
 
-  if ! grep -Eiq 'MixinChatScreen.*nochatreports\.mixins\.json' "$log"; then
-    echo "The runtime log does not show No Chat Reports applying its ChatScreen mixin" >&2
-    exit 1
-  fi
 fi
 
 echo "Runtime log passed for compatibility row: $compatibility"

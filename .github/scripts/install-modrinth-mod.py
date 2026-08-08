@@ -2,6 +2,7 @@
 import json
 import os
 from pathlib import Path
+import re
 import sys
 from urllib.parse import urlencode
 from urllib.request import Request, urlopen
@@ -36,7 +37,11 @@ if not versions:
     output("available", "false")
     raise SystemExit(0)
 
-version = versions[0]
+version_pattern = re.compile(rf"(?<![0-9.]){re.escape(minecraft)}(?![0-9.])", re.IGNORECASE)
+version = next(
+    (item for item in versions if version_pattern.search(str(item.get("version_number", "")))),
+    versions[0],
+)
 files = version.get("files", [])
 selected = next((item for item in files if item.get("primary")), files[0] if files else None)
 if selected is None:
