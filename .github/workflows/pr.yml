@@ -125,6 +125,12 @@ jobs:
         run: |
           mkdir -p run/mods
           cp -v build/ci-runtime/forge/mods/*.jar run/mods/
+      - name: Bypass interactive Connect pack selection
+        shell: bash
+        run: |
+          mkdir -p run/local/minetogether
+          printf '%s\n' '{"connectPackPrompted":true,"connectPackBypass":true}' \
+            > run/local/minetogether/minetogethercommunity.json
       - name: Launch production client
         id: minecraft
         uses: headlesshq/mc-runtime-test@fbafe02f89f4f13682e7b16dbcee6b6a43f4faca # 4.5.1
