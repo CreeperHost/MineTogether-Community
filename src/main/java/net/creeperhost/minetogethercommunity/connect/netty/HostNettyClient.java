@@ -4,6 +4,7 @@ import io.netty.bootstrap.Bootstrap;
 import io.netty.channel.Channel;
 import io.netty.channel.ChannelException;
 import io.netty.channel.ChannelFuture;
+import io.netty.channel.ChannelFutureListener;
 import io.netty.channel.ChannelHandlerContext;
 import io.netty.channel.ChannelInitializer;
 import io.netty.channel.ChannelOption;
@@ -69,7 +70,7 @@ public class HostNettyClient {
             @Override
             protected void channelReady() {
                 super.channelReady();
-                sendPacket(new SHostRegister(session.toString(), modpackKey));
+                sendProxyPacket(new SHostRegister(session.toString(), modpackKey));
             }
 
             @Override
@@ -105,7 +106,7 @@ public class HostNettyClient {
 
             @Override
             public void handleServerLink(ChannelHandlerContext ctx, CServerLink packet) {
-                link(server, endpoint, session, packet.linkToken, listener);
+                startLink(server, endpoint, session, packet.linkToken, listener);
             }
         };
 
@@ -143,7 +144,7 @@ public class HostNettyClient {
             protected void channelReady() {
                 super.channelReady();
                 networkManager.setNetHandler(new NetHandlerHandshakeTCP(server, networkManager));
-                sendPacket(new SHostConnect(session.toString(), linkToken));
+                sendProxyPacket(new SHostConnect(session.toString(), linkToken));
             }
 
             @Override
@@ -154,6 +155,22 @@ public class HostNettyClient {
         openConnection(endpoint, proxyConnection);
         addNetworkManager(server.getNetworkSystem(), networkManager);
         listener.onServerLink(networkManager);
+    }
+
+    private static void startLink(final MinecraftServer server, final ConnectHost endpoint, final JWebToken session,
+                                  final String linkToken, final HostListener listener) {
+        Thread connector = new Thread(new Runnable() {
+            @Override
+            public void run() {
+                try {
+                    link(server, endpoint, session, linkToken, listener);
+                } catch (Throwable throwable) {
+                    LOGGER.error("Failed to establish hosted server back-link", throwable);
+                }
+            }
+        }, "MT Connect Host Link");
+        connector.setDaemon(true);
+        connector.start();
     }
 
     private static ChannelFuture openConnection(final ConnectHost endpoint, final HostConnection connection) {
@@ -176,6 +193,7 @@ public class HostNettyClient {
                         }
                         pipeline.addLast("mt:packet_handler", connection);
                         connection.buildPipeline(pipeline);
+                        pipeline.addLast("mt:outbound_router", new ProxyPacketOutboundRouter("mt:packet_handler"));
                     }
                 })
                 .connect(endpoint.getAddress(), endpoint.getProxyPort())
@@ -252,6 +270,7 @@ public class HostNettyClient {
         private final HostListener listener;
         private final byte[] nonce = new byte[32];
         private final SecretKey aesSecret;
+        private ChannelHandlerContext proxyContext;
         protected boolean disconnectRequested;
 
         public HostConnection(ConnectHost endpoint, HostListener listener) {
@@ -265,7 +284,7 @@ public class HostNettyClient {
         }
 
         protected void channelReady() {
-            sendPacket(new SAccepted());
+            sendProxyPacket(new SAccepted());
         }
 
         protected void onDisconnected(String message) {
@@ -284,8 +303,18 @@ public class HostNettyClient {
 
         @Override
         public final void channelActive(ChannelHandlerContext ctx) throws Exception {
-            super.channelActive(ctx);
-            sendPacket(new SHello(nonce, RSAUtils.encrypt(aesSecret.getEncoded(), endpoint.getPublicKey()), ProtocolVersions.PROTOCOL_VERSION));
+            channel = ctx.channel();
+            proxyContext = ctx;
+            sendProxyPacket(new SHello(nonce, RSAUtils.encrypt(aesSecret.getEncoded(), endpoint.getPublicKey()), ProtocolVersions.PROTOCOL_VERSION));
+            ctx.fireChannelActive();
+        }
+
+        /** Bypass trailing Minecraft encoders while the proxy is in control mode. */
+        protected final ChannelFuture sendProxyPacket(Packet<?> packet) {
+            if (proxyContext == null) {
+                throw new IllegalStateException("MTConnect proxy channel is not active.");
+            }
+            return proxyContext.writeAndFlush(packet).addListener(ChannelFutureListener.CLOSE_ON_FAILURE);
         }
 
         @Override

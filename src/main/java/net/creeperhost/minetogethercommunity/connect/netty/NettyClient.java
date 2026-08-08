@@ -4,6 +4,7 @@ import io.netty.bootstrap.Bootstrap;
 import io.netty.channel.Channel;
 import io.netty.channel.ChannelException;
 import io.netty.channel.ChannelFuture;
+import io.netty.channel.ChannelFutureListener;
 import io.netty.channel.ChannelHandlerContext;
 import io.netty.channel.ChannelInitializer;
 import io.netty.channel.ChannelOption;
@@ -83,7 +84,7 @@ public class NettyClient {
                 DiagnosticLog.info(LOGGER, "[MT-1710-DIAG] proxy handshake ready; registering hosted server endpoint={}:{} session={} modpackKey={} maxPlayers={}",
                         endpoint.getAddress(), Integer.valueOf(endpoint.getProxyPort()), ConnectHandler.describeToken(session),
                         ConnectHandler.describeModpackKey(modpackKey), Integer.valueOf(maxPlayers));
-                sendPacket(new SHostRegister(session.toString(), modpackKey));
+                sendProxyPacket(new SHostRegister(session.toString(), modpackKey));
             }
 
             @Override
@@ -128,7 +129,7 @@ public class NettyClient {
             public void handleServerLink(ChannelHandlerContext ctx, CServerLink packet) {
                 DiagnosticLog.info(LOGGER, "[MT-1710-DIAG] proxy requested hosted server back-link endpoint={}:{} linkToken={}",
                         endpoint.getAddress(), Integer.valueOf(endpoint.getProxyPort()), ConnectHandler.describeServerToken(packet.linkToken));
-                link(server, endpoint, session, packet.linkToken);
+                startLink(server, endpoint, session, packet.linkToken);
             }
 
             @Override
@@ -164,7 +165,7 @@ public class NettyClient {
             @Override
             protected void channelReady() {
                 super.channelReady();
-                sendPacket(new SRequestMaxPlayers(session.toString()));
+                sendProxyPacket(new SRequestMaxPlayers(session.toString()));
             }
 
             @Override
@@ -211,7 +212,7 @@ public class NettyClient {
                 DiagnosticLog.info(LOGGER, "[MT-1710-DIAG] proxy handshake ready; requesting friend servers endpoint={}:{} session={} modpackKey={}",
                         endpoint.getAddress(), Integer.valueOf(endpoint.getProxyPort()), ConnectHandler.describeToken(session),
                         ConnectHandler.describeModpackKey(modpackKey));
-                sendPacket(new SRequestFriendServers(session.toString(), modpackKey));
+                sendProxyPacket(new SRequestFriendServers(session.toString(), modpackKey));
             }
 
             @Override
@@ -292,7 +293,7 @@ public class NettyClient {
                 DiagnosticLog.info(LOGGER, "[MT-1710-DIAG] proxy handshake ready; requesting friend-server raw connection endpoint={}:{} session={} serverToken={} query={}",
                         endpoint.getAddress(), Integer.valueOf(endpoint.getProxyPort()), ConnectHandler.describeToken(session),
                         ConnectHandler.describeServerToken(serverToken), Boolean.valueOf(isQuery));
-                sendPacket(new SUserConnect(session.toString(), serverToken, isQuery));
+                sendProxyPacket(new SUserConnect(session.toString(), serverToken, isQuery));
             }
 
             @Override
@@ -357,6 +358,9 @@ public class NettyClient {
     }
 
     private static void link(final IntegratedServer server, final ConnectHost endpoint, final JWebToken session, final String linkToken) {
+        DiagnosticLog.info(LOGGER, "[MT-1710-DIAG] opening hosted server back-link endpoint={}:{} linkToken={} thread={}",
+                endpoint.getAddress(), Integer.valueOf(endpoint.getProxyPort()), ConnectHandler.describeServerToken(linkToken),
+                Thread.currentThread().getName());
         final NetworkManager networkManager = new RelayedServerNetworkManager();
         ProxyConnection connection = new ProxyConnection(endpoint) {
             private boolean loggedRawPacket;
@@ -378,7 +382,7 @@ public class NettyClient {
                 DiagnosticLog.info(LOGGER, "[MT-1710-DIAG] proxy handshake ready; registering hosted server back-link endpoint={}:{} session={} linkToken={}",
                         endpoint.getAddress(), Integer.valueOf(endpoint.getProxyPort()), ConnectHandler.describeToken(session),
                         ConnectHandler.describeServerToken(linkToken));
-                sendPacket(new SHostConnect(session.toString(), linkToken));
+                sendProxyPacket(new SHostConnect(session.toString(), linkToken));
             }
 
             @Override
@@ -409,6 +413,23 @@ public class NettyClient {
         addNetworkManager(server.getNetworkSystem(), networkManager);
         DiagnosticLog.info(LOGGER, "[MT-1710-DIAG] injected hosted server back-link NetworkManager endpoint={}:{} linkToken={}",
                 endpoint.getAddress(), Integer.valueOf(endpoint.getProxyPort()), ConnectHandler.describeServerToken(linkToken));
+    }
+
+    private static void startLink(final IntegratedServer server, final ConnectHost endpoint, final JWebToken session, final String linkToken) {
+        DiagnosticLog.info(LOGGER, "[MT-1710-DIAG] dispatching hosted server back-link off proxy callback linkToken={} thread={}",
+                ConnectHandler.describeServerToken(linkToken), Thread.currentThread().getName());
+        Thread connector = new Thread(new Runnable() {
+            @Override
+            public void run() {
+                try {
+                    link(server, endpoint, session, linkToken);
+                } catch (Throwable throwable) {
+                    LOGGER.error("Failed to establish hosted server back-link", throwable);
+                }
+            }
+        }, "MT Connect Host Link");
+        connector.setDaemon(true);
+        connector.start();
     }
 
     /**
@@ -457,6 +478,7 @@ public class NettyClient {
                         }
                         pipeline.addLast("mt:packet_handler", connection);
                         connection.buildPipeline(pipeline);
+                        pipeline.addLast("mt:outbound_router", new ProxyPacketOutboundRouter("mt:packet_handler"));
                     }
                 })
                 .connect(endpoint.getAddress(), endpoint.getProxyPort())
@@ -534,6 +556,7 @@ public class NettyClient {
         private final ConnectHost endpoint;
         private final byte[] nonce = new byte[32];
         private final SecretKey aesSecret;
+        private ChannelHandlerContext proxyContext;
 
         public ProxyConnection(ConnectHost endpoint) {
             this.endpoint = endpoint;
@@ -545,7 +568,7 @@ public class NettyClient {
         }
 
         protected void channelReady() {
-            sendPacket(new SAccepted());
+            sendProxyPacket(new SAccepted());
         }
 
         protected void onDisconnected(String message) {
@@ -567,8 +590,20 @@ public class NettyClient {
             // ever leaving. Queue the proxy hello first, then initialize the
             // downstream Minecraft pipeline in the normal order.
             channel = ctx.channel();
-            sendPacket(new SHello(nonce, RSAUtils.encrypt(aesSecret.getEncoded(), endpoint.getPublicKey()), ProtocolVersions.PROTOCOL_VERSION));
+            proxyContext = ctx;
+            sendProxyPacket(new SHello(nonce, RSAUtils.encrypt(aesSecret.getEncoded(), endpoint.getPublicKey()), ProtocolVersions.PROTOCOL_VERSION));
             ctx.fireChannelActive();
+        }
+
+        /**
+         * Start control writes at the MTConnect handler so they cannot be
+         * consumed by the trailing Minecraft packet encoders on Netty 4.0.
+         */
+        protected final ChannelFuture sendProxyPacket(Packet<?> packet) {
+            if (proxyContext == null) {
+                throw new IllegalStateException("MTConnect proxy channel is not active.");
+            }
+            return proxyContext.writeAndFlush(packet).addListener(ChannelFutureListener.CLOSE_ON_FAILURE);
         }
 
         @Override
