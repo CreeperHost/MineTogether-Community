@@ -13,14 +13,15 @@ final class CiConnectMock {
 
     static void install(int chatPort, String role, UUID uuid, Path resultDirectory) {
         System.setProperty("minetogether.ci.localChat", "true");
+        // Set this before constructing the local ChatState so its IRC client is
+        // never started for Connect-only tests.
+        LocalConfig.instance().chatEnabled = false;
         MineTogetherChat.configureLocalChatForTesting(
                 chatPort,
                 hash(uuid),
                 uuid,
                 resultDirectory.resolve(role + "-muted-users.json")
         );
-        // Connect only needs the local profile store. Keep IRC stopped for every concurrent client.
-        LocalConfig.instance().chatEnabled = false;
     }
 
     private static String hash(UUID uuid) {

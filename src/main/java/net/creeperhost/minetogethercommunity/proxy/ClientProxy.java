@@ -45,9 +45,12 @@ public class ClientProxy extends CommonProxy {
 
     @Override
     public void init(FMLInitializationEvent event) {
+        boolean isolatedConnectTest = isIsolatedConnectTest();
         EmoteNetworking.init(true);
         MineTogetherSession.getDefault().setProvider(new MTSessionProvider());
-        ActivityTelemetry.init();
+        if (!isolatedConnectTest) {
+            ActivityTelemetry.init();
+        }
         Runtime.getRuntime().addShutdownHook(new Thread(new Runnable() {
             @Override
             public void run() {
@@ -61,11 +64,15 @@ public class ClientProxy extends CommonProxy {
             MineTogether.AUTH.setHeader("Authorization", "Bearer " + token.toString());
             ActivityTelemetry.authChanged(token);
         });
-        MineTogetherSession.getDefault().getTokenAsync();
+        if (!isolatedConnectTest) {
+            MineTogetherSession.getDefault().getTokenAsync();
+        }
 
         Integration.runOptional("betterquesting", () -> BetterQuestingCompat::register);
         Integration.runOptional("HardcoreQuesting", () -> HQMCompat::register);
-        MineTogetherChat.init();
+        if (!isolatedConnectTest) {
+            MineTogetherChat.init();
+        }
         ConnectHandler.init();
         ClientEvents clientEvents = new ClientEvents();
         MinecraftForge.EVENT_BUS.register(clientEvents);
@@ -77,6 +84,7 @@ public class ClientProxy extends CommonProxy {
 
     public static void onClientWorldJoin() {
         EmoteNetworking.clientWorldReady();
+        if (isIsolatedConnectTest()) return;
         ActivityTelemetry.onWorldEnter();
         CosmeticDownloader.instance().startCatalogFetch();
         CosmeticApiClient.fetchProfileAsync();
@@ -86,10 +94,20 @@ public class ClientProxy extends CommonProxy {
         ConnectHandler.unPublish();
         ConnectHandler.clearAndReset();
         InGameChatBridge.clearHistories();
-        ActivityTelemetry.onWorldExit();
+        if (!isIsolatedConnectTest()) {
+            ActivityTelemetry.onWorldExit();
+        }
         CosmeticSelections.instance().clear();
         PlayerCosmeticCache.clearAll();
         EmotePlayer.clearAll();
+    }
+
+    private static boolean isIsolatedConnectTest() {
+        if (!Boolean.getBoolean("minetogether.ci.localChat")) return false;
+        String role = System.getenv("MINETOGETHER_CI_ROLE");
+        return role != null && role.startsWith("connect-")
+                && System.getenv("MINETOGETHER_CI_CONNECT_UUID") != null
+                && System.getenv("MINETOGETHER_CI_CONNECT_USERNAME") != null;
     }
 
     private static void registerClientCommand(net.minecraft.command.ICommand command) {

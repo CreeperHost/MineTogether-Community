@@ -232,7 +232,7 @@ start_client() {
       environment+=("MINETOGETHER_CI_CHAT_PORT=$chat_port" "MINETOGETHER_CI_CONNECT_UUID=$connect_uuid"
         "MINETOGETHER_CI_CONNECT_USERNAME=$connect_username" "MINETOGETHER_CI_CONNECT_SERVER_TOKEN=$connect_server_token"
         "MINETOGETHER_CI_CONNECT_HOST_HASH=$connect_host_hash")
-      jvm+=" -Dconnect.mesh.hosts=$connect_node_file -Dconnect.node=ci-local"
+      jvm+=" -Dminetogether.ci.localChat=true -Dconnect.mesh.hosts=$connect_node_file -Dconnect.node=ci-local"
     fi
   else
     case "$version" in

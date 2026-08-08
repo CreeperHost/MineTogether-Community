@@ -254,7 +254,7 @@ public final class MineTogetherCiProbe {
             case 2: if (ticks-phaseTicks<40 || !(minecraft.currentScreen instanceof GuiShareToFriends.Screen)) return; clickModularButton((ModularGuiScreen)minecraft.currentScreen,"minetogether.connect.open.start"); connectPhase=3; return;
             case 3: if (!ConnectHandler.isPublished()) return; setIntegratedServerOnlineMode(minecraft, false); marker("connect-host-published"); connectPhase=4; return;
             case 4:
-                if (exists("connect-friend-joined") && minecraft.getIntegratedServer().getConfigurationManager().getCurrentPlayerCount()>=2 && !exists("connect-host-friend-visible")) marker("connect-host-friend-visible");
+                if (exists("connect-friend-joined") && integratedServerPlayerCount(minecraft)>=2 && !exists("connect-host-friend-visible")) marker("connect-host-friend-visible");
                 if (!exists("connect-host-close-request")) return; minecraft.displayGuiScreen(new GuiIngameMenu()); phaseTicks=ticks; connectPhase=5; return;
             case 5: if (ticks-phaseTicks<20 || !(minecraft.currentScreen instanceof GuiIngameMenu)) return; clickVanillaButton(minecraft.currentScreen,"minetogether.connect.close_server"); connectPhase=6; return;
             case 6: if (ConnectHandler.isPublished()) return; marker("connect-host-closed"); connectPhase=7; return;
@@ -290,6 +290,31 @@ public final class MineTogetherCiProbe {
             }
         }
         throw new IllegalStateException("Could not find the integrated server authentication-mode method");
+    }
+
+    private static int integratedServerPlayerCount(Minecraft minecraft) {
+        Object server = minecraft.getIntegratedServer();
+        Object manager = invokeNoArg(server, "getConfigurationManager", "func_71203_ab");
+        Object count = invokeNoArg(manager, "getCurrentPlayerCount", "func_72394_k");
+        return ((Number) count).intValue();
+    }
+
+    private static Object invokeNoArg(Object target, String deobfuscatedName, String runtimeName) {
+        Class<?> type = target.getClass();
+        while (type != null) {
+            for (String name : new String[] { deobfuscatedName, runtimeName }) {
+                try {
+                    Method method = type.getDeclaredMethod(name);
+                    method.setAccessible(true);
+                    return method.invoke(target);
+                } catch (NoSuchMethodException ignored) {
+                } catch (ReflectiveOperationException exception) {
+                    throw new IllegalStateException("Could not invoke " + name + " on " + target.getClass().getName(), exception);
+                }
+            }
+            type = type.getSuperclass();
+        }
+        throw new IllegalStateException("Could not find " + deobfuscatedName + " on " + target.getClass().getName());
     }
 
     private static void tickConnectFriend(Minecraft minecraft) throws IOException, ReflectiveOperationException {

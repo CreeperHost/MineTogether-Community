@@ -44,7 +44,7 @@ public class MineTogetherChat {
 
     private static final Logger LOGGER = LogManager.getLogger("MineTogether Chat");
 
-    public static ChatAuthImpl CHAT_AUTH;
+    public static ChatAuth CHAT_AUTH;
     public static ChatState CHAT_STATE;
     private static boolean attached;
     private static Object profileListener;
@@ -67,6 +67,7 @@ public class MineTogetherChat {
                 return CompletableFuture.completedFuture(null);
             }
         };
+        CHAT_AUTH = auth;
         final String serverResponse = "{\"status\":\"success\",\"channel\":\"#minetogether-ci\","
                 + "\"server\":{\"address\":\"127.0.0.1\",\"port\":" + port + ",\"ssl\":false}}";
         HttpEngine engine = new HttpEngine() {
@@ -86,7 +87,9 @@ public class MineTogetherChat {
                 true
         );
         registerCtcpListener();
-        CHAT_STATE.ircClient.start();
+        if (LocalConfig.instance().chatEnabled) {
+            CHAT_STATE.ircClient.start();
+        }
     }
 
     private static final class LocalChatRequest extends AbstractEngineRequest {
