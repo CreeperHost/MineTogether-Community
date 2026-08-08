@@ -561,8 +561,14 @@ public class NettyClient {
 
         @Override
         public final void channelActive(ChannelHandlerContext ctx) throws Exception {
-            super.channelActive(ctx);
+            // AbstractChannelHandler propagates channelActive before assigning
+            // its channel field. The downstream 1.7.10 NetworkManager can close
+            // the connection during that propagation, preventing SHello from
+            // ever leaving. Queue the proxy hello first, then initialize the
+            // downstream Minecraft pipeline in the normal order.
+            channel = ctx.channel();
             sendPacket(new SHello(nonce, RSAUtils.encrypt(aesSecret.getEncoded(), endpoint.getPublicKey()), ProtocolVersions.PROTOCOL_VERSION));
+            ctx.fireChannelActive();
         }
 
         @Override
