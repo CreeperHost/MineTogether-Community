@@ -72,7 +72,7 @@ for raw_loader in "${loader_list[@]}"; do
       runtime_test=lexforge
       loader_version="$(property forge_version)"
       case "$minecraft" in
-        1.12.*) regex="${minecraft}-forge${minecraft}-${loader_version}" ;;
+        1.12.*) regex="${minecraft}-forge${minecraft}-.*" ;;
         *) regex="forge-${minecraft}-${loader_version}" ;;
       esac
       row_fabric_api=none
