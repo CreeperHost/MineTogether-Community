@@ -31,6 +31,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 
@@ -323,8 +324,30 @@ public final class EmoteNetworking {
     public static class PlayerLifecycleHandler {
         @SubscribeEvent
         public void onChannelRegistration(FMLNetworkEvent.CustomPacketRegistrationEvent<?> event) {
-            if (event.side != Side.CLIENT || !event.registrations.contains(CHANNEL_NAME)) return;
-            capableServer = "REGISTER".equals(event.operation);
+            if (event.side != Side.CLIENT || !registrationChannels(event).contains(CHANNEL_NAME)) return;
+            capableServer = "REGISTER".equals(registrationOperation(event));
+        }
+
+        @SuppressWarnings("unchecked")
+        private static Set<String> registrationChannels(FMLNetworkEvent.CustomPacketRegistrationEvent<?> event) {
+            try {
+                // These public Forge fields are not part of the Minecraft mappings,
+                // but the 1.7.10 reobfuscator still rewrites direct bytecode access.
+                // Reflection by Forge's stable runtime field name avoids that bad remap.
+                return (Set<String>) event.getClass().getField("registrations").get(event);
+            } catch (ReflectiveOperationException exception) {
+                LOGGER.warn("Could not inspect Forge channel registrations", exception);
+                return java.util.Collections.emptySet();
+            }
+        }
+
+        private static String registrationOperation(FMLNetworkEvent.CustomPacketRegistrationEvent<?> event) {
+            try {
+                return (String) event.getClass().getField("operation").get(event);
+            } catch (ReflectiveOperationException exception) {
+                LOGGER.warn("Could not inspect Forge channel registration operation", exception);
+                return "";
+            }
         }
 
         @SubscribeEvent
