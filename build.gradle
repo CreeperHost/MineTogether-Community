@@ -29,7 +29,6 @@ group = maven_group
 java {
     toolchain {
         languageVersion = JavaLanguageVersion.of(8)
-        vendor = org.gradle.jvm.toolchain.JvmVendorSpec.AZUL
     }
 }
 
