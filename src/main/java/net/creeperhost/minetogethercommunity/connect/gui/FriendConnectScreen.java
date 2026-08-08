@@ -83,7 +83,7 @@ public class FriendConnectScreen extends GuiScreen {
                         return;
                     }
                     networkManager.setNetHandler(new NetHandlerLoginClient(networkManager, minecraft, previousGuiScreen));
-                    networkManager.sendPacket(new C00Handshake(RealmsSharedConstants.NETWORK_PROTOCOL_VERSION, endpoint.getAddress(), endpoint.getProxyPort(), EnumConnectionState.LOGIN));
+                    networkManager.sendPacket(new C00Handshake(RealmsSharedConstants.NETWORK_PROTOCOL_VERSION, endpoint.getAddress(), endpoint.getProxyPort(), EnumConnectionState.LOGIN, true));
                     networkManager.sendPacket(new C00PacketLoginStart(minecraft.getSession().getProfile()));
                 } catch (Exception ex) {
                     if (cancel) return;

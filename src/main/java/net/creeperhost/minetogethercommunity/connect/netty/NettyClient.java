@@ -43,6 +43,7 @@ import net.creeperhost.minetogethercommunity.connect.ConnectHandler;
 import net.creeperhost.minetogethercommunity.connect.ConnectHost;
 import net.creeperhost.minetogethercommunity.util.DiagnosticLog;
 import net.minecraft.client.Minecraft;
+import net.minecraft.network.EnumConnectionState;
 import net.minecraft.network.EnumPacketDirection;
 import net.minecraft.network.NetworkManager;
 import net.minecraft.network.NetworkSystem;
@@ -356,7 +357,7 @@ public class NettyClient {
     }
 
     private static void link(final IntegratedServer server, final ConnectHost endpoint, final JWebToken session, final String linkToken) {
-        final NetworkManager networkManager = new NetworkManager(EnumPacketDirection.SERVERBOUND);
+        final NetworkManager networkManager = new RelayedServerNetworkManager();
         ProxyConnection connection = new ProxyConnection(endpoint) {
             private boolean loggedRawPacket;
 
@@ -408,6 +409,29 @@ public class NettyClient {
         addNetworkManager(server.getNetworkSystem(), networkManager);
         DiagnosticLog.info(LOGGER, "[MT-1710-DIAG] injected hosted server back-link NetworkManager endpoint={}:{} linkToken={}",
                 endpoint.getAddress(), Integer.valueOf(endpoint.getProxyPort()), ConnectHandler.describeServerToken(linkToken));
+    }
+
+    /**
+     * Preserve the login-success/PLAY transition ordering on a relayed Forge connection.
+     */
+    private static final class RelayedServerNetworkManager extends NetworkManager {
+        private RelayedServerNetworkManager() {
+            super(EnumPacketDirection.SERVERBOUND);
+        }
+
+        @Override
+        public void setConnectionState(final EnumConnectionState state) {
+            if (state == EnumConnectionState.PLAY && channel() != null && !channel().eventLoop().inEventLoop()) {
+                channel().eventLoop().execute(new Runnable() {
+                    @Override
+                    public void run() {
+                        RelayedServerNetworkManager.super.setConnectionState(state);
+                    }
+                });
+                return;
+            }
+            super.setConnectionState(state);
+        }
     }
 
     private static ChannelFuture openConnection(final ConnectHost endpoint, final ProxyConnection connection) {
