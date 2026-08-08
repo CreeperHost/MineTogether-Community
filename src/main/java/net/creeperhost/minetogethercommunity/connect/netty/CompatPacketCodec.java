@@ -7,6 +7,7 @@ import io.netty.util.AttributeKey;
 import net.creeperhost.minetogether.connect.lib.netty.PacketCtx;
 import net.creeperhost.minetogether.connect.lib.netty.PacketType;
 import net.creeperhost.minetogether.connect.lib.netty.packet.Packet;
+import net.creeperhost.minetogether.connect.lib.netty.packet.CRaw;
 import net.creeperhost.minetogether.connect.lib.netty.packet.SHello;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -48,6 +49,17 @@ public class CompatPacketCodec extends ByteToMessageCodec<Packet> {
         int packetId = in.readUnsignedByte();
         Integer protocolVersion = ctx.channel().attr(PROTOCOL_VERSION_ATTR).get();
         Function<PacketCtx, ? extends Packet<?>> factory = PacketType.getPacketFactory(packetId);
-        out.add(factory.apply(new PacketCtx(in, protocolVersion == null ? -1 : protocolVersion.intValue())));
+        try {
+            out.add(factory.apply(new PacketCtx(in, protocolVersion == null ? -1 : protocolVersion.intValue())));
+        } catch (NoSuchMethodError error) {
+            // MTConnectProxyCommon is compiled against a newer Netty where CRaw uses
+            // readRetainedSlice. Minecraft 1.7.10 ships Netty 4.0.10, so retain a
+            // regular slice here while preserving the packet's reference-counted
+            // ownership contract.
+            if (!error.getMessage().contains("readRetainedSlice")) {
+                throw error;
+            }
+            out.add(new CRaw(in.readSlice(in.readableBytes()).retain()));
+        }
     }
 }
