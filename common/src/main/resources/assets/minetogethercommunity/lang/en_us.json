@@ -475,7 +475,16 @@
     "minetogether:keybind.emotes": "Open Emotes",
     "minetogether:gui.emotes.title": "Emotes",
     "minetogether:gui.emotes.empty": "Favorite emotes in Cosmetics",
-    "minetogether:gui.emotes.traversal_active": "Active: %s"
+    "minetogether:gui.emotes.traversal_active": "Active: %s",
+    "minetogether:auth.manual.title": "MineTogether sign-in failed",
+    "minetogether:auth.manual.description": "Automatic Minecraft authentication was unavailable. Would you like to sign in through the MineTogether website?",
+    "minetogether:auth.manual.sign_in": "Sign in manually",
+    "minetogether:auth.manual.not_now": "Not now",
+    "minetogether:auth.manual.button": "MineTogether Login",
+    "minetogether:auth.manual.waiting": "Waiting for browser...",
+    "minetogether:auth.manual.success": "MineTogether signed in",
+    "minetogether:auth.manual.success.description": "Chat and Connect are reconnecting.",
+    "minetogether:auth.manual.failed": "MineTogether sign-in failed"
 
 
 }

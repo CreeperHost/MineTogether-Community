@@ -11,6 +11,7 @@ import dev.architectury.hooks.client.screen.ScreenAccess;
 import dev.architectury.platform.Platform;
 import net.creeperhost.minetogether.session.MineTogetherSession;
 import net.creeperhost.minetogethercommunity.activity.ActivityTelemetry;
+import net.creeperhost.minetogethercommunity.auth.ManualLogin;
 import net.creeperhost.minetogethercommunity.chat.FriendChatNotifier;
 import net.creeperhost.minetogethercommunity.chat.MineTogetherChat;
 import net.creeperhost.minetogethercommunity.chat.gui.ChatScreenInjection;
@@ -45,6 +46,7 @@ import net.minecraft.client.gui.screens.ChatScreen;
 import net.minecraft.client.gui.screens.ConfirmLinkScreen;
 import net.minecraft.client.gui.screens.PauseScreen;
 import net.minecraft.client.gui.screens.Screen;
+import net.minecraft.client.gui.screens.TitleScreen;
 import net.minecraft.client.player.AbstractClientPlayer;
 import net.minecraft.commands.CommandBuildContext;
 import net.minecraft.network.chat.Component;
@@ -70,8 +72,8 @@ public class MineTogetherClient {
             MineTogether.AUTH.setHeader("Authorization", "Bearer " + token);
             ActivityTelemetry.authChanged(token);
         });
-        // Trigger session validation and set auth header.
-        MineTogetherSession.getDefault().getTokenAsync();
+        // Trigger session validation and offer website login if Mojang-backed authentication fails.
+        ManualLogin.init();
 
         MineTogetherChat.init();
         MineTogetherConnect.init();
@@ -146,6 +148,11 @@ public class MineTogetherClient {
     }
 
     private static void onScreenOpen(Screen screen, ScreenAccess screenAccess) {
+        if (screen instanceof TitleScreen titleScreen) {
+            ManualLogin.addTitleScreenButton(titleScreen);
+            return;
+        }
+
         if (screen instanceof PauseScreen) {
             @SuppressWarnings ("unchecked")
             List<GuiEventListener> children = (List<GuiEventListener>) screen.children();
