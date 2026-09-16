@@ -97,7 +97,7 @@ public class Config {
     @Comment ("For modpack creators. Enter your CurseForge project id here.")
     public String curseProjectID = "";
 
-    @Comment ("If the pause menu buttons should be moved around to insert the Open To Friends button.")
+    @Comment ("If Open To Friends should appear in the pause menu icon row instead of the corner.")
     public boolean moveButtonsOnPauseMenu = true;
 
     @Comment ("If all chat messages should be logged to console.")

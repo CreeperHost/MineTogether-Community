@@ -1,5 +1,6 @@
 package net.creeperhost.minetogethercommunity.connect;
 
+import net.creeperhost.minetogethercommunity.MineTogether;
 import net.creeperhost.minetogethercommunity.config.Config;
 import net.creeperhost.minetogethercommunity.connect.gui.ConnectPackSelectionScreen;
 import net.creeperhost.minetogethercommunity.connect.gui.GuiShareToFriends;
@@ -9,6 +10,7 @@ import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.components.AbstractWidget;
 import net.minecraft.client.gui.components.Button;
 import net.minecraft.client.gui.components.Renderable;
+import net.minecraft.client.gui.components.SpriteIconButton;
 import net.minecraft.client.gui.components.events.GuiEventListener;
 import net.minecraft.client.gui.narration.NarratableEntry;
 import net.minecraft.client.gui.screens.PauseScreen;
@@ -16,8 +18,10 @@ import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.client.gui.screens.TitleScreen;
 import net.minecraft.client.server.IntegratedServer;
 import net.minecraft.network.chat.Component;
+import net.minecraft.resources.Identifier;
 
 import java.util.List;
+import java.util.Comparator;
 
 public class MineTogetherConnect {
 
@@ -36,7 +40,7 @@ public class MineTogetherConnect {
             return;
         }
 
-        if (!(screen instanceof PauseScreen)) return;
+        if (!(screen instanceof PauseScreen pauseScreen) || !pauseScreen.showsPauseMenu()) return;
 
         IntegratedServer integratedServer = Minecraft.getInstance().getSingleplayerServer();
         if (integratedServer == null) return;
@@ -57,12 +61,9 @@ public class MineTogetherConnect {
         List<Renderable> renderables = screen.renderables;
         List<NarratableEntry> narratables = screen.narratables;
 
-        AbstractWidget options = ButtonHelper.findButton("menu.options", screen);
-        AbstractWidget openToLan = ButtonHelper.findButton("menu.multiplayerOptions.button", screen);
-        AbstractWidget quitToTitle = ButtonHelper.findButton("menu.returnToMenu", screen);
-        if (!Config.instance().moveButtonsOnPauseMenu || options == null || openToLan == null || quitToTitle == null) {
-            // Just add the button bellow the FriendsList button in the corner.
-            // We either didn't find the vanilla pause buttons, or moving these buttons was disabled in our config.
+        AbstractWidget reportBugs = ButtonHelper.findButton("menu.reportBugs", screen);
+        if (!Config.instance().moveButtonsOnPauseMenu || reportBugs == null || reportBugs.getWidth() != reportBugs.getHeight()) {
+            // Preserve the corner placement when opted out or using a custom pause menu.
             Button openToFriends = Button.builder(buttonText, action)
                     .bounds(screen.width - 105, 25, 100, 20)
                     .build();
@@ -70,47 +71,47 @@ public class MineTogetherConnect {
             return;
         }
 
-        int left = options.getX();
-        int fullWidth = Math.max(quitToTitle.getWidth(), options.getWidth());
-        int halfWidth = openToLan.getWidth();
-        int gap = Math.max(0, fullWidth - (halfWidth * 2));
-        int buttonRowStep = quitToTitle.getY() - options.getY();
-        if (buttonRowStep <= 0) {
-            buttonRowStep = options.getHeight() + 4;
-        }
-
-        int connectRowY = quitToTitle.getY();
-
-        // Make Options a full-width row.
-        options.setX(left);
-        options.setWidth(fullWidth);
-
-        // Open To Friends and vanilla Open To LAN share the next row.
-        Button openToFriends = Button.builder(buttonText, action)
-                .bounds(left, connectRowY, halfWidth, openToLan.getHeight())
+        // Include other mods' square buttons in the existing row when recentering it.
+        List<AbstractWidget> iconButtons = children.stream()
+                .filter(AbstractWidget.class::isInstance)
+                .map(AbstractWidget.class::cast)
+                .filter(widget -> widget.getY() == reportBugs.getY()
+                        && widget.getHeight() == reportBugs.getHeight()
+                        && widget.getWidth() == widget.getHeight())
+                .sorted(Comparator.comparingInt(AbstractWidget::getX))
+                .toList();
+        AbstractWidget lastIcon = iconButtons.getLast();
+        SpriteIconButton openToFriends = SpriteIconButton.builder(buttonText, action, true)
+                .size(reportBugs.getWidth(), reportBugs.getHeight())
+                .sprite(Identifier.fromNamespaceAndPath(MineTogether.MOD_ID,
+                        isConnectPublished ? "pause_menu/close_to_friends" : "pause_menu/open_to_friends"), 16, 16)
+                .withTootip()
                 .build();
+        int gap = 4;
+        int rowWidth = iconButtons.stream().mapToInt(AbstractWidget::getWidth).sum()
+                + openToFriends.getWidth() + gap * iconButtons.size();
+        int nextX = (screen.width - rowWidth) / 2;
+        for (AbstractWidget icon : iconButtons) {
+            icon.setX(nextX);
+            nextX += icon.getWidth() + gap;
+        }
+        openToFriends.setX(nextX);
+        openToFriends.setY(reportBugs.getY());
         screen.addRenderableWidget(openToFriends);
-        openToLan.setX(left + halfWidth + gap);
-        openToLan.setY(connectRowY);
-
-        // Move Save and Quit to Title down to make room for the new Connect/LAN row.
-        quitToTitle.setX(left);
-        quitToTitle.setWidth(fullWidth);
-        quitToTitle.setY(quitToTitle.getY() + buttonRowStep);
 
         // Keep keyboard/controller narration order aligned with the visual row order.
-        moveBefore(children, openToFriends, openToLan);
-        moveBefore(renderables, openToFriends, (Renderable) openToLan);
-        moveBefore(narratables, openToFriends, (NarratableEntry) openToLan);
+        moveAfter(children, openToFriends, lastIcon);
+        moveAfter(renderables, openToFriends, (Renderable) lastIcon);
+        moveAfter(narratables, openToFriends, (NarratableEntry) lastIcon);
     }
 
-    private static <T> void moveBefore(List<T> list, T value, T before) {
+    private static <T> void moveAfter(List<T> list, T value, T after) {
         if (!list.remove(value)) {
             return;
         }
-        int index = list.indexOf(before);
+        int index = list.indexOf(after);
         if (index >= 0) {
-            list.add(index, value);
+            list.add(index + 1, value);
         } else {
             list.add(value);
         }
