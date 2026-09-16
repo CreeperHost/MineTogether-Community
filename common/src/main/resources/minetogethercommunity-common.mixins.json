@@ -16,9 +16,7 @@
       "cosmetic.ElytraLayerMixin",
       "cosmetic.PlayerModelEmoteMixin",
       "cosmetic.PlayerRendererMixin",
-      "cosmetic.VanillaCapeLayerMixin",
-      "polylib.ModularGuiInputMixin",
-      "polylib.GuiTextFieldMixin"
+      "cosmetic.VanillaCapeLayerMixin"
     ],
     "server": []
 }
