@@ -42,6 +42,8 @@ public class ConnectHandler {
     private static CompletableFuture<?> activeSearch = null;
     private static List<CFriendServers.ServerEntry> searchResult = null;
     private static int publishedMaxPlayers = -1;
+    private static volatile @Nullable GameType publishedGameType;
+    private static volatile @Nullable Boolean publishedCommands;
 
     private static boolean didWeShareFirst = false;
     private static HostNettyClient.HostConnection publishedServer;
@@ -76,8 +78,18 @@ public class ConnectHandler {
             server.publishedPort = 0; // Doesn't matter, just set to _something_.
             server.setMultiplayerScope(getProxyMultiplayerScope());
         }
-        server.setGameTypeForOtherPlayers(gameType);
-        server.setCommandsAllowedForOtherPlayers(cheats);
+        // 26.3 removed the temporary guest settings. Keep Connect's settings
+        // separate from the saved world's game mode and command permissions.
+        publishedGameType = gameType;
+        publishedCommands = cheats;
+        server.execute(() -> {
+            for (var player : server.getPlayerList().getPlayers()) {
+                if (!server.isSingleplayerOwner(player.nameAndId())) {
+                    player.setGameMode(gameType);
+                }
+                server.getPlayerList().sendPlayerPermissionLevel(player);
+            }
+        });
 
         CompletableFuture.runAsync(() -> {
             try { // TODO, This should be done outside somewhere.
@@ -95,6 +107,8 @@ public class ConnectHandler {
         Minecraft mc = Minecraft.getInstance();
         IntegratedServer server = mc.getSingleplayerServer();
         setPublishedMaxPlayers(-1);
+        publishedGameType = null;
+        publishedCommands = null;
         if (server == null) return;
         // This will yeet the control socket, which, should cause the proxy to sever all other connections.
         if (publishedServer != null) {
@@ -105,10 +119,16 @@ public class ConnectHandler {
             //Un-Share the world.
             server.publishedPort = -1;
             server.setMultiplayerScope(MinecraftServer.MultiplayerScope.OFF);
-            server.gameTypeForOtherPlayers = null;
-            server.commandsAllowedForOtherPlayers = null;
-            server.updateCommandsAllowedForOtherPlayers();
         }
+        server.execute(() -> server.getPlayerList().getPlayers().forEach(server.getPlayerList()::sendPlayerPermissionLevel));
+    }
+
+    public static @Nullable GameType getPublishedGameType() {
+        return publishedGameType;
+    }
+
+    public static @Nullable Boolean getPublishedCommands() {
+        return publishedCommands;
     }
 
     public static boolean isPublished() {

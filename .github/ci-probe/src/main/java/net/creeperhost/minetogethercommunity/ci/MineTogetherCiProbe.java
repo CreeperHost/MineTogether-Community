@@ -1,5 +1,7 @@
 package net.creeperhost.minetogethercommunity.ci;
 
+import com.mojang.blaze3d.platform.InputConstants;
+
 import com.google.common.hash.Hashing;
 import net.creeperhost.minetogethercommunity.MineTogetherClientPlatform;
 import net.creeperhost.minetogethercommunity.cosmetic.CosmeticDownloader;
@@ -279,7 +281,7 @@ public final class MineTogetherCiProbe {
                 if (ticks - phaseTicks > 200) fail("Could not find the vanilla create-world button");
                 return;
             }
-            createButton.onPress(new KeyEvent(257, 0, 0));
+            createButton.onPress(new KeyEvent(InputConstants.KEY_RETURN, InputConstants.KEYCODE_RETURN, 0));
             stopped = true;
             stableTicks = 0;
             marker("singleplayer-create-submitted");
@@ -339,7 +341,7 @@ public final class MineTogetherCiProbe {
                 return;
             }
             marker("connect-ui-pause-control");
-            openButton.onPress(new KeyEvent(257, 0, 0));
+            openButton.onPress(new KeyEvent(InputConstants.KEY_RETURN, InputConstants.KEYCODE_RETURN, 0));
             phaseTicks = ticks;
             chatPhase = 2;
             return;
@@ -552,7 +554,7 @@ public final class MineTogetherCiProbe {
             fail("Could not find vanilla button " + translationKey);
             return;
         }
-        button.onPress(new KeyEvent(257, 0, 0));
+        button.onPress(new KeyEvent(InputConstants.KEY_RETURN, InputConstants.KEYCODE_RETURN, 0));
     }
 
     private static void clickModularButton(ModularGuiScreen screen, String translationKey) {
@@ -565,7 +567,7 @@ public final class MineTogetherCiProbe {
         double x = button.xCenter();
         double y = button.yCenter();
         screen.getModularGui().getRoot().updateMouseOver(x, y, false);
-        MouseButtonEvent event = new MouseButtonEvent(x, y, new MouseButtonInfo(0, 0));
+        MouseButtonEvent event = new MouseButtonEvent(x, y, new MouseButtonInfo(InputConstants.MOUSE_BUTTON_LEFT, 0));
         screen.mouseClicked(event, false);
         screen.mouseReleased(event);
     }
@@ -897,7 +899,7 @@ public final class MineTogetherCiProbe {
             return;
         }
         input.setValue(message);
-        if (!screen.keyPressed(new KeyEvent(257, 0, 0))) { // GLFW_KEY_ENTER
+        if (!screen.keyPressed(new KeyEvent(InputConstants.KEY_RETURN, InputConstants.KEYCODE_RETURN, 0))) {
             fail("The vanilla ChatScreen did not handle the Enter key");
         }
     }

@@ -81,16 +81,16 @@ public abstract class PlayerRendererMixin {
             poseStack.translate(0.0F, translateY, 0.0F);
         }
         if (pose.renderYaw() != 0.0F) {
-            poseStack.mulPose(Axis.YP.rotation(pose.renderYaw()));
+            poseStack.rotate(Axis.YP.rotation(pose.renderYaw()));
         }
         if (pose.renderRoll() != 0.0F) {
             poseStack.translate(0.0F, EMOTE_SHOULDER_PIVOT_Y, 0.0F);
-            poseStack.mulPose(Axis.ZP.rotation(pose.renderRoll()));
+            poseStack.rotate(Axis.ZP.rotation(pose.renderRoll()));
             poseStack.translate(0.0F, -EMOTE_SHOULDER_PIVOT_Y, 0.0F);
         }
         if (pose.renderPitch() != 0.0F) {
             poseStack.translate(0.0F, EMOTE_SHOULDER_PIVOT_Y, 0.0F);
-            poseStack.mulPose(Axis.XP.rotation(pose.renderPitch()));
+            poseStack.rotate(Axis.XP.rotation(pose.renderPitch()));
             poseStack.translate(0.0F, -EMOTE_SHOULDER_PIVOT_Y, 0.0F);
         }
     }

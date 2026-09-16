@@ -14,7 +14,6 @@ import net.creeperhost.polylib.event.events.client.PolyClientTickEvents;
 import net.minecraft.client.KeyMapping;
 import net.minecraft.client.Minecraft;
 import net.minecraft.resources.Identifier;
-import org.lwjgl.glfw.GLFW;
 
 import java.util.List;
 
@@ -25,11 +24,11 @@ public class Keybindings {
 
     private static final KeyMapping.Category CATEGORY = KeyMapping.Category.register(Identifier.fromNamespaceAndPath(MineTogether.MOD_ID, "main"));
 
-    public static final KeyMapping OPEN_FRIEND_CHAT = new KeyMapping("key.minetogether.friend_chat", InputConstants.Type.KEYSYM, InputConstants.UNKNOWN.getValue(), CATEGORY);
-    public static final KeyMapping OPEN_GLOBAL_CHAT = new KeyMapping("key.minetogether.global_chat", InputConstants.Type.KEYSYM, InputConstants.UNKNOWN.getValue(), CATEGORY);
-    public static final KeyMapping OPEN_SETTINGS = new KeyMapping("key.minetogether.settings", InputConstants.Type.KEYSYM, InputConstants.UNKNOWN.getValue(), CATEGORY);
-    public static final KeyMapping OPEN_COSMETICS = new KeyMapping("key.minetogether.cosmetics", InputConstants.Type.KEYSYM, GLFW.GLFW_KEY_C, CATEGORY);
-    public static final KeyMapping OPEN_EMOTES = new KeyMapping("key.minetogether.emotes", InputConstants.Type.KEYSYM, InputConstants.UNKNOWN.getValue(), CATEGORY);
+    public static final KeyMapping OPEN_FRIEND_CHAT = new KeyMapping("key.minetogether.friend_chat", InputConstants.Type.KEYBOARD, InputConstants.UNKNOWN.getValue(), CATEGORY);
+    public static final KeyMapping OPEN_GLOBAL_CHAT = new KeyMapping("key.minetogether.global_chat", InputConstants.Type.KEYBOARD, InputConstants.UNKNOWN.getValue(), CATEGORY);
+    public static final KeyMapping OPEN_SETTINGS = new KeyMapping("key.minetogether.settings", InputConstants.Type.KEYBOARD, InputConstants.UNKNOWN.getValue(), CATEGORY);
+    public static final KeyMapping OPEN_COSMETICS = new KeyMapping("key.minetogether.cosmetics", InputConstants.Type.KEYBOARD, InputConstants.KEY_C, CATEGORY);
+    public static final KeyMapping OPEN_EMOTES = new KeyMapping("key.minetogether.emotes", InputConstants.Type.KEYBOARD, InputConstants.UNKNOWN.getValue(), CATEGORY);
     public static final KeyMapping[] PLAY_FAVORITE_EMOTES = createFavoriteEmoteMappings();
     private static boolean wasAttackDown;
     private static boolean wasUseDown;
@@ -90,7 +89,7 @@ public class Keybindings {
     private static KeyMapping[] createFavoriteEmoteMappings() {
         KeyMapping[] mappings = new KeyMapping[EmoteFavorites.MAX_FAVORITES];
         for (int i = 0; i < mappings.length; i++) {
-            mappings[i] = new KeyMapping("key.minetogether.emote_favorite_" + (i + 1), InputConstants.Type.KEYSYM, InputConstants.UNKNOWN.getValue(), CATEGORY);
+            mappings[i] = new KeyMapping("key.minetogether.emote_favorite_" + (i + 1), InputConstants.Type.KEYBOARD, InputConstants.UNKNOWN.getValue(), CATEGORY);
         }
         return mappings;
     }

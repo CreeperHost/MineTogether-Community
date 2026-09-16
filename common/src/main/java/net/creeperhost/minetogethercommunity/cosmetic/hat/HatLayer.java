@@ -59,8 +59,7 @@ public class HatLayer extends RenderLayer<AvatarRenderState, PlayerModel> {
                     OverlayTexture.NO_OVERLAY,
                     -1,
                     null,
-                    state.outlineColor,
-                    null
+                    state.outlineColor
             );
         }
         poseStack.popPose();

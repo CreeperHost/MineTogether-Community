@@ -1,5 +1,7 @@
 package net.creeperhost.minetogethercommunity.cosmetic.emote;
 
+import com.mojang.blaze3d.platform.InputConstants;
+
 import net.creeperhost.minetogethercommunity.cosmetic.CosmeticDownloader;
 import net.creeperhost.minetogethercommunity.cosmetic.CosmeticItem;
 import net.minecraft.client.gui.GuiGraphicsExtractor;
@@ -113,7 +115,7 @@ public class EmoteRadialScreen extends Screen {
     @Override
     public boolean mouseClicked(MouseButtonEvent event, boolean doubleClick) {
         int selected = selectedIndex((int) event.x(), (int) event.y());
-        if (event.button() == 0 && selected >= 0 && selected < emotes.size()) {
+        if (event.button() == InputConstants.MOUSE_BUTTON_LEFT && selected >= 0 && selected < emotes.size()) {
             EmotePlayer.playLocal(emotes.get(selected).id());
             onClose();
             return true;

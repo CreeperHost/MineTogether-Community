@@ -29,7 +29,7 @@ import net.creeperhost.polylib.event.events.client.PolyClientEntityEvents;
 import net.creeperhost.polylib.event.events.client.PolyClientLifecycleEvents;
 import net.creeperhost.polylib.event.events.client.PolyClientPlayerEvents;
 import net.creeperhost.polylib.event.events.client.PolyScreenEvents;
-import net.minecraft.util.Util;
+import com.mojang.blaze3d.Blaze3D;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.components.AbstractWidget;
 import net.minecraft.client.gui.components.Button;
@@ -161,11 +161,11 @@ public class MineTogetherClient {
                             String s = Config.instance().issueTrackerUrl;
                             Minecraft.getInstance().gui.setScreen(new ConfirmLinkScreen((p_213069_2_) -> {
                                 if (p_213069_2_) {
-                                    Util.getPlatform().openUri(s);
+                                    Blaze3D.openUri(java.net.URI.create(s));
                                 }
 
                                 Minecraft.getInstance().gui.setScreen(screen);
-                            }, s, true));
+                            }, java.net.URI.create(s), true));
                         };
                 Button ourBugsButton;
                 if (isCompactIconButton(bugs)) {

@@ -18,7 +18,7 @@ import net.creeperhost.polylib.client.modulargui.lib.GuiProvider;
 import net.creeperhost.polylib.client.modulargui.lib.SliderState;
 import net.creeperhost.polylib.client.modulargui.lib.geometry.Axis;
 import net.minecraft.ChatFormatting;
-import net.minecraft.util.Util;
+import com.mojang.blaze3d.Blaze3D;
 import net.minecraft.client.gui.screens.ConfirmLinkScreen;
 import net.minecraft.client.server.IntegratedServer;
 import net.minecraft.network.chat.CommonComponents;
@@ -264,11 +264,11 @@ public class GuiShareToFriends implements GuiProvider {
     private void openLink(ModularGui gui, String url) {
         gui.mc().gui.setScreen(new ConfirmLinkScreen((bl) -> {
             if (bl) {
-                Util.getPlatform().openUri(url);
+                Blaze3D.openUri(java.net.URI.create(url));
             }
 
             gui.mc().gui.setScreen(gui.getScreen());
-        }, url, true));
+        }, java.net.URI.create(url), true));
     }
 
     public static class Screen extends ModularGuiScreen {

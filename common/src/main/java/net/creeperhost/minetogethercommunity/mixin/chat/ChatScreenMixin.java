@@ -1,5 +1,7 @@
 package net.creeperhost.minetogethercommunity.mixin.chat;
 
+import com.mojang.blaze3d.platform.InputConstants;
+
 import net.creeperhost.minetogethercommunity.MineTogether;
 import net.creeperhost.minetogethercommunity.chat.gui.ChatScreenInjection;
 import net.creeperhost.minetogethercommunity.chat.gui.ChatScreenTickHandler;
@@ -243,7 +245,7 @@ abstract class ChatScreenMixin extends Screen implements ChatScreenTickHandler {
         if (!MineTogetherChat.isChatEnabled() || Minecraft.getInstance().gui.hud.isHidden()) return;
 
         //Link clicks get blocked by our tryClickMTChat function, so we need to do it ourselves here.
-        if (MineTogetherChat.getTarget() == ChatTarget.PUBLIC && button == 0) {
+        if (MineTogetherChat.getTarget() == ChatTarget.PUBLIC && button == InputConstants.MOUSE_BUTTON_LEFT) {
             if (style != null && !MessageFormatter.isClickName(style.getClickEvent()) && this.handleComponentClicked(style, false)) {
                 this.initial = this.input.getValue();
                 cir.setReturnValue(true);

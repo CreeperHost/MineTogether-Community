@@ -39,8 +39,7 @@ public class CapeLayer extends RenderLayer<AvatarRenderState, PlayerModel> {
                 RenderTypes.entityTranslucent(cape.texture()),
                 lightCoords,
                 OverlayTexture.NO_OVERLAY,
-                state.outlineColor,
-                null
+                state.outlineColor
         );
     }
 }

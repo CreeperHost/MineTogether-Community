@@ -113,7 +113,7 @@ public class MessageElement extends GuiElement<MessageElement> implements Foregr
         if (event == null) return false;
 
         if (!friendUI && MessageFormatter.isClickName(event) && message.sender != null && message.sender != MineTogetherChat.getOurProfile()) {
-            if (LocalConfig.instance().shiftClickMention && button == 0 && Minecraft.getInstance().hasShiftDown()) {
+            if (LocalConfig.instance().shiftClickMention && button == GuiButton.LEFT_CLICK && Minecraft.getInstance().hasShiftDown()) {
                 mention(message);
                 return true;
             }

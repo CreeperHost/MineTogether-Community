@@ -24,7 +24,7 @@ import net.creeperhost.polylib.client.modulargui.lib.geometry.Axis;
 import net.creeperhost.polylib.client.modulargui.lib.geometry.Constraint;
 import net.creeperhost.polylib.client.modulargui.sprite.Material;
 import net.minecraft.ChatFormatting;
-import net.minecraft.util.Util;
+import com.mojang.blaze3d.Blaze3D;
 import net.minecraft.client.renderer.texture.TextureAtlasSprite;
 import net.minecraft.network.chat.Component;
 import org.apache.logging.log4j.LogManager;
@@ -582,7 +582,7 @@ public class OrderGui implements GuiProvider {
             processingShowCloseButton = true;
             setProcessing(Component.translatable("minetogether:gui.button.invoice"), () -> {
                 try {
-                    Util.getPlatform().openUri(new URI(getPaymentLink(invoiceID)));
+                    Blaze3D.openUri(new URI(getPaymentLink(invoiceID)));
                 } catch (Throwable throwable) {
                     gui.mc().keyboardHandler.setClipboard(getPaymentLink(invoiceID));
                     processingText = Component.literal("Something went wrong while attempting to open the link,\nSo the link has been copied to your clipboard.");

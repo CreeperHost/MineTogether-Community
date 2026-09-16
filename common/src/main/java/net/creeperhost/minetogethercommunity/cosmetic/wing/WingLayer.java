@@ -56,8 +56,8 @@ public class WingLayer extends RenderLayer<AvatarRenderState, PlayerModel> {
     private void renderWingSide(PoseStack poseStack, SubmitNodeCollector submitNodeCollector, int renderLight, boolean fullBright, Wing wing, WingPlacement placement, boolean mirrored, float flapAngle) {
         poseStack.pushPose();
         poseStack.translate((mirrored ? -placement.hingeXPixels() : placement.hingeXPixels()) / 16.0F, 0.0F, 0.0F);
-        poseStack.mulPose(Axis.YP.rotationDegrees(mirrored ? flapAngle : -flapAngle));
-        poseStack.mulPose(Axis.ZP.rotationDegrees(mirrored ? -placement.restTiltDegrees() : placement.restTiltDegrees()));
+        poseStack.rotate(Axis.YP.rotationDegrees(mirrored ? flapAngle : -flapAngle));
+        poseStack.rotate(Axis.ZP.rotationDegrees(mirrored ? -placement.restTiltDegrees() : placement.restTiltDegrees()));
         if (mirrored) {
             poseStack.scale(-1.0F, 1.0F, 1.0F);
         }

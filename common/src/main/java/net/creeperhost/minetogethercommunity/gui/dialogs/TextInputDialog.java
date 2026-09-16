@@ -95,6 +95,7 @@ public class TextInputDialog extends GuiElement<TextInputDialog> implements Back
     }
 
     public void close(){
+        textField.setFocus(false);
         getParent().removeChild(this);
     }
 

@@ -1,5 +1,7 @@
 package net.creeperhost.minetogethercommunity.chat.gui;
 
+import com.mojang.blaze3d.platform.InputConstants;
+
 import net.creeperhost.minetogethercommunity.chat.MessageDropdownOption;
 import net.creeperhost.minetogethercommunity.chat.MineTogetherChat;
 import net.creeperhost.minetogethercommunity.config.LocalConfig;
@@ -86,7 +88,7 @@ public class ChatScreenInjection implements GuiProvider {
     }
 
     public void openMessageDialog(Message message, EditBox input, double mouseX, double mouseY, int button) {
-        if (LocalConfig.instance().shiftClickMention && button == 0 && Minecraft.getInstance().hasShiftDown()) {
+        if (LocalConfig.instance().shiftClickMention && button == InputConstants.MOUSE_BUTTON_LEFT && Minecraft.getInstance().hasShiftDown()) {
             mention(input, message);
             return;
         }
