@@ -310,7 +310,7 @@ public final class MineTogetherCiProbe {
         }
     }
 
-    private static void tickConnectUi(Minecraft minecraft) {
+    private static void tickConnectUi(Minecraft minecraft) throws ReflectiveOperationException {
         if (chatPhase == 0) {
             if (!MineTogetherConnect.isInitted) {
                 fail("MineTogether Connect was not initialized in singleplayer");
@@ -355,9 +355,78 @@ public final class MineTogetherCiProbe {
             translated("minetogether.connect.open.settings");
             translated("minetogether.connect.open.max_players");
             translated("minetogether.connect.open.start");
+            verifyPortedInput((GuiShareToFriends.Screen) minecraft.gui.screen());
+            verifyGuestSettings(minecraft);
             marker("connect-ui-settings-ready");
             success(minecraft);
         }
+    }
+
+    private static void verifyPortedInput(GuiShareToFriends.Screen screen) throws ReflectiveOperationException {
+        var gui = screen.getModularGui();
+        Field gameMode = GuiShareToFriends.class.getDeclaredField("gameMode");
+        gameMode.setAccessible(true);
+        var before = (net.minecraft.world.level.GameType) gameMode.get(gui.getProvider());
+        String label = Component.translatable("selectWorld.gameMode").getString() + ": " + before.getShortDisplayName().getString();
+        GuiButton button = findModularButton(gui.getRoot().getChildren(), label);
+        if (button == null) throw new IllegalStateException("Game mode button missing");
+        double x = button.xCenter();
+        double y = button.yCenter();
+        gui.getRoot().updateMouseOver(x, y, false);
+        for (int mouseButton : new int[]{InputConstants.MOUSE_BUTTON_RIGHT, InputConstants.MOUSE_BUTTON_LEFT}) {
+            MouseButtonEvent event = new MouseButtonEvent(x, y, new MouseButtonInfo(mouseButton, 0));
+            screen.mouseClicked(event, false);
+            screen.mouseReleased(event);
+            boolean changed = gameMode.get(gui.getProvider()) != before;
+            if (changed != (mouseButton == InputConstants.MOUSE_BUTTON_LEFT)) {
+                throw new IllegalStateException("Incorrect SDL mouse button handling: " + mouseButton);
+            }
+        }
+
+        var dialog = new net.creeperhost.minetogethercommunity.gui.dialogs.TextInputDialog(gui.getRoot(), Component.literal("Input probe"));
+        long window = Minecraft.getInstance().getWindow().handle();
+        if (!org.lwjgl.sdl.SDLKeyboard.SDL_TextInputActive(window)) {
+            throw new IllegalStateException("Focusing a PolyLib text field did not enable SDL text input");
+        }
+        dialog.close();
+        if (org.lwjgl.sdl.SDLKeyboard.SDL_TextInputActive(window)) {
+            throw new IllegalStateException("Closing the text dialog left SDL text input enabled");
+        }
+        marker("connect-ui-sdl-input");
+    }
+
+    private static void verifyGuestSettings(Minecraft minecraft) throws ReflectiveOperationException {
+        var server = minecraft.getSingleplayerServer();
+        var worldMode = server.getWorldData().getGameType();
+        boolean worldCommands = server.getWorldData().isAllowCommands();
+        int port = server.publishedPort;
+        var scope = server.getMultiplayerScope();
+        Field mode = ConnectHandler.class.getDeclaredField("publishedGameType");
+        Field commands = ConnectHandler.class.getDeclaredField("publishedCommands");
+        mode.setAccessible(true);
+        commands.setAccessible(true);
+        var guest = net.minecraft.server.players.NameAndId.createOffline("CiGuestPermissions");
+        try {
+            server.publishedPort = 0;
+            server.setMultiplayerScope(net.minecraft.server.MinecraftServer.MultiplayerScope.LAN);
+            mode.set(null, net.minecraft.world.level.GameType.ADVENTURE);
+            for (boolean allowCommands : new boolean[]{false, true}) {
+                commands.set(null, allowCommands);
+                if (server.getForcedGameType() != net.minecraft.world.level.GameType.ADVENTURE
+                        || server.getProfilePermissions(guest).hasPermission(net.minecraft.server.permissions.Permissions.COMMANDS_GAMEMASTER) != allowCommands) {
+                    throw new IllegalStateException("Connect guest settings were not applied");
+                }
+                if (server.getWorldData().getGameType() != worldMode || server.getWorldData().isAllowCommands() != worldCommands) {
+                    throw new IllegalStateException("Connect guest settings modified the saved world settings");
+                }
+            }
+        } finally {
+            mode.set(null, null);
+            commands.set(null, null);
+            server.publishedPort = port;
+            server.setMultiplayerScope(scope);
+        }
+        marker("connect-ui-guest-settings");
     }
 
     private static void tickConnectHost(Minecraft minecraft) throws ReflectiveOperationException {
