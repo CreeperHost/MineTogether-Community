@@ -42,6 +42,12 @@ neoForge {
             client()
             gameDirectory = this.mkdir(this.file("runs/client"))
         }
+        clientLogin {
+            client()
+            devLogin = true
+            ideName = "NeoForge Client DevLogin (${project.path})"
+            gameDirectory = this.mkdir(this.file("runs/client"))
+        }
         server {
             server()
             this.file("runs/server").createParentDirectories()

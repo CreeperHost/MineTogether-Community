@@ -10,6 +10,7 @@ dependencies {
     implementation "net.fabricmc:fabric-loader:${fabric_loader_version}"
     implementation "net.fabricmc.fabric-api:fabric-api:${fabric_version}"
     implementation("${polylib_group}:polylib-fabric:${polylib_version}") { transitive = false }
+    localRuntime 'net.covers1624:DevLogin:0.1.0.5'
 
     implementation "blue.endless:jankson:${jankson_version}"
     implementation("net.creeperhost:MineTogetherLib:${mtlib_version}") {
@@ -58,6 +59,12 @@ loom {
             setConfigName('Fabric Client')
             ideConfigGenerated(true)
             runDir('runs/client')
+        }
+        clientLogin {
+            inherit client
+            setConfigName('Fabric Client DevLogin')
+            mainClass.set('net.covers1624.devlogin.DevLogin')
+            programArgs '--launch_target', 'net.fabricmc.loader.impl.launch.knot.KnotClient'
         }
         server {
             server()
