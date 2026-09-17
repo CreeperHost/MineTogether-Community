@@ -16,7 +16,7 @@
         "issues": "https://github.com/CreeperHost/MineTogether/issues"
     },
     "license": "${license}",
-    "icon": "",
+    "icon": "assets/minetogethercommunity/textures/minetogether.png",
     "environment": "*",
     "accessWidener": "minetogethercommunity.accesswidener",
     "entrypoints": {

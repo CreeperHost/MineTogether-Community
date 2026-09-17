@@ -7,6 +7,7 @@ license = "${license}"
     modId = "${mod_id}"
     version = "${version}"
     displayName = "${mod_name}"
+    iconFile = "assets/minetogethercommunity/textures/minetogether.png"
     authors = "${mod_author}"
     credits = "${credits}"
     description = '''${description}'''
