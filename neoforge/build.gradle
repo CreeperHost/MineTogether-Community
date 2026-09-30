@@ -48,6 +48,13 @@ neoForge {
             ideName = "NeoForge Client DevLogin (${project.path})"
             gameDirectory = this.mkdir(this.file("runs/client"))
         }
+        clientManualLoginTest {
+            client()
+            devLogin = true
+            ideName = "NeoForge Manual Login Test (${project.path})"
+            systemProperty('minetogether.auth.manual.simulateFailure', 'true')
+            gameDirectory = this.mkdir(this.file("runs/client"))
+        }
         server {
             server()
             this.file("runs/server").createParentDirectories()

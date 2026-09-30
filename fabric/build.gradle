@@ -66,6 +66,11 @@ loom {
             mainClass.set('net.covers1624.devlogin.DevLogin')
             programArgs '--launch_target', 'net.fabricmc.loader.impl.launch.knot.KnotClient'
         }
+        clientManualLoginTest {
+            inherit clientLogin
+            setConfigName('Fabric Manual Login Test')
+            vmArg '-Dminetogether.auth.manual.simulateFailure=true'
+        }
         server {
             server()
             setConfigName('Fabric Server')

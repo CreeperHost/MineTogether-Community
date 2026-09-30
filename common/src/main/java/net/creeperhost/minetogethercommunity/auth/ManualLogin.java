@@ -59,21 +59,25 @@ public final class ManualLogin {
 
     public static void init() {
         MineTogetherSession session = MineTogetherSession.getDefault();
-        if (session.isOffline()) {
-            STATE.set(State.UNAVAILABLE);
-            return;
+        boolean simulateFailure = ManualLoginCheck.isSimulationEnabled();
+        if (simulateFailure) {
+            LOGGER.warn("Manual login test mode: simulating automatic authentication failure; saved sessions are unchanged.");
         }
 
-        session.getTokenAsync().whenComplete((token, error) -> {
-            if (token != null) {
+        ManualLoginCheck.check(session.isOffline(), simulateFailure, session::getTokenAsync).thenAccept(result -> {
+            if (result.outcome() == ManualLoginCheck.Outcome.UNAVAILABLE) {
+                STATE.set(State.UNAVAILABLE);
+                return;
+            }
+            if (result.outcome() == ManualLoginCheck.Outcome.AUTHENTICATED) {
                 STATE.set(State.AUTHENTICATED);
                 return;
             }
 
-            if (error == null) {
+            if (result.error() == null) {
                 LOGGER.warn("Automatic MineTogether authentication returned no session token. Manual login is available.");
             } else {
-                LOGGER.warn("Automatic MineTogether authentication failed. Manual login is available.", error);
+                LOGGER.warn("Automatic MineTogether authentication failed. Manual login is available.", result.error());
             }
             STATE.set(State.AVAILABLE);
             Minecraft.getInstance().execute(ManualLogin::offerOnCurrentTitleScreen);
