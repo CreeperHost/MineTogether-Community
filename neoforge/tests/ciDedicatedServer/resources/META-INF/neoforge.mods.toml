@@ -1,0 +1,16 @@
+modLoader = "javafml"
+loaderVersion = "[1,)"
+license = "All Rights Reserved"
+
+[[mods]]
+modId = "minetogether_server_test"
+version = "1.0.0"
+displayName = "MineTogether Dedicated Server Test"
+description = '''CI-only dedicated server startup, ticking, and shutdown checks.'''
+
+[[dependencies.minetogether_server_test]]
+modId = "minetogethercommunity"
+type = "required"
+versionRange = "[0,)"
+ordering = "AFTER"
+side = "SERVER"

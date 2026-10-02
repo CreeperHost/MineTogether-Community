@@ -1,0 +1,131 @@
+// CI-only client/probe: never included in the published mod or normal IDE runs.
+gradle.beforeProject { project ->
+    if (!(project.path in [':neoforge', ':fabric'])) return
+    def isNeoForge = project.path == ':neoforge'
+    // Configure after the build declares Minecraft's version, before loader plugins finalize runs.
+    project.afterEvaluate {
+        def root = project.rootProject
+
+        def sourceSets = project.extensions.getByType(org.gradle.api.tasks.SourceSetContainer)
+        def main = sourceSets.getByName('main')
+        def authenticated = project.providers.gradleProperty('ciAuthenticated').orElse('true').get().toBoolean()
+        def probe = sourceSets.create('ciTitleScreenshot')
+        probe.java.setSrcDirs([root.file('common/tests/reporting/java'),
+                              root.file('common/tests/ciTitleScreenshot/java'), project.file('tests/ciTitleScreenshot/java')])
+        probe.resources.setSrcDirs(['tests/ciTitleScreenshot/resources'])
+        probe.compileClasspath += main.output + main.compileClasspath
+        probe.runtimeClasspath += main.output + main.runtimeClasspath
+
+        def reportTests = sourceSets.create('ciReportingTest')
+        reportTests.java.setSrcDirs([root.file('common/tests/ciReportingTest/java')])
+        reportTests.resources.setSrcDirs([])
+        reportTests.compileClasspath += probe.output + main.compileClasspath
+        reportTests.runtimeClasspath += probe.output
+        project.dependencies.add(reportTests.implementationConfigurationName, 'org.junit.jupiter:junit-jupiter-api:5.8.2')
+        project.dependencies.add(reportTests.implementationConfigurationName, 'net.covers1624:DevLogin:0.1.0.5')
+        project.dependencies.add(reportTests.runtimeOnlyConfigurationName, 'org.junit.jupiter:junit-jupiter-engine:5.8.2')
+        project.dependencies.add(reportTests.runtimeOnlyConfigurationName, 'org.junit.platform:junit-platform-launcher:1.8.2')
+        project.dependencies.add(reportTests.runtimeOnlyConfigurationName, 'com.google.code.gson:gson:2.10.1')
+        project.tasks.register('ciReportingTest', Test) {
+            testClassesDirs = reportTests.output.classesDirs
+            classpath = reportTests.runtimeClasspath
+            useJUnitPlatform()
+        }
+
+        def output = root.layout.buildDirectory.dir("title-screen/${project.name}").get().asFile
+        def prepare = project.tasks.register('prepareTitleScreenOptions') {
+            doLast {
+                def gameDir = new File(output, 'run')
+                gameDir.mkdirs()
+                // Worlds belong only to this disposable CI instance.
+                def saves = new File(gameDir, 'saves').canonicalFile
+                if (!saves.toPath().startsWith(output.canonicalFile.toPath())) throw new GradleException('Invalid CI world directory')
+                project.delete(saves)
+                // This isolated instance has no launcher/modpack. Match selecting "Custom / unknown".
+                def localConfig = new File(gameDir, 'local/minetogether/minetogethercommunity.json')
+                localConfig.parentFile.mkdirs()
+                localConfig.text = '{"connectPackPrompted":true,"connectPackBypass":true}\n'
+                new File(gameDir, 'options.txt').text = '''onboardAccessibility:false
+maxFps:30
+renderDistance:4
+simulationDistance:5
+enableVsync:false
+fullscreen:false
+guiScale:2
+'''
+                // A failed rerun must never upload a screenshot from an earlier run.
+                new File(output, 'title-screen.png').delete()
+                new File(output, 'friends-screen.png').delete()
+                new File(output, 'chat-screen.png').delete()
+                new File(output, 'success.txt').delete()
+                new File(output, 'results.json').delete()
+                new File(output, 'discord-sent.txt').delete()
+                new File(output, 'failure.png').delete()
+                new File(output, 'failure.txt').delete()
+            }
+        }
+
+        def signature = System.getenv('SIGNATURE')?.trim()
+        def properties = [
+                'minetogether.ci.titleScreenOutput': output.absolutePath,
+                'minetogether.ci.loader': isNeoForge ? 'NeoForge' : 'Fabric',
+                'minetogether.ci.requireAuthentication': authenticated.toString(),
+                'minetogether.ci.requireIrc': authenticated.toString(),
+                'minetogether.ci.worldFriends': authenticated.toString(),
+                'minetogether.auth.manual.simulateFailure': 'false',
+                'minetogether.ci.launcher': isNeoForge ? 'net.neoforged.devlaunch.Main' : 'net.covers1624.devlogin.DevLogin'
+        ]
+        if (signature) properties['mt.develop.signature'] = signature
+        def arguments = ['--width', '1280', '--height', '720']
+        if (authenticated) {
+            // Shared between sequential loader runs, separate from IDE profiles and build caches.
+            properties['devlogin.storage'] = System.getenv('MT_CI_DEVLOGIN_DIR') ?:
+                    new File(System.getProperty('user.home'), '.devlogin/minetogether-ci').absolutePath
+            properties['devlogin.launch_profile'] = 'minetogether-ci'
+        } else {
+            arguments.addAll(['--username', 'ScreenshotBot', '--uuid',
+                              '00000000-0000-3000-8000-000000000001', '--accessToken', '0'])
+        }
+
+        if (isNeoForge) {
+            def neoForge = project.extensions.getByName('neoForge')
+            neoForge.mods.create('minetogether_title_screenshot') { sourceSet probe }
+            neoForge.runs.create('ciTitleScreenshot') {
+                client()
+                sourceSet = probe
+                devLogin = authenticated
+                gameDirectory = new File(output, 'run')
+                properties.each { key, value -> systemProperty(key, value) }
+                programArguments.addAll(arguments)
+                taskBefore(prepare)
+            }
+            if (authenticated) {
+                project.tasks.matching { it.name == 'runCiTitleScreenshot' }.configureEach {
+                    mainClass = 'net.creeperhost.minetogethercommunity.tests.DiscordDevLogin'
+                }
+            }
+        } else {
+            def loom = project.extensions.getByName('loom')
+            loom.mods.maybeCreate('minetogethercommunity').sourceSet(main)
+            loom.mods.create('minetogether_title_screenshot') { sourceSet(probe) }
+            loom.runs.create('ciTitleScreenshot') {
+                client()
+                sourceSet.set(probe.name)
+                ideConfigGenerated(false)
+                runDirectory.set(new File(output, 'run'))
+                systemProperties.putAll(properties)
+                programArguments.addAll(arguments)
+                if (authenticated) {
+                    mainClass.set('net.creeperhost.minetogethercommunity.tests.DiscordDevLogin')
+                    systemProperties.put('devlogin.launch_target', 'net.fabricmc.loader.impl.launch.knot.KnotClient')
+                }
+            }
+            project.tasks.register('prepareCiTitleScreenshotRun') {
+                dependsOn(probe.classesTaskName, 'configureLaunch', 'downloadAssets')
+            }
+            project.tasks.matching { it.name == 'runCiTitleScreenshot' }.configureEach {
+                dependsOn(prepare)
+            }
+        }
+    }
+}

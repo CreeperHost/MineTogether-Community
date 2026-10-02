@@ -1,0 +1,52 @@
+name: Minecraft tests
+
+on:
+  workflow_dispatch:
+    inputs:
+      authenticate:
+        description: Sign in and test world/friends UI (requires SIGNATURE and an account with friends)
+        type: boolean
+        default: true
+
+permissions:
+  contents: read
+
+concurrency:
+  group: minecraft-tests-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  tests:
+    name: NeoForge + Fabric full suite
+    runs-on: ubuntu-24.04
+    timeout-minutes: 75
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        id: checkout
+
+      - name: Set up Java
+        id: java
+        uses: actions/setup-java@b6effb05e454b25005698d916606bdc6ffcbf961 # v5
+        with:
+          distribution: temurin
+          java-version: '25'
+
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@ed408507eac070d1f99cc633dbcf757c94c7933a # v4
+
+      - name: Install virtual display and software graphics
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y xvfb xauth libgl1-mesa-dri libglx-mesa0 libasound2t64
+
+      - name: Run all tests and report to Discord
+        # Still run the server checks if graphics installation failed.
+        if: ${{ !cancelled() && steps.checkout.outcome == 'success' && steps.java.outcome == 'success' }}
+        # Never upload/cache plaintext DevLogin files. Local act retains them in their own volume.
+        env:
+          DISCORD_WEBHOOK: ${{ secrets.DISCORD_WEBHOOK }}
+          SIGNATURE: ${{ secrets.SIGNATURE }}
+          CI_AUTHENTICATED: ${{ github.event.inputs.authenticate != 'false' }}
+        run: |
+          sed -i 's/\r$//' gradlew common/tests/run-tests.sh
+          bash common/tests/run-tests.sh

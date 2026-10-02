@@ -1,0 +1,94 @@
+// CI-only dedicated server probes and reporting. Normal runs and published jars are unchanged.
+gradle.beforeProject { project ->
+    if (!(project.path in [':neoforge', ':fabric'])) return
+    project.afterEvaluate {
+        def root = project.rootProject
+        def isNeoForge = project.name == 'neoforge'
+        def loaderName = isNeoForge ? 'NeoForge' : 'Fabric'
+        def sourceSets = project.extensions.getByType(org.gradle.api.tasks.SourceSetContainer)
+        def main = sourceSets.getByName('main')
+        def probe = sourceSets.create('ciDedicatedServer')
+        probe.java.setSrcDirs([root.file('common/tests/reporting/java'),
+                              root.file('common/tests/ciDedicatedServer/java'), project.file('tests/ciDedicatedServer/java')])
+        probe.resources.setSrcDirs(['tests/ciDedicatedServer/resources'])
+        probe.compileClasspath += main.output + main.compileClasspath
+        probe.runtimeClasspath += main.output + main.runtimeClasspath
+
+        def unitTests = sourceSets.create('ciServerUnitTest')
+        unitTests.java.setSrcDirs([root.file('common/tests/ciServerUnitTest/java')])
+        unitTests.resources.setSrcDirs([])
+        unitTests.compileClasspath += probe.output
+        unitTests.runtimeClasspath += probe.output
+        project.dependencies.add(unitTests.implementationConfigurationName, 'org.junit.jupiter:junit-jupiter-api:5.8.2')
+        project.dependencies.add(unitTests.runtimeOnlyConfigurationName, 'org.junit.jupiter:junit-jupiter-engine:5.8.2')
+        project.dependencies.add(unitTests.runtimeOnlyConfigurationName, 'org.junit.platform:junit-platform-launcher:1.8.2')
+        project.tasks.register('ciServerUnitTest', Test) {
+            testClassesDirs = unitTests.output.classesDirs
+            classpath = unitTests.runtimeClasspath
+            useJUnitPlatform()
+        }
+
+        def output = root.layout.buildDirectory.dir("dedicated-server/${project.name}").get().asFile
+        def gameDir = new File(output, 'run')
+        def prepare = project.tasks.register('prepareDedicatedServerOptions') {
+            doLast {
+                // Every run starts with a fresh, disposable world and no stale crash reports.
+                project.delete(gameDir)
+                ['started.txt', 'healthy.txt', 'stopped.txt', 'success.txt', 'failure.txt', 'results.json', 'discord-sent.txt'].each {
+                    project.delete(new File(output, it))
+                }
+                gameDir.mkdirs()
+                new File(gameDir, 'eula.txt').text = 'eula=true\n'
+                new File(gameDir, 'server.properties').text = '''server-ip=127.0.0.1
+server-port=0
+online-mode=true
+view-distance=2
+simulation-distance=2
+max-players=1
+pause-when-empty-seconds=0
+level-seed=0
+'''
+            }
+        }
+        if (isNeoForge) {
+            def neoForge = project.extensions.getByName('neoForge')
+            neoForge.mods.create('minetogether_server_test') { sourceSet probe }
+            neoForge.runs.create('ciDedicatedServer') {
+                server()
+                sourceSet = probe
+                gameDirectory = gameDir
+                systemProperty('minetogether.ci.serverOutput', output.absolutePath)
+                programArguments.add('--nogui')
+                taskBefore(prepare)
+            }
+        } else {
+            def loom = project.extensions.getByName('loom')
+            loom.mods.maybeCreate('minetogethercommunity').sourceSet(main)
+            loom.mods.create('minetogether_server_test') { sourceSet(probe) }
+            loom.runs.create('ciDedicatedServer') {
+                server()
+                sourceSet.set(probe.name)
+                ideConfigGenerated(false)
+                runDirectory.set(gameDir)
+                systemProperties.put('minetogether.ci.serverOutput', output.absolutePath)
+                programArguments.add('--nogui')
+            }
+        }
+
+        def report = project.tasks.register('reportCiDedicatedServer', JavaExec) {
+            classpath = probe.runtimeClasspath
+            mainClass = 'net.creeperhost.minetogethercommunity.tests.ServerTestReport'
+            doFirst {
+                def run = project.tasks.named('runCiDedicatedServer').get()
+                boolean processSucceeded = run.state.executed && run.state.failure == null
+                        && run.executionResult.isPresent() && run.executionResult.get().exitValue == 0
+                setArgs([output.absolutePath, loaderName, processSucceeded.toString()])
+            }
+        }
+        project.tasks.matching { it.name == 'runCiDedicatedServer' }.configureEach {
+            dependsOn(prepare)
+            timeout = java.time.Duration.ofMinutes(5)
+            finalizedBy(report)
+        }
+    }
+}

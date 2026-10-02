@@ -1,0 +1,56 @@
+// Compile reusable client probes and test the local Connect service without launching Minecraft.
+gradle.projectsEvaluated {
+    def root = gradle.rootProject
+    def commonProject = root.findProject(':common')
+    if (commonProject == null) return // Init scripts also apply to buildSrc.
+
+    def sourceSets = commonProject.extensions.getByType(org.gradle.api.tasks.SourceSetContainer)
+    def service = sourceSets.create('ciConnectService')
+    service.java.setSrcDirs([root.file('common/tests/connect-service/src/main/java')])
+    def serviceTests = sourceSets.create('ciConnectServiceTest')
+    serviceTests.java.setSrcDirs([root.file('common/tests/connect-service/src/test/java')])
+    serviceTests.compileClasspath += service.output + service.compileClasspath
+    serviceTests.runtimeClasspath += service.output + service.runtimeClasspath
+
+    def addDependency = { String configuration, String coordinate, boolean transitive = true ->
+        def dependency = commonProject.dependencies.create(coordinate)
+        dependency.transitive = transitive
+        commonProject.dependencies.add(configuration, dependency)
+    }
+    addDependency(service.implementationConfigurationName,
+            "net.creeperhost:MTConnectProxyCommon:${root.property('mtproxy_version')}", false)
+    addDependency(service.implementationConfigurationName, 'net.covers1624:Quack:0.4.10.101', false)
+    addDependency(service.implementationConfigurationName, 'io.netty:netty-handler:4.1.82.Final')
+    addDependency(service.implementationConfigurationName, 'com.google.guava:guava:31.1-jre')
+    addDependency(service.implementationConfigurationName, 'org.apache.logging.log4j:log4j-core:2.19.0')
+    addDependency(service.compileOnlyConfigurationName, 'org.jetbrains:annotations:23.1.0')
+    addDependency(serviceTests.implementationConfigurationName, 'org.junit.jupiter:junit-jupiter-api:5.8.2')
+    addDependency(serviceTests.runtimeOnlyConfigurationName, 'org.junit.jupiter:junit-jupiter-engine:5.8.2')
+    addDependency(serviceTests.runtimeOnlyConfigurationName, 'org.junit.platform:junit-platform-launcher:1.8.2')
+
+    def serviceTest = commonProject.tasks.register('ciConnectServiceTest', Test) {
+        group = 'verification'
+        description = 'Tests the local Connect service without production services or Minecraft.'
+        testClassesDirs = serviceTests.output.classesDirs
+        classpath = serviceTests.runtimeClasspath
+        useJUnitPlatform()
+    }
+    commonProject.tasks.named('check') { dependsOn(serviceTest) }
+
+    root.property('enabled_platforms').toString().split(',').each { platform ->
+        def loader = platform.trim()
+        def loaderProject = root.project(":" + loader)
+        def loaderSourceSets = loaderProject.extensions.getByType(org.gradle.api.tasks.SourceSetContainer)
+        def main = loaderSourceSets.getByName('main')
+        def probe = loaderSourceSets.create('ciProbe')
+        probe.java.setSrcDirs([
+                root.file('common/tests/ciProbe/java'),
+                root.file("${loader}/tests/ciProbe/java")
+        ])
+        probe.resources.setSrcDirs([root.file("${loader}/tests/ciProbe/resources")])
+        probe.compileClasspath += main.output + main.compileClasspath
+        probe.runtimeClasspath += main.output + main.runtimeClasspath
+        // Retain compilation checks while the scenarios await a new runtime runner.
+        loaderProject.tasks.named('check') { dependsOn(probe.classesTaskName) }
+    }
+}

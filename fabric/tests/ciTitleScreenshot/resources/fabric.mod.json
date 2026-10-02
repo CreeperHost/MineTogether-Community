@@ -1,0 +1,13 @@
+{
+  "schemaVersion": 1,
+  "id": "minetogether_title_screenshot",
+  "version": "1.0.0",
+  "name": "MineTogether Client Tests",
+  "environment": "client",
+  "mixins": ["minetogether-client-tests.mixins.json"],
+  "depends": {
+    "fabricloader": ">=0.19.5",
+    "minecraft": "~26.3",
+    "minetogethercommunity": "*"
+  }
+}

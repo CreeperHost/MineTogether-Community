@@ -1,0 +1,15 @@
+// Standalone reporter: does not load Minecraft or launch a client/server.
+gradle.projectsEvaluated {
+    def project = gradle.rootProject.findProject(':common')
+    if (project == null) return
+    def sources = project.sourceSets.create('ciSuiteReport')
+    sources.java.setSrcDirs([project.file('tests/reporting/java')])
+    sources.resources.setSrcDirs([])
+    project.dependencies.add(sources.implementationConfigurationName, 'com.google.code.gson:gson:2.10.1')
+    project.tasks.register('ciSuiteReport', JavaExec) {
+        classpath = sources.runtimeClasspath
+        mainClass = 'net.creeperhost.minetogethercommunity.tests.SuiteReport'
+        args(project.rootProject.layout.buildDirectory.get().asFile.absolutePath,
+                project.providers.gradleProperty('ciLoaders').orElse('all').get())
+    }
+}

@@ -3,6 +3,7 @@
 
 # Include important folders.
 !src/
+!tests/
 
 # Git files
 !.gitignore

@@ -1,0 +1,16 @@
+modLoader = "javafml"
+loaderVersion = "[1,)"
+license = "All Rights Reserved"
+
+[[mods]]
+modId = "minetogether_title_screenshot"
+version = "1.0.0"
+displayName = "MineTogether Title Screen Screenshot"
+description = '''CI-only title screen screenshot capture and test reporting.'''
+
+[[dependencies.minetogether_title_screenshot]]
+modId = "minetogethercommunity"
+type = "required"
+versionRange = "[0,)"
+ordering = "AFTER"
+side = "CLIENT"

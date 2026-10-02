@@ -1,0 +1,16 @@
+{
+  "schemaVersion": 1,
+  "id": "minetogether_server_test",
+  "version": "1.0.0",
+  "name": "MineTogether Dedicated Server Test",
+  "environment": "server",
+  "entrypoints": {
+    "server": ["net.creeperhost.minetogethercommunity.tests.fabric.DedicatedServerTestFabric"]
+  },
+  "depends": {
+    "fabricloader": ">=0.19.5",
+    "fabric-lifecycle-events-v1": "*",
+    "minecraft": "~26.3",
+    "minetogethercommunity": "*"
+  }
+}
