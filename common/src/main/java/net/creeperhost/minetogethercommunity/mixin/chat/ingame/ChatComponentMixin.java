@@ -90,6 +90,6 @@ abstract class ChatComponentMixin {
         int mtHeight = height - creeperSHeight - 4;
         int mtWidth = (int) (mtHeight * (348D / 318D));
 
-        g.blit(RenderPipelines.GUI_TEXTURED, Constants.MINETOGETHER_LOGO_25, x + (int) ((width / 2D) - (mtWidth / 2D)), y, 0.0F, 0.0F, mtWidth, mtHeight, mtWidth, mtHeight, 0x40FFFFFF);
+        g.blit(RenderPipelines.GUI_TEXTURED, Constants.MINETOGETHER_LOGO_SOLID, x + (int) ((width / 2D) - (mtWidth / 2D)), y, 0.0F, 0.0F, mtWidth, mtHeight, mtWidth, mtHeight, 0x40FFFFFF);
     }
 }
